@@ -11,7 +11,7 @@ CodeWorthy is a production simulation and evaluation engine with two application
 
 > **Learn — and prove — that you can ship code a team can trust.**
 
-See [docs/concept.md](docs/concept.md) for the full product thesis, [docs/competency-model.md](docs/competency-model.md) for what we measure, [docs/assessment-loop.md](docs/assessment-loop.md) for the workflow every candidate is tested on, [docs/mvp-architecture.md](docs/mvp-architecture.md) for how the platform delivers and verifies it, and [docs/validation-plan.md](docs/validation-plan.md) for the 30-day validation plan.
+See [docs/concept.md](docs/concept.md) for the full product thesis, [docs/behavior-catalog.md](docs/behavior-catalog.md) for the behaviors and scenarios we measure (and current coverage), [docs/competency-model.md](docs/competency-model.md) for the rating model, [docs/assessment-loop.md](docs/assessment-loop.md) for the workflow every candidate is tested on, [docs/mvp-architecture.md](docs/mvp-architecture.md) for how the platform delivers and verifies it, and [docs/validation-plan.md](docs/validation-plan.md) for the 30-day validation plan.
 
 ## This repository
 

@@ -2,6 +2,8 @@
 
 Production readiness is not one number. Every simulation is scored against the same twelve competencies, and every rating must cite observable evidence from the candidate's work (diff, tests, terminal activity, written reasoning, defense answers).
 
+Competencies are the *ratings*; the concrete scenarios that produce evidence for them live in the [behavior catalog](behavior-catalog.md), grouped by engineering behavior and tiered by where the signal survives AI assistance (collaboration, git safety, emergencies, and ownership differentiate; mechanical implementation and test-running are table stakes that get verified cheaply).
+
 ## Core competencies
 
 | Competency             | What is being measured                                              |
