@@ -23,17 +23,24 @@ Check out the candidate's branch **into `simulations/acme-orders`** (their asses
 ```bash
 npm test                          # their branch: visible suite must be green
 npm run typecheck
-../../evaluation/hidden-tests/run.sh   # hidden suite against their fix
+../../evaluation/hidden-tests/run.sh   # hidden suite against their fix (full output)
+../../evaluation/hidden-tests/run.sh --summary   # candidate-safe summary for their report
 ```
 
-Then verify their regression test actually catches the bug:
+Then the **red/green baseline check** — the core verification. It overlays only
+their test-file changes onto the pristine baseline (must fail) and runs the
+same tests on their branch (must pass):
 
 ```bash
-git stash -- ':!test'   # or: check out baseline src/ with their test/ kept
-npm test                # their regression test MUST fail here
+node ../../evaluation/baseline-check/baseline-check.mjs \
+  --repo . --baseline main --branch <their-branch> \
+  --db-server postgres://acme:acme@localhost:5432 --out baseline-record.json
 ```
 
-Record all results in the report's hidden-evaluation table.
+Only verdict `genuine-regression-test` earns the regression-testing signal;
+`test-theater` (passes on the buggy baseline) is recorded verbatim in the
+report. Attach `baseline-record.json` and the summary output to the report's
+evidence.
 
 ## 2. Read the work (15 min)
 

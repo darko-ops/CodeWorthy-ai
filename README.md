@@ -11,7 +11,7 @@ CodeWorthy is a production simulation and evaluation engine with two application
 
 > **Learn — and prove — that you can ship code a team can trust.**
 
-See [docs/concept.md](docs/concept.md) for the full product thesis, [docs/competency-model.md](docs/competency-model.md) for what we measure, [docs/assessment-loop.md](docs/assessment-loop.md) for the workflow every candidate is tested on, and [docs/validation-plan.md](docs/validation-plan.md) for the 30-day validation plan.
+See [docs/concept.md](docs/concept.md) for the full product thesis, [docs/competency-model.md](docs/competency-model.md) for what we measure, [docs/assessment-loop.md](docs/assessment-loop.md) for the workflow every candidate is tested on, [docs/mvp-architecture.md](docs/mvp-architecture.md) for how the platform delivers and verifies it, and [docs/validation-plan.md](docs/validation-plan.md) for the 30-day validation plan.
 
 ## This repository
 
@@ -26,10 +26,14 @@ This repo contains the **MVP: one great assessment**, plus the evaluation machin
 │       ├── TICKET.md            The bug ticket (with production logs)
 │       └── ...                  A working TypeScript/Node/Postgres app + React dashboard
 ├── evaluation/                  PRIVATE in real assessments — never shipped to candidates
-│   ├── hidden-tests/            Hidden conditions the candidate's fix must survive
+│   ├── baseline-check/          Red/green baseline check — the core automated verification
+│   ├── hidden-tests/            Hidden conditions the candidate's fix must survive (+ candidate-safe summary)
 │   ├── reference-solution/      Maintainer notes + verified reference fix
+│   ├── upstream-change/         The teammate commit that lands on main mid-assessment
+│   ├── candidate-repo/          CI workflow stamped into candidate repositories
+│   ├── proctor-playbook.md      Running one candidate through the loop
 │   ├── rubric.md                Scoring rubric mapped to the competency model
-│   ├── defense-questions.md     AI-led technical defense question bank
+│   ├── defense-questions.md     Technical defense question bank + corroboration rule
 │   ├── report-template.md       Employer-facing competency report
 │   └── grading-workflow.md      How reviewers grade a submission end to end
 └── .github/

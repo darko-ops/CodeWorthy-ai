@@ -10,7 +10,17 @@
 
 _Two to four sentences, plain language: what the candidate did, whether the fix survives production conditions, and the strongest and weakest signals. No recommendation stronger than the evidence._
 
-## Hidden evaluation results
+## Automated verification results
+
+**Red/green baseline check** (`evaluation/baseline-check/`, attach `baseline-record.json`):
+
+| Check | Result |
+| --- | --- |
+| Candidate's test FAILS on pristine baseline | ☐ yes ☐ no |
+| Same test PASSES on candidate's branch | ☐ yes ☐ no |
+| Verdict | ☐ genuine-regression-test ☐ test-theater ☐ broken-on-branch ☐ no-test-changes |
+
+**Hidden evaluation** (attach the `--summary` output; candidates see the summary, never the tests):
 
 | Suite | Result |
 | --- | --- |
@@ -20,7 +30,6 @@ _Two to four sentences, plain language: what the candidate did, whether the fix 
 | Distinct keys still create distinct orders | ☐ pass ☐ fail |
 | No-key checkout unaffected | ☐ pass ☐ fail |
 | Stock / totals / validation regressions | ☐ pass ☐ fail |
-| Candidate's regression test fails on baseline | ☐ yes ☐ no |
 
 ## Workflow events
 
@@ -40,7 +49,9 @@ What actually happened during the loop (facts, before interpretation):
 
 ## Competency profile
 
-Every rating must cite evidence the employer can inspect (line numbers, test names, quoted defense answers). Use **U** for unassessed (ran out of time) — do not score gaps as 1.
+Every rating must cite evidence the employer can inspect (line numbers, test names, quoted defense answers) — a rating that floats without evidence is the opaque-number problem again. Use **U** for unassessed (ran out of time) — do not score gaps as 1.
+
+Candidate-facing copies use developmental labels, never scores or "failed": 5–4 → **Strong**, 3 → **Developing**, 2–1 → **Needs work**, U → **Not assessed**. The evidence line stays a fact about the work ("your test did not fail against simultaneous requests on the baseline"), never a judgment about the person.
 
 | Competency | Rating (1–5/U) | Evidence |
 | --- | --- | --- |

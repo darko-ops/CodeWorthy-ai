@@ -31,11 +31,14 @@ Two more seeded elements (see `evaluation/proctor-playbook.md`): the **recovery 
 - **1** — Breaks existing behavior or visible tests.
 
 ### Regression testing
-- **5** — New test fails on baseline and passes with fix; covers concurrent same-key retry *and* cross-instance/restart; keeps distinct-key behavior covered.
-- **4** — Fails on baseline, covers concurrency **or** cross-instance.
-- **3** — Sequential retry test only (already effectively covered — false security).
-- **2** — Tests pass trivially / would pass on the buggy code.
-- **1** — No meaningful test.
+
+Gated by the red/green baseline check (`evaluation/baseline-check/`): only verdict `genuine-regression-test` (fails on pristine baseline AND passes on the branch) can score above 2. `test-theater` caps this row at 2 regardless of how the tests read.
+
+- **5** — Baseline check passes; covers concurrent same-key retry *and* cross-instance/restart; keeps distinct-key behavior covered.
+- **4** — Baseline check passes; covers concurrency **or** cross-instance.
+- **3** — Baseline check passes but only via a marginal condition; or sequential-only test that happens to fail on baseline for a fragile reason.
+- **2** — `test-theater`: tests would pass on the buggy code.
+- **1** — No meaningful test (`no-test-changes`).
 
 ### Data safety
 - **5** — Additive migration, backwards compatible with the running release (README documents migrate-before-deploy), considers retention/cleanup of key rows, no locking foot-guns.
@@ -91,12 +94,15 @@ Two more seeded elements (see `evaluation/proctor-playbook.md`): the **recovery 
 - **3** — Fix is right but PR asserts rather than explains; some unrelated churn.
 - **1** — Grab-bag diff, template ignored.
 
-### Review response (Stage 9 — Sam's three comments)
-- **5** — Correctness concern: answered with the mechanism (constraint/blocking) or fixed. Redis suggestion: declined with concrete reasons, or a serious tradeoff discussion. Contract concern: compatibility argument grounded in the documented API. Moves the shared work forward on all three.
-- **4** — Sound outcomes on all three; reasoning thinner on one.
-- **3** — Handles the valid concern; accepts or dismisses the Redis suggestion without real evaluation.
-- **2** — Complies with everything including the inferior suggestion, or rejects everything reflexively — blind compliance and blind resistance score the same.
-- **1** — Ignores review, or the responses reveal they don't understand their own change.
+### Review response (Stage 9 — Sam's required Redis thread, plus optional second)
+
+Reply *presence* is live-automated; this row scores reply *quality* (human review), corroborated by the defense's Redis-TTL variant question.
+
+- **5** — Declines the Redis suggestion with concrete failure-mode reasoning (durability, TTL expiry during a provider incident, replay mapping, two sources of truth) or a serious tradeoff discussion; optional second thread handled soundly.
+- **4** — Right outcome, thinner reasoning; holds up under the defense variant.
+- **3** — Accepts or dismisses the suggestion without real evaluation, but the shared work still ends in the right place.
+- **2** — Complies and rewrites around Redis without conviction, or rejects reflexively — blind compliance and blind resistance score the same.
+- **1** — Ignores review, or the response reveals they don't understand their own change.
 
 ### AI collaboration (from disclosure + defense)
 - **5** — Directed AI with context, verified generated code against the failure mode, caught at least one AI mistake or validated a suggestion independently, explains every line.

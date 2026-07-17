@@ -2,6 +2,8 @@
 
 The unit of assessment is not a puzzle, it's a **workflow** — and not a solo workflow. The candidate joins a repository where work is already happening: they investigate an ambiguous problem, create a failing test, recover from a CI failure they didn't plan, incorporate a teammate's change, navigate review, and leave the work safe for someone else to deploy.
 
+(This document defines *what* is tested; [mvp-architecture.md](mvp-architecture.md) defines *how* the platform delivers and verifies it — verification modes, the red/green baseline check, hidden-test isolation, and scoring output.)
+
 The governing principle:
 
 > **Every candidate must encounter uncertainty, visible failure, and another engineer's competing perspective — and recover through the normal team workflow.**
@@ -23,10 +25,10 @@ Two design rules follow from it:
 | 6 | **Recover CI** | One realistic failure they did not directly plan for surfaces in CI. Read the logs, decide "my code or the environment?", correct it | Debugging and resilience |
 | 7 | **Integrate** | A teammate merges a small relevant change into `main` while their PR is open. Notice, understand it, rebase/merge, resolve a small conflict, rerun verification, preserve the teammate's work | Collaborative Git usage |
 | 8 | **Open PR** | Fill every template section: root cause, fix rationale, testing, data changes, risk | Written communication |
-| 9 | **Review** | A reviewer leaves three comments: a valid correctness concern, a plausible-but-inferior suggestion, and a convention/contract concern. Accept, reject with justification, propose alternatives, or ask — through GitHub | Collaboration and ownership |
+| 9 | **Review** | The reviewer opens one required tradeoff thread (plus at most one optional second). Accept, reject with justification, propose alternatives, or ask — through GitHub | Collaboration and ownership |
 | 10 | **Handoff** | Final PR comment written for the teammate who will deploy it: what changed, which migration runs, what to monitor, what triggers rollback, what remains uncertain | Operational teamwork |
 | 11 | **Defend** | Answer ~5 adaptive questions grounded in their actual diff | Understanding |
-| 12 | **Hidden evaluation** | (Candidate absent) Private suite: concurrency, cross-replica, key reuse, regressions; grader verifies the red test fails on baseline | Final technical validity |
+| 12 | **Hidden evaluation** | (Candidate absent) The red/green baseline check (`evaluation/baseline-check/`) mechanically verifies their test fails on the pristine baseline and passes on their branch; the private suite covers concurrency, cross-replica, key reuse, regressions | Final technical validity |
 
 ## CI: mandatory red, green, and recovery
 
@@ -46,11 +48,7 @@ Responding to comments is not teamwork by itself. Four interaction points make t
 
 **A. Requirements clarification.** The ticket carries one genuine product decision, not missing trivia — e.g. *when a duplicate request does arrive, should the second caller receive the original order's response, or an explicit conflict their integration can handle?* Both prevent the duplicate charge; they produce different customer behavior. Asking in the issue is strong; silently choosing but *documenting the assumption and its tradeoff in the PR* is equally strong. Silently choosing without a trace is the weak signal. We score recognition and communication of the decision, not question-asking per se.
 
-**B. Review from another engineer.** After the first complete implementation, the reviewer posts three comments (scripts in `evaluation/proctor-playbook.md`):
-
-1. a **valid correctness concern** — deserves acceptance or a demonstration that it's already handled;
-2. a **plausible but inferior suggestion** — deserves a reasoned decline or a tradeoff discussion;
-3. a **maintainability/contract concern** — deserves a fix or an explicit compatibility argument.
+**B. Review from another engineer.** Minimal by design — one required thread, at most two (scripts in `evaluation/proctor-playbook.md`). The required thread forces a **real tradeoff**, not a cosmetic nit: the reviewer suggests a Redis-based lock, and the strong response identifies lock-expiration and durability risks and argues for the database constraint. Reply *presence* is a live-automated fact; reply *quality* is scored by a human and probed in the defense — the defense, not the thread, carries the anti-gaming weight, because a circulated "right answer" collapses when the candidate must justify it against a variant of the tradeoff.
 
 The goal is not "push back." Blind resistance scores no better than blind compliance. The signal: *can they evaluate feedback independently and move the shared work toward the correct outcome?*
 
@@ -79,7 +77,7 @@ Git and GitHub artifacts are **evidence, not a complete record**. Candidates ame
 |---|---|---|
 | Repo + PR + CI | Real GitHub repo per candidate, Actions CI (`evaluation/candidate-repo/ci.yml`) | Auto-provisioned |
 | Red-phase confirmation | Proctor eyeballs the red run's failure reason | Automated check that failure matches the seeded bug's signature |
-| Review comments | Proctor posts the three scripted comments | AI reviewer generates them from the actual diff |
+| Review comments | Proctor posts the required tradeoff thread (+ optional second) | AI reviewer generates them from the actual diff |
 | Upstream change | Proctor applies the prepared teammate patch to `main` | Scheduled bot merge, variant per scenario |
 | Recovery failure | One structural tripwire (harness vs. FK) | Parameterized library of recovery conditions |
 | Handoff + defense | Live, founder-led | AI-led, async |

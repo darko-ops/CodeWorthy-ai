@@ -4,6 +4,8 @@ The defense happens after submission. Questions must be **generated from the can
 
 The defense tests understanding. It never tries to detect *whether* AI was used — AI use is allowed.
 
+**The corroboration rule:** un-verifiable artifacts (a reproduction command, a root-cause note, terminal output, an AI-usage disclosure) are self-reported claims, not verified facts. **No such artifact stands on its own — each one must be corroborated by at least one defense question generated from that specific artifact.** A fabricated artifact collapses under questioning; that collapse, not the artifact, is the signal. The defense is the anti-gaming layer for the review thread too: a circulated "right answer" to Sam's Redis comment is worthless when the candidate must justify it against a variant of the tradeoff (see the Redis-TTL follow-up below).
+
 ## Base questions (always applicable)
 
 1. **Explain why the duplicate order occurred.** Walk me through the two requests in the ticket's log excerpt — why did the second one create an order despite carrying the same idempotency key?
