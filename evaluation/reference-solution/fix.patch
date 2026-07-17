@@ -1,0 +1,119 @@
+diff --git a/db/migrations/0004_idempotency_keys.sql b/db/migrations/0004_idempotency_keys.sql
+new file mode 100644
+index 0000000..4c400b9
+--- /dev/null
++++ b/db/migrations/0004_idempotency_keys.sql
+@@ -0,0 +1,9 @@
++-- ACME-1287: durable idempotency for checkout. The previous in-memory cache
++-- was per-process and only written after payment capture, so in-flight and
++-- cross-replica retries created duplicate orders. Additive and backwards
++-- compatible: the previous release never touches this table.
++CREATE TABLE idempotency_keys (
++    key text PRIMARY KEY,
++    order_id uuid REFERENCES orders (id),
++    created_at timestamptz NOT NULL DEFAULT now()
++);
+diff --git a/src/services/orderService.ts b/src/services/orderService.ts
+index da226c1..e2be4ed 100644
+--- a/src/services/orderService.ts
++++ b/src/services/orderService.ts
+@@ -36,30 +36,11 @@ export interface CreateOrderResult {
+ }
+ 
+ export class OrderService {
+-  // Cache of recently seen idempotency keys -> order id, so integrations that
+-  // retry a checkout don't create the order twice. Added in ACME-1104.
+-  private recentIdempotencyKeys = new Map<string, string>();
+-
+   constructor(private readonly pool: Pool) {}
+ 
+   async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
+     const { customerId, items, idempotencyKey, requestId } = input;
+ 
+-    if (idempotencyKey) {
+-      const existingOrderId = this.recentIdempotencyKeys.get(idempotencyKey);
+-      if (existingOrderId) {
+-        const existing = await this.getOrder(existingOrderId);
+-        if (existing) {
+-          log.info("order.replayed", {
+-            request_id: requestId,
+-            order_id: existing.id,
+-            idempotency_key: idempotencyKey,
+-          });
+-          return { order: existing, replayed: true };
+-        }
+-      }
+-    }
+-
+     if (!Array.isArray(items) || items.length === 0) {
+       throw badRequest("empty_order", "an order needs at least one item");
+     }
+@@ -75,6 +56,39 @@ export class OrderService {
+     try {
+       await client.query("BEGIN");
+ 
++      if (idempotencyKey) {
++        // Claim the key inside the order transaction. A concurrent request
++        // with the same key blocks on the primary key until we commit or roll
++        // back, then hits the conflict path below — so exactly one request can
++        // create the order, regardless of timing, replica, or restarts
++        // (ACME-1287). A rolled-back checkout releases its claim.
++        const claimed = await client.query(
++          "INSERT INTO idempotency_keys (key) VALUES ($1) ON CONFLICT (key) DO NOTHING",
++          [idempotencyKey]
++        );
++        if (claimed.rowCount === 0) {
++          await client.query("ROLLBACK");
++          const existing = await client.query(
++            "SELECT order_id FROM idempotency_keys WHERE key = $1",
++            [idempotencyKey]
++          );
++          const existingOrderId: string | null = existing.rows[0]?.order_id ?? null;
++          const order = existingOrderId ? await this.getOrder(existingOrderId) : null;
++          if (!order) {
++            throw conflict(
++              "idempotency_conflict",
++              "another request with this idempotency key is in progress"
++            );
++          }
++          log.info("order.replayed", {
++            request_id: requestId,
++            order_id: order.id,
++            idempotency_key: idempotencyKey,
++          });
++          return { order, replayed: true };
++        }
++      }
++
+       const customer = await client.query("SELECT id FROM customers WHERE id = $1", [customerId]);
+       if (customer.rowCount === 0) {
+         throw notFound("unknown_customer", `no customer with id ${customerId}`);
+@@ -118,6 +132,13 @@ export class OrderService {
+         );
+       }
+ 
++      if (idempotencyKey) {
++        await client.query("UPDATE idempotency_keys SET order_id = $2 WHERE key = $1", [
++          idempotencyKey,
++          orderId,
++        ]);
++      }
++
+       await client.query("COMMIT");
+     } catch (err) {
+       await client.query("ROLLBACK").catch(() => undefined);
+@@ -145,14 +166,6 @@ export class OrderService {
+       idempotency_key: idempotencyKey,
+     });
+ 
+-    if (idempotencyKey) {
+-      // Keep the cache from growing without bound.
+-      if (this.recentIdempotencyKeys.size >= 5000) {
+-        this.recentIdempotencyKeys.clear();
+-      }
+-      this.recentIdempotencyKeys.set(idempotencyKey, orderId);
+-    }
+-
+     const order = await this.getOrder(orderId);
+     if (!order) throw new Error(`order ${orderId} vanished after insert`);
+     return { order, replayed: false };

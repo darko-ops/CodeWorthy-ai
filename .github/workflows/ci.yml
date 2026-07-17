@@ -1,0 +1,84 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+defaults:
+  run:
+    working-directory: simulations/acme-orders
+
+jobs:
+  visible-tests:
+    name: Simulation — typecheck + visible tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acme
+          POSTGRES_PASSWORD: acme
+          POSTGRES_DB: acme_orders
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acme -d acme_orders"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          DATABASE_URL: postgres://acme:acme@localhost:5432/acme_orders
+
+  seeded-bug-reproduces:
+    # Guards the assessment itself: the hidden idempotency suite must FAIL on
+    # this repo's baseline. If it passes, someone accidentally fixed the
+    # seeded bug and the assessment is broken.
+    name: Hidden suite still catches the seeded bug
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acme
+          POSTGRES_PASSWORD: acme
+          POSTGRES_DB: acme_orders
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acme -d acme_orders"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - name: Hidden suite must fail on the baseline
+        working-directory: .
+        env:
+          DATABASE_URL: postgres://acme:acme@localhost:5432/acme_orders
+        run: |
+          if evaluation/hidden-tests/run.sh; then
+            echo "::error::Hidden idempotency suite passed on the baseline — the seeded bug no longer reproduces."
+            exit 1
+          else
+            echo "Hidden suite failed as expected: seeded bug still reproduces."
+          fi
+
+  web-build:
+    name: Dashboard — typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: simulations/acme-orders/web
+      - run: npm run build
+        working-directory: simulations/acme-orders/web
