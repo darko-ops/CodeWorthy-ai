@@ -27,6 +27,9 @@ The defense tests understanding. It never tries to detect *whether* AI was used 
 - They added a unique index on `(customer_id, total_cents)` or similar: **"A customer legitimately places the same order twice on purpose. What happens?"**
 - Their test uses `setTimeout` sleeps: **"What makes this test deterministic? When would it flake?"**
 - Zero AI usage disclosed but the diff style suggests otherwise: do **not** accuse; ask question 4 verbatim and score on the explanation quality alone.
+- They hit the harness tripwire (TRUNCATE/FK failure): **"When the rest of the suite went red after your migration — walk me through how you decided whether that was your bug or the tests' bug."**
+- They integrated the upstream change: **"Sam's commit raised the cache cap. Where is that cap in the code you shipped?"** (*Listen for:* "gone — my fix removes the cache, and I said so" or a coherent reason it survived.)
+- They answered Sam's Redis comment: **"Suppose we did use Redis with a 30-second TTL. Reconstruct the 2026-07-09 incident — what happens?"**
 
 ## Scoring the defense
 

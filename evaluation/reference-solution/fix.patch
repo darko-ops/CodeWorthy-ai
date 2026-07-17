@@ -117,3 +117,17 @@ index da226c1..e2be4ed 100644
      const order = await this.getOrder(orderId);
      if (!order) throw new Error(`order ${orderId} vanished after insert`);
      return { order, replayed: false };
+diff --git a/test/helpers/testDb.ts b/test/helpers/testDb.ts
+index 12700c7..3aa708f 100644
+--- a/test/helpers/testDb.ts
++++ b/test/helpers/testDb.ts
+@@ -14,7 +14,8 @@ export async function ensureMigrated() {
+ // Order data is cleared between suites; customers/products created by the
+ // factories below are unique per call, so suites don't step on each other.
+ export async function resetOrders() {
+-  await pool.query("TRUNCATE order_items, orders");
++  // CASCADE: idempotency_keys references orders and must reset with it.
++  await pool.query("TRUNCATE order_items, orders CASCADE");
+ }
+ 
+ export async function createCustomer(name = "Test Co") {

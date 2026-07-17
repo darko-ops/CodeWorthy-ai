@@ -1,61 +1,91 @@
 # What We Test Users On — The Assessment Loop
 
-The unit of assessment is not a puzzle, it's a **workflow**. Candidates do the same loop a working engineer does on GitHub every week: pick up a ticket in an unfamiliar repo, get it running, investigate, branch, change, test, open a PR, get through review and CI, and stand behind the change. Every step produces evidence we can score; the workflow *is* the test.
+The unit of assessment is not a puzzle, it's a **workflow** — and not a solo workflow. The candidate joins a repository where work is already happening: they investigate an ambiguous problem, create a failing test, recover from a CI failure they didn't plan, incorporate a teammate's change, navigate review, and leave the work safe for someone else to deploy.
 
-Principle: **we never grade a step we didn't let them actually perform.** No "describe how you would use git" questions — they use git. No "how would you test this" — they push and CI runs.
+The governing principle:
+
+> **Every candidate must encounter uncertainty, visible failure, and another engineer's competing perspective — and recover through the normal team workflow.**
+
+Two design rules follow from it:
+
+1. **We never grade a step we didn't let them actually perform.** No "describe how you would use git" — they use git. No "how would you handle CI failing" — CI fails, visibly, during the assessment, and we watch the recovery.
+2. **They may be unfamiliar with the solution — never confused about the rules.** Every failure we put in front of them comes with evidence (a CI log, a stack trace, a database error, a reviewer observation, a conflicting upstream change). Failures caused by undocumented setup, broken infrastructure, hidden commands, evaluator mind-reading, or intentional flakiness are defects in the assessment, not signal about the candidate.
 
 ## The loop
 
-| # | Stage | What the candidate actually does | What we capture | Competencies scored |
-|---|-------|----------------------------------|-----------------|---------------------|
-| 1 | **Orient** | Gets a private GitHub repo (generated from the simulation template), clones it, gets the app running (`docker compose`, migrate, seed), reads README + TICKET | Time-to-first-run; setup questions asked; whether they read before touching code | Codebase comprehension |
-| 2 | **Investigate & reproduce** | Pokes the API/dashboard, reads the ticket's production logs, traces the code path, reproduces the failure (or demonstrates why it happens) | Root-cause section of the PR (required); any repro script/test they commit; terminal activity (with consent) | Root-cause analysis, systems thinking |
-| 3 | **Branch** | Creates a feature branch; works in focused commits with real messages | Git history: branch hygiene, commit granularity, message quality, timestamps | Git discipline |
-| 4 | **Write the regression test** | Adds a test that **fails on `main`** and encodes the failure condition (not just the happy path) | The test itself; grader re-runs it against baseline — "fails on main" is verified, not taken on faith | Testing |
-| 5 | **Fix** | Makes a focused change; adds a migration if the fix needs one; leaves the repo's documented landmines alone | The diff: scope, correctness, convention-match, migration safety | Implementation, data safety |
-| 6 | **Verify** | Runs the suite and typecheck locally; pushes — every push triggers CI, so we see their verify loop, not just the final state | CI run timeline per push (red→green sequences are signal, not shame); whether they ran tests before pushing | Testing, AI collaboration (did they verify or trust?) |
-| 7 | **Open the PR** | Opens a PR against `main` of their assessment repo and fills in every template section: summary, root cause, fix rationale, testing, data changes, deploy/rollback plan, AI disclosure | The PR body — this is the single richest artifact we collect | Communication, deployment judgment, ownership |
-| 8 | **Respond to review** | A reviewer (founder-manual in MVP, AI reviewer later) leaves 1–2 substantive comments — one asking for justification, one proposing a plausible-but-worse alternative. Candidate must defend, adjust, or push back | Review thread: do they cave to a bad suggestion? Explain tradeoffs? Make the requested change cleanly? | Communication, ownership, AI collaboration |
-| 9 | **Get CI green** | If CI fails on their branch, they read the logs and fix it — we don't tell them what broke | CI logs + their fixing commits | CI/debugging, testing |
-| 10 | **Defense** | Answers ~5 adaptive questions generated from *their* diff, tests, and PR text (bank: `evaluation/defense-questions.md`) | Defense transcript, quoted verbatim in the report | Root-cause analysis, AI collaboration, systems thinking, deployment judgment |
+| # | Stage | Candidate action | Signal |
+|---|-------|------------------|--------|
+| 1 | **Orient** | Clone the private repo (stamped from the simulation template), get the app running, read README + ticket | Codebase comprehension |
+| 2 | **Clarify** | The ticket contains one meaningful product ambiguity. Ask in the issue, or state and document an assumption | Team communication |
+| 3 | **Reproduce** | Demonstrate the production failure (or show convincingly why it happens) | Investigation |
+| 4 | **Red test** | Push a regression test *before* the fix; CI runs it against the unfixed code and **fails for the intended reason** | Test quality, CI literacy, red-green discipline |
+| 5 | **Implement** | Make a focused fix (migration if needed), push | Correctness and judgment |
+| 6 | **Recover CI** | One realistic failure they did not directly plan for surfaces in CI. Read the logs, decide "my code or the environment?", correct it | Debugging and resilience |
+| 7 | **Integrate** | A teammate merges a small relevant change into `main` while their PR is open. Notice, understand it, rebase/merge, resolve a small conflict, rerun verification, preserve the teammate's work | Collaborative Git usage |
+| 8 | **Open PR** | Fill every template section: root cause, fix rationale, testing, data changes, risk | Written communication |
+| 9 | **Review** | A reviewer leaves three comments: a valid correctness concern, a plausible-but-inferior suggestion, and a convention/contract concern. Accept, reject with justification, propose alternatives, or ask — through GitHub | Collaboration and ownership |
+| 10 | **Handoff** | Final PR comment written for the teammate who will deploy it: what changed, which migration runs, what to monitor, what triggers rollback, what remains uncertain | Operational teamwork |
+| 11 | **Defend** | Answer ~5 adaptive questions grounded in their actual diff | Understanding |
+| 12 | **Hidden evaluation** | (Candidate absent) Private suite: concurrency, cross-replica, key reuse, regressions; grader verifies the red test fails on baseline | Final technical validity |
 
-Post-submission (candidate not present): hidden suite runs against their branch (`evaluation/hidden-tests/`) — concurrency, cross-replica, key reuse, unrelated regressions — and the grader verifies their regression test fails on baseline. Results feed the report (`evaluation/report-template.md`).
+## CI: mandatory red, green, and recovery
 
-## Why GitHub is the assessment surface
+The hidden suite can't test CI debugging — the candidate never sees it. So CI failure is built into the assessment itself, in three phases:
 
-Everything runs through a real GitHub repo per candidate, because that's where the behaviors we claim to measure actually leave traces:
+**Red phase.** After reproducing the bug, the candidate pushes their regression test (draft PR or direct push) *before* implementing the fix. CI runs against the unfixed implementation and must fail — for the reason they intended. This proves the test genuinely detects the bug, that they're comfortable presenting a red build, and that they can read CI output and confirm it matches expectation. The proctor checks the red run's failure reason against the candidate's stated root cause.
 
-- **Template repo → private candidate repo.** One click to provision, isolated, disposable. Candidates get collaborator access; `evaluation/` never ships.
-- **Commits + branch** are the work log — no keystroke surveillance needed. Timestamps give pacing for free.
-- **PR + review thread** are the communication test, in the exact medium the job uses.
-- **Actions CI on every push** turns their verification habits into a timeline we can read afterwards.
-- Candidates use their own machine, editor, and AI tools — zero unfamiliar tooling between them and the work.
+**Green phase.** They implement the fix and push. Candidate CI runs unit + integration tests, type checking, migration validation (upgrade path from `main`'s schema, not just a clean database), and build verification (API + dashboard). They inspect the run and get it green.
 
-## Signals per stage (what graders look for)
+**Recovery phase.** The assessment contains one additional realistic failure the candidate didn't plan. In the current simulation it's seeded structurally: the canonical database-backed fix adds a table referencing `orders`, and the existing test harness resets state with a plain `TRUNCATE order_items, orders` — which Postgres refuses once a new table holds a foreign key to `orders`. Their targeted test passes; the rest of the suite goes red with a real database error. They must read it, recognize the failure is in the *test environment's assumptions* rather than their fix logic, and correct the harness as part of their change. It is diagnostic (clear error, points at the exact line), realistic (this happens in real codebases weekly), and not a trick.
 
-- **Strong:** reproduces before fixing; regression test committed *before* or *with* the fix; commit sequence tells a story; pushes back on the reviewer's worse alternative with a reason; says "I don't know, I'd check X" in defense.
-- **Weak:** first commit is a giant diff 20 minutes in (accepted an agent's output wholesale); test that passes on baseline; PR root-cause section restates the symptom; caves instantly to the bad review suggestion; defense answers contradict their own code.
-- **Neutral, never penalized:** which AI tools they used, how much they used them, red CI runs they then fixed, asking setup questions.
+What we measure in a recovery is the method, not the stumble: stay methodical → gather information → form a hypothesis → use docs/AI effectively → test the hypothesis → correct it → explain what happened afterward.
+
+## Team behavior through actual interaction
+
+Responding to comments is not teamwork by itself. Four interaction points make the teammate real:
+
+**A. Requirements clarification.** The ticket carries one genuine product decision, not missing trivia — e.g. *when a duplicate request does arrive, should the second caller receive the original order's response, or an explicit conflict their integration can handle?* Both prevent the duplicate charge; they produce different customer behavior. Asking in the issue is strong; silently choosing but *documenting the assumption and its tradeoff in the PR* is equally strong. Silently choosing without a trace is the weak signal. We score recognition and communication of the decision, not question-asking per se.
+
+**B. Review from another engineer.** After the first complete implementation, the reviewer posts three comments (scripts in `evaluation/proctor-playbook.md`):
+
+1. a **valid correctness concern** — deserves acceptance or a demonstration that it's already handled;
+2. a **plausible but inferior suggestion** — deserves a reasoned decline or a tradeoff discussion;
+3. a **maintainability/contract concern** — deserves a fix or an explicit compatibility argument.
+
+The goal is not "push back." Blind resistance scores no better than blind compliance. The signal: *can they evaluate feedback independently and move the shared work toward the correct outcome?*
+
+**C. Upstream change.** While their PR is open, a teammate's small, relevant commit lands on `main` (prepared patch in `evaluation/upstream-change/`). Their branch is now behind and conflicts slightly. They must notice, understand the change, rebase or merge, resolve the conflict, rerun verification, and not erase the teammate's work — including the harder judgment call when part of the teammate's change is *obsoleted* by their fix and the correct resolution is to supersede it, with an explanation in the PR. The conflict stays small by design: we're testing integration judgment, not Git-command memorization.
+
+**D. Handoff.** Before finishing, a final PR comment addressed to the engineer deploying it: what changed, what migration must run and in what order, what to monitor, what would trigger rollback, what remains uncertain. This tests whether they leave work usable by someone who wasn't in their head.
+
+## Evidence and telemetry: what we score, what we refuse to
+
+Git and GitHub artifacts are **evidence, not a complete record**. Candidates amend, squash, reset, work locally for an hour, or have an agent perform many operations between pushes — all legitimate. So:
+
+**Never scored:** commit count, time-to-first-commit, typing/command volume, whether their Git style matches a preferred workflow, red CI runs that were subsequently fixed, which AI tools they used or how much.
+
+**Scored:** whether the changes are reviewable; whether the regression test is independently verifiable (fails on baseline when *we* run it); whether commits separate meaningful stages when it matters; whether they use CI results intelligently; whether upstream work survives their integration; whether the final history, PR, and handoff let a teammate understand and operate the change.
 
 ## What we deliberately do not test
 
 - Algorithms/data-structures recall, syntax trivia, typing speed
-- Working without AI or docs (the job allows both; so do we)
+- Working without AI or documentation (the job allows both; so do we)
 - Building anything from scratch — the whole point is brownfield
-- Speed beyond the 90-minute box (finishing early earns nothing; unfinished-but-honest is scored on what exists, rest marked unassessed)
+- Speed beyond the 90-minute box (unfinished-but-honest is scored on what exists; gaps are marked unassessed, not failed)
 
 ## MVP scope vs. later
 
-| Loop stage | MVP (now) | Later |
+| Loop element | MVP (now) | Later |
 |---|---|---|
-| Repo + PR + CI | Real GitHub repo per candidate, Actions CI | Same, provisioned automatically |
-| Review response | Founder posts the 2 review comments manually | AI reviewer generates them from the diff |
-| Defense | Live 15-min conversation (founder) | AI-led, adaptive, async |
-| Deploy | **Written** deploy/rollback plan in the PR (scored via rubric) | Actual staging deploy the candidate performs, verifies, and rolls back |
-| Incident response | Out of scope | Separate simulation track (logs/alerts → triage → hotfix → postmortem) |
-
-The written deploy plan is the honest MVP tradeoff: deployment *judgment* is scorable from text; deployment *execution* needs staging infrastructure we shouldn't build before hypothesis 2 (the assessment separates candidates) is validated.
+| Repo + PR + CI | Real GitHub repo per candidate, Actions CI (`evaluation/candidate-repo/ci.yml`) | Auto-provisioned |
+| Red-phase confirmation | Proctor eyeballs the red run's failure reason | Automated check that failure matches the seeded bug's signature |
+| Review comments | Proctor posts the three scripted comments | AI reviewer generates them from the actual diff |
+| Upstream change | Proctor applies the prepared teammate patch to `main` | Scheduled bot merge, variant per scenario |
+| Recovery failure | One structural tripwire (harness vs. FK) | Parameterized library of recovery conditions |
+| Handoff + defense | Live, founder-led | AI-led, async |
+| Deploy | Written deploy/rollback plan, scored via rubric | Actual staging deploy the candidate performs, verifies, rolls back |
+| Incidents | Out of scope | Separate simulation track |
 
 ## One-line version
 
-> Give them a ticket in a repo they've never seen; watch them do the actual job — change, test, PR, review, CI, defense — and score the evidence each step leaves behind.
+> Join a repository where work is already happening. Investigate an ambiguous problem, prove the bug with a red build, recover from a failure you didn't plan, absorb a teammate's change, navigate review, and leave the work safe for someone else to deploy.

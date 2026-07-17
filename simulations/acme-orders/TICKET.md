@@ -38,6 +38,10 @@ Same pattern via their purchasing integration (server-to-server, not the dashboa
 - Keys were **not** reused across different checkouts; each duplicate pair shares one key.
 - We could not reproduce it locally with a simple "submit, then submit again" test — the second attempt correctly returns the original order.
 
+## Open product question from Northfield
+
+Northfield's integration team asked what behavior to expect once this is fixed: when their retry *does* arrive while the original request is still being processed, should the second request eventually receive **the original order's response**, or an **explicit error/conflict** their integration should handle? Our API docs only describe the sequential retry case. Nobody on our side has answered them yet.
+
 ## Ask
 
 Investigate the root cause, fix it, and add regression coverage so this cannot quietly come back. Finance is manually refunding duplicates in the meantime.

@@ -2,6 +2,12 @@
 
 Every submission is human-reviewed. Budget ~45 minutes per candidate.
 
+Grading starts **after** the live loop — provisioning, the red-phase check, the
+upstream merge, and Sam's review comments all happen during the assessment and
+are covered by `evaluation/proctor-playbook.md`. Bring the proctor's stage log
+(timestamps, workflow events) into grading; it fills the report's
+"Workflow events" table.
+
 ## 0. Setup
 
 ```bash

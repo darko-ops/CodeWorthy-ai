@@ -1,0 +1,29 @@
+diff --git a/src/middleware/requestId.ts b/src/middleware/requestId.ts
+index f27098b..4e9bcd7 100644
+--- a/src/middleware/requestId.ts
++++ b/src/middleware/requestId.ts
+@@ -19,6 +19,8 @@ export function requestId(req: Request, res: Response, next: NextFunction) {
+     method: req.method,
+     path: req.path,
+     idempotency_key: req.header("idempotency-key"),
++    // ACME-1291: support tooling groups incidents by client.
++    user_agent: req.header("user-agent"),
+   });
+   res.on("finish", () => {
+     log.info("request.finish", {
+diff --git a/src/services/orderService.ts b/src/services/orderService.ts
+index da226c1..3248fd6 100644
+--- a/src/services/orderService.ts
++++ b/src/services/orderService.ts
+@@ -146,8 +146,9 @@ export class OrderService {
+     });
+ 
+     if (idempotencyKey) {
+-      // Keep the cache from growing without bound.
+-      if (this.recentIdempotencyKeys.size >= 5000) {
++      // Keep the cache from growing without bound. Cap raised 5000 -> 20000
++      // after we cycled keys mid-day during the Black Friday surge (ACME-1298).
++      if (this.recentIdempotencyKeys.size >= 20000) {
+         this.recentIdempotencyKeys.clear();
+       }
+       this.recentIdempotencyKeys.set(idempotencyKey, orderId);

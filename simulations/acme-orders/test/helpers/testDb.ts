@@ -14,8 +14,7 @@ export async function ensureMigrated() {
 // Order data is cleared between suites; customers/products created by the
 // factories below are unique per call, so suites don't step on each other.
 export async function resetOrders() {
-  // CASCADE so tables that reference orders (now or in the future) reset too.
-  await pool.query("TRUNCATE order_items, orders CASCADE");
+  await pool.query("TRUNCATE order_items, orders");
 }
 
 export async function createCustomer(name = "Test Co") {

@@ -33,6 +33,13 @@ populate the Map — which is why support "could not reproduce it locally."
   stamp `order_id` on the claim row before commit.
 - Validation failures roll the claim back, so a failed checkout doesn't burn
   its key. The in-memory Map is deleted.
+- **The recovery tripwire (Stage 6):** the new table's FK to `orders` breaks the
+  test harness's plain `TRUNCATE order_items, orders` — every existing orders
+  test fails with `cannot truncate a table referenced in a foreign key
+  constraint` while the candidate's targeted test passes. This is seeded on
+  purpose (see `evaluation/proctor-playbook.md`). The reference fix resolves it
+  with `TRUNCATE ... CASCADE` in `test/helpers/testDb.ts`; adding the table to
+  the truncate list is equally valid.
 
 Known acceptable variations: returning `409` for a concurrent in-flight
 duplicate; storing a response snapshot on the key row; advisory locks.
@@ -41,13 +48,20 @@ for old key rows.
 
 ## Verifying
 
+Patch paths are relative to the simulation, so in **this monorepo** apply with
+`--directory` from the repo root (running `git apply` inside the subdirectory
+silently ignores every hunk — paths resolve against the repo root):
+
 ```bash
-cd simulations/acme-orders
-git apply ../../evaluation/reference-solution/fix.patch
-npm test                            # visible suite: green
-../../evaluation/hidden-tests/run.sh  # hidden suite: green
-git checkout -- . && rm db/migrations/0004_idempotency_keys.sql
+git apply --directory=simulations/acme-orders evaluation/reference-solution/fix.patch
+(cd simulations/acme-orders && npm test)   # visible suite: green
+evaluation/hidden-tests/run.sh             # hidden suite: green
+git checkout -- simulations/acme-orders
+rm simulations/acme-orders/db/migrations/0004_idempotency_keys.sql
 ```
+
+In a **candidate repo** (simulation contents at the root) a plain
+`git apply fix.patch` works.
 
 ## Deployment plan (what a 5/5 answer looks like)
 

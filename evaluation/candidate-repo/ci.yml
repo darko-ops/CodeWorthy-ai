@@ -1,0 +1,93 @@
+# CI workflow for CANDIDATE repositories.
+#
+# When a candidate repo is stamped from the simulation template, this file is
+# placed at .github/workflows/ci.yml (the platform repo's own workflow, which
+# asserts the seeded bug reproduces, is stripped — it would leak the answer).
+#
+# Design notes:
+# - Runs on every push so the red phase (regression test against unfixed code)
+#   produces a visible red run, and the recovery phase produces a diagnosable
+#   failure with full logs.
+# - "migration-upgrade" validates the upgrade path, not just a clean database:
+#   it applies main's migrations + seed first, then the branch's migrations on
+#   top — the order production would experience.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  tests:
+    name: Typecheck + tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acme
+          POSTGRES_PASSWORD: acme
+          POSTGRES_DB: acme_orders
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acme -d acme_orders"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          DATABASE_URL: postgres://acme:acme@localhost:5432/acme_orders
+
+  migration-upgrade:
+    name: Migration upgrade path (main -> branch)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acme
+          POSTGRES_PASSWORD: acme
+          POSTGRES_DB: acme_orders
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acme -d acme_orders"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    env:
+      DATABASE_URL: postgres://acme:acme@localhost:5432/acme_orders
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Apply main's migrations and seed (simulates the running release)
+        run: |
+          git checkout origin/main -- db/migrations scripts
+          npm ci
+          npm run migrate
+          npm run seed
+      - name: Apply this branch's migrations on top (simulates the deploy)
+        run: |
+          git checkout HEAD -- db/migrations scripts
+          npm run migrate
+      - name: Build still starts against the upgraded schema
+        run: npm run build
+
+  web:
+    name: Dashboard typecheck + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+        working-directory: web
+      - run: npm run build
+        working-directory: web

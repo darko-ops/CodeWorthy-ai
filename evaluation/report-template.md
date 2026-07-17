@@ -22,6 +22,22 @@ _Two to four sentences, plain language: what the candidate did, whether the fix 
 | Stock / totals / validation regressions | ☐ pass ☐ fail |
 | Candidate's regression test fails on baseline | ☐ yes ☐ no |
 
+## Workflow events
+
+What actually happened during the loop (facts, before interpretation):
+
+| Event | Outcome |
+| --- | --- |
+| Clarified or documented the Northfield replay-vs-conflict decision | ☐ asked in issue ☐ documented assumption ☐ neither |
+| Red phase: regression test pushed before fix, failed in CI | ☐ yes, for the right reason ☐ yes, wrong reason ☐ no red phase |
+| Recovery: harness tripwire encountered | ☐ diagnosed & fixed ☐ worked around destructively ☐ stuck ☐ not triggered (U) |
+| Upstream change integrated | ☐ clean, teammate's work preserved ☐ integrated with losses ☐ never integrated |
+| Superseded cache-cap change explained | ☐ yes ☐ no ☐ n/a |
+| Review: correctness concern | ☐ resolved ☐ deflected |
+| Review: inferior (Redis) suggestion | ☐ evaluated & declined/discussed ☐ blindly adopted ☐ blindly dismissed |
+| Review: contract concern | ☐ addressed ☐ ignored |
+| Handoff comment posted | ☐ executable by a stranger ☐ thin ☐ missing |
+
 ## Competency profile
 
 Every rating must cite evidence the employer can inspect (line numbers, test names, quoted defense answers). Use **U** for unassessed (ran out of time) — do not score gaps as 1.
@@ -31,13 +47,15 @@ Every rating must cite evidence the employer can inspect (line numbers, test nam
 | Codebase comprehension | | |
 | Root-cause analysis | | |
 | Implementation | | |
-| Testing | | |
+| Testing (incl. red phase) | | |
+| CI recovery | | |
 | Systems thinking | | |
 | Data safety | | |
-| Git discipline | | |
+| Git discipline & upstream integration | | |
+| Team communication (clarify, review, handoff) | | |
 | AI collaboration | | |
-| Communication | | |
 | Deployment judgment | | |
+| Ownership | | |
 
 ## AI usage narrative
 
