@@ -54,6 +54,58 @@ describe("orders API", () => {
     expect(await getStock(productId)).toBe(19);
   });
 
+  it("creates exactly one order when the same key is retried concurrently (ACME-1287)", async () => {
+    const payload = { customerId, items: [{ productId, quantity: 1 }] };
+    const key = `ck_concurrent_${Date.now()}`;
+
+    const [a, b] = await Promise.all([
+      request(app).post("/api/orders").set("Idempotency-Key", key).send(payload),
+      request(app).post("/api/orders").set("Idempotency-Key", key).send(payload),
+    ]);
+
+    const successes = [a, b].filter((r) => r.status < 400);
+    expect(successes.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(successes.map((r) => r.body.id)).size).toBe(1);
+    expect(await countOrdersForCustomer(customerId)).toBe(1);
+    expect(await getStock(productId)).toBe(19);
+  });
+
+  it("deduplicates a retry that lands on a different replica (ACME-1287)", async () => {
+    const payload = { customerId, items: [{ productId, quantity: 1 }] };
+    const key = `ck_replica_${Date.now()}`;
+
+    const first = await request(app).post("/api/orders").set("Idempotency-Key", key).send(payload);
+    expect(first.status).toBe(201);
+
+    // A second app instance = a second replica (or a restarted process): it
+    // must see the first replica's key even with no shared process state.
+    const replicaB = createApp();
+    const retry = await request(replicaB)
+      .post("/api/orders")
+      .set("Idempotency-Key", key)
+      .send(payload);
+    expect(retry.status).toBe(200);
+    expect(retry.body.id).toBe(first.body.id);
+    expect(await countOrdersForCustomer(customerId)).toBe(1);
+  });
+
+  it("frees the idempotency key when a checkout fails, so it can be retried (ACME-1287)", async () => {
+    const key = `ck_failed_${Date.now()}`;
+
+    const failed = await request(app)
+      .post("/api/orders")
+      .set("Idempotency-Key", key)
+      .send({ customerId, items: [{ productId, quantity: 999 }] });
+    expect(failed.status).toBe(409);
+
+    const retry = await request(app)
+      .post("/api/orders")
+      .set("Idempotency-Key", key)
+      .send({ customerId, items: [{ productId, quantity: 1 }] });
+    expect(retry.status).toBe(201);
+    expect(await countOrdersForCustomer(customerId)).toBe(1);
+  });
+
   it("rejects an order with no items", async () => {
     const res = await request(app).post("/api/orders").send({ customerId, items: [] });
     expect(res.status).toBe(400);

@@ -36,29 +36,10 @@ export interface CreateOrderResult {
 }
 
 export class OrderService {
-  // Cache of recently seen idempotency keys -> order id, so integrations that
-  // retry a checkout don't create the order twice. Added in ACME-1104.
-  private recentIdempotencyKeys = new Map<string, string>();
-
   constructor(private readonly pool: Pool) {}
 
   async createOrder(input: CreateOrderInput): Promise<CreateOrderResult> {
     const { customerId, items, idempotencyKey, requestId } = input;
-
-    if (idempotencyKey) {
-      const existingOrderId = this.recentIdempotencyKeys.get(idempotencyKey);
-      if (existingOrderId) {
-        const existing = await this.getOrder(existingOrderId);
-        if (existing) {
-          log.info("order.replayed", {
-            request_id: requestId,
-            order_id: existing.id,
-            idempotency_key: idempotencyKey,
-          });
-          return { order: existing, replayed: true };
-        }
-      }
-    }
 
     if (!Array.isArray(items) || items.length === 0) {
       throw badRequest("empty_order", "an order needs at least one item");
@@ -70,60 +51,58 @@ export class OrderService {
     }
 
     const client = await this.pool.connect();
-    let orderId: string;
-    let totalCents: number;
+    let orderId!: string;
+    let totalCents!: number;
+    let claimLost = false;
     try {
       await client.query("BEGIN");
 
-      const customer = await client.query("SELECT id FROM customers WHERE id = $1", [customerId]);
-      if (customer.rowCount === 0) {
-        throw notFound("unknown_customer", `no customer with id ${customerId}`);
-      }
-
-      totalCents = 0;
-      const lineItems: Array<{ productId: string; quantity: number; unitPriceCents: number }> = [];
-      for (const item of items) {
-        // Decrement stock up front; the WHERE clause stops us going negative.
-        const updated = await client.query(
-          `UPDATE products SET stock = stock - $2
-           WHERE id = $1 AND stock >= $2
-           RETURNING unit_price_cents`,
-          [item.productId, item.quantity]
+      if (idempotencyKey) {
+        // Claim the key inside the transaction (ACME-1287). The primary key on
+        // idempotency_keys makes Postgres serialize concurrent requests with
+        // the same key: the loser blocks here until the winner commits, then
+        // sees the conflict and replays the winner's order below. Rolling back
+        // (e.g. insufficient stock) releases the claim, so a failed checkout
+        // can be retried with the same key.
+        const claimed = await client.query(
+          `INSERT INTO idempotency_keys (key) VALUES ($1)
+           ON CONFLICT (key) DO NOTHING`,
+          [idempotencyKey]
         );
-        if (updated.rowCount === 0) {
-          const exists = await client.query("SELECT id FROM products WHERE id = $1", [item.productId]);
-          if (exists.rowCount === 0) {
-            throw notFound("unknown_product", `no product with id ${item.productId}`);
-          }
-          throw conflict("insufficient_stock", `not enough stock for product ${item.productId}`);
-        }
-        const unitPriceCents: number = updated.rows[0].unit_price_cents;
-        totalCents += unitPriceCents * item.quantity;
-        lineItems.push({ productId: item.productId, quantity: item.quantity, unitPriceCents });
+        claimLost = claimed.rowCount === 0;
       }
 
-      const inserted = await client.query(
-        `INSERT INTO orders (customer_id, status, total_cents)
-         VALUES ($1, 'pending', $2)
-         RETURNING id`,
-        [customerId, totalCents]
-      );
-      orderId = inserted.rows[0].id;
-
-      for (const line of lineItems) {
-        await client.query(
-          `INSERT INTO order_items (order_id, product_id, quantity, unit_price_cents)
-           VALUES ($1, $2, $3, $4)`,
-          [orderId, line.productId, line.quantity, line.unitPriceCents]
-        );
+      if (claimLost) {
+        await client.query("ROLLBACK");
+      } else {
+        await this.insertOrder(client, input, (id, total) => {
+          orderId = id;
+          totalCents = total;
+        });
       }
-
-      await client.query("COMMIT");
     } catch (err) {
       await client.query("ROLLBACK").catch(() => undefined);
       throw err;
     } finally {
       client.release();
+    }
+
+    if (claimLost) {
+      const existing = await this.findOrderByIdempotencyKey(idempotencyKey!);
+      if (existing) {
+        log.info("order.replayed", {
+          request_id: requestId,
+          order_id: existing.id,
+          idempotency_key: idempotencyKey,
+        });
+        return { order: existing, replayed: true };
+      }
+      // The competing request rolled back after we observed its claim and the
+      // key is free again; tell the client to retry rather than guessing.
+      throw conflict(
+        "idempotency_conflict",
+        "another request with this Idempotency-Key is in progress; retry shortly"
+      );
     }
 
     // Capture payment after the order row is committed, so a failed capture
@@ -145,17 +124,83 @@ export class OrderService {
       idempotency_key: idempotencyKey,
     });
 
-    if (idempotencyKey) {
-      // Keep the cache from growing without bound.
-      if (this.recentIdempotencyKeys.size >= 5000) {
-        this.recentIdempotencyKeys.clear();
-      }
-      this.recentIdempotencyKeys.set(idempotencyKey, orderId);
-    }
-
     const order = await this.getOrder(orderId);
     if (!order) throw new Error(`order ${orderId} vanished after insert`);
     return { order, replayed: false };
+  }
+
+  // Runs inside the caller's open transaction; the caller owns COMMIT/ROLLBACK
+  // on error. Reports the created order via `onCreated` just before COMMIT.
+  private async insertOrder(
+    client: PoolClient,
+    input: CreateOrderInput,
+    onCreated: (orderId: string, totalCents: number) => void
+  ): Promise<void> {
+    const { customerId, items, idempotencyKey } = input;
+
+    const customer = await client.query("SELECT id FROM customers WHERE id = $1", [customerId]);
+    if (customer.rowCount === 0) {
+      throw notFound("unknown_customer", `no customer with id ${customerId}`);
+    }
+
+    let totalCents = 0;
+    const lineItems: Array<{ productId: string; quantity: number; unitPriceCents: number }> = [];
+    for (const item of items) {
+      // Decrement stock up front; the WHERE clause stops us going negative.
+      const updated = await client.query(
+        `UPDATE products SET stock = stock - $2
+         WHERE id = $1 AND stock >= $2
+         RETURNING unit_price_cents`,
+        [item.productId, item.quantity]
+      );
+      if (updated.rowCount === 0) {
+        const exists = await client.query("SELECT id FROM products WHERE id = $1", [item.productId]);
+        if (exists.rowCount === 0) {
+          throw notFound("unknown_product", `no product with id ${item.productId}`);
+        }
+        throw conflict("insufficient_stock", `not enough stock for product ${item.productId}`);
+      }
+      const unitPriceCents: number = updated.rows[0].unit_price_cents;
+      totalCents += unitPriceCents * item.quantity;
+      lineItems.push({ productId: item.productId, quantity: item.quantity, unitPriceCents });
+    }
+
+    const inserted = await client.query(
+      `INSERT INTO orders (customer_id, status, total_cents)
+       VALUES ($1, 'pending', $2)
+       RETURNING id`,
+      [customerId, totalCents]
+    );
+    const orderId: string = inserted.rows[0].id;
+
+    for (const line of lineItems) {
+      await client.query(
+        `INSERT INTO order_items (order_id, product_id, quantity, unit_price_cents)
+         VALUES ($1, $2, $3, $4)`,
+        [orderId, line.productId, line.quantity, line.unitPriceCents]
+      );
+    }
+
+    if (idempotencyKey) {
+      // Point the claim at the order in the same transaction, so any committed
+      // key row always has an order to replay.
+      await client.query("UPDATE idempotency_keys SET order_id = $2 WHERE key = $1", [
+        idempotencyKey,
+        orderId,
+      ]);
+    }
+
+    onCreated(orderId, totalCents);
+    await client.query("COMMIT");
+  }
+
+  private async findOrderByIdempotencyKey(key: string): Promise<Order | null> {
+    const res = await this.pool.query("SELECT order_id FROM idempotency_keys WHERE key = $1", [
+      key,
+    ]);
+    const orderId = res.rows[0]?.order_id;
+    if (!orderId) return null;
+    return this.getOrder(orderId);
   }
 
   async getOrder(id: string): Promise<Order | null> {
