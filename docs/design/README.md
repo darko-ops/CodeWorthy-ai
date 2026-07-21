@@ -1,6 +1,11 @@
 # Mission-Control Design Mockups
 
-`codeworthy-mockups.html` is a standalone, self-contained design canvas — open it in any browser. Two sets share one bold direction (navy + green):
+Two files, same canvas:
+
+- **`codeworthy-mockups.html`** — standalone, self-contained bundle (fonts and scripts inlined). Open it in any browser; this is the viewable reference.
+- **`codeworthy-mockups.dc.html`** — the editable design-doc source. References an external `support.js` runtime and Google Fonts, so it won't render standalone; keep editing here and re-export the bundle.
+
+Two sets share one bold direction (navy + green):
 
 ## Screen inventory
 
