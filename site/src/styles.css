@@ -11,6 +11,7 @@
   --ink: #082f3c; /* primary text, "Code" in the wordmark */
   --ink-2: #3a5a63; /* secondary text (navy-derived) */
   --ink-muted: #6b828a; /* captions, metadata, timestamps */
+  --brand-blue: #082f3c; /* "Code" in the wordmark */
   --accent: #22c55e; /* "Worthy", verified/pass, primary CTA fills */
   --accent-strong: #16a34a; /* hover/active; also any green TEXT (AA) */
   --accent-soft: #ecfdf3; /* faint green wash behind pass chips */
@@ -35,28 +36,6 @@
   --radius: 10px;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
-/* Dark mode: secondary theme — inverted toward navy, green stays the accent. */
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --page: #06222c;
-    --surface: #0b3140;
-    --surface-2: #103a4a;
-    --ink: #f2f7f5;
-    --ink-2: #b8c9ce;
-    --ink-muted: #7e959c;
-    --accent: #22c55e;
-    --accent-strong: #4ade80;
-    --accent-soft: #0d3b2b;
-    --hairline: #16404e;
-    --border: #16404e;
-    --seq-250: #35606e;
-    --seq-400: #b8c9ce;
-    --seq-550: #f2f7f5;
-    --status-good-text: #4ade80;
-  }
 }
 
 * {
@@ -92,11 +71,11 @@ a:hover {
   letter-spacing: -0.01em;
 }
 
-/* ---------- wordmark ---------- */
+/* ---------- wordmark: "Code" blue, "Worthy" green ---------- */
 .wordmark {
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--ink);
+  color: var(--brand-blue);
 }
 .wordmark .worthy {
   color: var(--accent-strong);
@@ -216,12 +195,6 @@ a:hover {
   background: color-mix(in srgb, var(--rating-needs) 12%, var(--page));
   border-color: color-mix(in srgb, var(--rating-needs) 35%, var(--hairline));
 }
-@media (prefers-color-scheme: dark) {
-  .badge-attention {
-    color: #f0a49b;
-  }
-}
-
 /* ---------- cards ---------- */
 .card {
   background: var(--surface);
