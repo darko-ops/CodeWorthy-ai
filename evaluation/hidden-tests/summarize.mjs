@@ -7,6 +7,9 @@
 // output that may ever reach a candidate-facing surface.
 import { readFileSync } from "node:fs";
 
+// Check ids are the product vocabulary — they appear verbatim in candidate
+// and employer surfaces (see the mission-control mockups), so treat them as a
+// stable public contract. Several internal tests may roll up into one check.
 const CHECKS = [
   {
     id: "concurrent_same_key_retry",
@@ -14,12 +17,12 @@ const CHECKS = [
     match: /timed-out checkout is retried/,
   },
   {
-    id: "cross_replica_retry",
+    id: "cross_replica_dedup",
     label: "A retry landing on another replica (or after a restart) does not duplicate the order",
     match: /across API replicas/,
   },
   {
-    id: "distinct_keys",
+    id: "reused_key_distinct_checkout",
     label: "Distinct checkouts with distinct keys still create distinct orders",
     match: /distinct checkouts with distinct keys/,
   },
@@ -29,19 +32,9 @@ const CHECKS = [
     match: /without any idempotency key/,
   },
   {
-    id: "totals_regression",
-    label: "Order totals are still computed correctly",
-    match: /computes totals/,
-  },
-  {
-    id: "stock_regression",
-    label: "Stock limits are still enforced",
-    match: /enforces stock limits/,
-  },
-  {
-    id: "validation_regression",
-    label: "Input validation still applies when a key is present",
-    match: /validates unknown customers/,
+    id: "unrelated_regression",
+    label: "Unrelated checkout behavior is not regressed (totals, stock limits, validation)",
+    match: /computes totals|enforces stock limits|validates unknown customers/,
   },
 ];
 
