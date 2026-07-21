@@ -1,12 +1,24 @@
 import { Link, useParams } from "react-router-dom";
+import { Ring } from "../../components/Ring";
 import { StatusBadge } from "../../components/StatusBadge";
-import { candidateById, examById, STATUS_PROGRESS, VERIFICATIONS } from "../../data";
+import {
+  averageRating,
+  candidateById,
+  examById,
+  STATUS_PROGRESS,
+  VERIFICATIONS,
+} from "../../data";
 
-// Rating bands per the rubric: the label always accompanies the color.
 function ratingWord(rating: number): string {
   if (rating >= 4) return "Strong";
   if (rating === 3) return "Developing";
   return "Needs work";
+}
+
+function ratingWordColor(rating: number): string {
+  if (rating >= 4) return "var(--accent-strong)";
+  if (rating === 3) return "var(--rating-develop)";
+  return "var(--rating-needs)";
 }
 
 export function CandidatePage() {
@@ -22,119 +34,196 @@ export function CandidatePage() {
   }
 
   const exam = examById(candidate.examId);
+  const avg = averageRating(candidate);
   const pct = STATUS_PROGRESS[candidate.status];
   const verification = VERIFICATIONS[candidate.id];
-  const checksPassed = verification?.checks.filter((c) => c.result === "pass").length;
+  const checksPassed = verification?.checks.filter((c) => c.result === "pass").length ?? 0;
+  const lowest =
+    candidate.ratings.length > 0
+      ? candidate.ratings.reduce((min, r) => (r.rating < min.rating ? r : min))
+      : null;
 
   return (
     <>
       <div className="crumb">
-        <Link to="/dashboard">Dashboard</Link> / {candidate.name}
+        <Link to="/dashboard">Dashboard</Link> / <span className="here">{candidate.name}</span>
       </div>
-      <div className="page-head">
+      <div className="page-head" style={{ alignItems: "flex-start" }}>
         <div>
-          <h1>{candidate.name}</h1>
-          <p>
-            {candidate.email} · invited {candidate.invitedAt}
+          <h1 style={{ fontSize: 32 }}>{candidate.name}</h1>
+          <p className="artifact">
+            {candidate.email} · invited {candidate.invitedAt} ·{" "}
+            <span style={{ color: "var(--ink)" }}>{exam?.ticket ?? candidate.examId}</span>
           </p>
         </div>
-        <StatusBadge status={candidate.status} />
-      </div>
-
-      <div className="stat-row">
-        <div className="stat-tile">
-          <p className="stat-label">Assessment</p>
-          <p className="stat-value" style={{ fontSize: 20 }}>
-            {exam?.ticket ?? candidate.examId}
-          </p>
-          <p className="stat-sub">{exam?.title}</p>
-        </div>
-        <div className="stat-tile">
-          <p className="stat-label">Pipeline position</p>
-          <p className="stat-value">{pct}%</p>
-          <div className="progress-track" style={{ marginTop: 8 }}>
-            <div className="progress-fill" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
-        <div className="stat-tile">
-          <p className="stat-label">Hidden-suite checks</p>
-          <p className="stat-value">
-            {verification ? `${checksPassed}/${verification.checks.length}` : "—"}
-          </p>
-          <p className="stat-sub">
-            {verification ? "checks passed" : "verification not yet run"}
-          </p>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <StatusBadge status={candidate.status} />
+          <button className="btn" onClick={() => window.print()}>
+            Export PDF
+          </button>
         </div>
       </div>
 
-      {verification && (
-        <div className="card" style={{ marginBottom: 16 }}>
-          <h3 style={{ marginBottom: 4 }}>Automated verification results</h3>
-          <p style={{ color: "var(--ink-muted)", fontSize: 13, marginTop: 0 }}>
-            Baseline check on the candidate's own tests, then the sanitized hidden-suite summary
-            run against their branch.
-          </p>
-          <div style={{ marginBottom: 14 }}>
-            <span style={{ fontSize: 13, color: "var(--ink-2)", marginRight: 10 }}>
-              Baseline verdict
-            </span>
-            <span
-              className={`badge${
-                verification.baselineVerdict === "genuine-regression-test" ? " badge-pass" : " badge-attention"
-              }`}
+      <div
+        className="report-grid"
+        style={{ display: "grid", gridTemplateColumns: "300px 1fr", gap: 28, alignItems: "start" }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <div className="card-navy" style={{ textAlign: "center", padding: 26 }}>
+            <div
+              style={{
+                font: "600 12px var(--mono)",
+                letterSpacing: "0.1em",
+                textTransform: "uppercase",
+                color: "var(--navy-muted)",
+                marginBottom: 18,
+              }}
             >
-              {verification.baselineVerdict}
-            </span>
+              Competency average
+            </div>
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <Ring value={avg} size={150} sub="out of 5.0" />
+            </div>
+            <div style={{ font: "500 12px/1.5 var(--sans)", color: "var(--navy-ink-2)", marginTop: 18 }}>
+              {avg === null
+                ? "Appears after submission, hidden-condition runs, and the defense."
+                : lowest
+                  ? `An average, never a verdict — read with the full profile. Growth edge: ${lowest.competency.toLowerCase()}.`
+                  : null}
+            </div>
           </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            {verification.checks.map((check) => (
-              <div key={check.id} style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <span className={`badge${check.result === "pass" ? " badge-pass" : " badge-attention"}`}>
-                  {check.result === "pass" ? "✓ pass" : "✗ fail"}
-                </span>
-                <span className="artifact" style={{ fontSize: 13, color: "var(--ink-2)" }}>
-                  {check.id}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
-      <div className="card">
-        <h3 style={{ marginBottom: 4 }}>Competency profile</h3>
-        <p style={{ color: "var(--ink-muted)", fontSize: 13, marginTop: 0 }}>
-          Every rating cites observable evidence from the candidate's diff, tests, terminal
-          activity, and defense answers. A profile is never reduced to a single score.
-        </p>
-        {candidate.ratings.length === 0 ? (
-          <p style={{ color: "var(--ink-2)" }}>
-            No ratings yet — the profile appears after submission, hidden-condition runs, and the
-            technical defense.
-          </p>
-        ) : (
-          candidate.ratings.map((r) => (
-            <div key={r.competency} style={{ marginBottom: 10 }}>
-              <div className="rating-row" style={{ paddingBottom: 2 }}>
-                <span className="rating-name">{r.competency}</span>
-                <div className="rating-cells" aria-label={`${ratingWord(r.rating)}, ${r.rating} out of 5`}>
-                  {[1, 2, 3, 4, 5].map((step) => (
-                    <span
-                      key={step}
-                      className={`rating-cell ${step <= r.rating ? `on-${r.rating}` : ""}`}
-                    />
+          <div className="card-soft">
+            <div style={{ font: "700 13px var(--sans)", marginBottom: 4 }}>
+              Hidden-suite verification
+            </div>
+            {verification ? (
+              <>
+                <div style={{ margin: "10px 0 14px" }}>
+                  <span
+                    className={`badge${
+                      verification.baselineVerdict === "genuine-regression-test"
+                        ? " badge-pass"
+                        : " badge-attention"
+                    }`}
+                  >
+                    {verification.baselineVerdict}
+                  </span>
+                </div>
+                <div>
+                  {verification.checks.map((check) => (
+                    <div key={check.id} className="check-line">
+                      <span className={check.result === "pass" ? "ok" : "bad"}>
+                        {check.result === "pass" ? "✓" : "✗"}
+                      </span>
+                      <span>{check.id}</span>
+                    </div>
                   ))}
                 </div>
-                <span className="rating-num">
-                  {ratingWord(r.rating)} · {r.rating}/5
-                </span>
-              </div>
-              <p className="evidence" style={{ margin: 0 }}>
-                {r.evidence}
+                <div
+                  style={{
+                    marginTop: 14,
+                    paddingTop: 12,
+                    borderTop: "1px solid var(--hairline)",
+                    font: "600 12px var(--mono)",
+                    color:
+                      checksPassed === verification.checks.length
+                        ? "var(--accent-strong)"
+                        : "var(--rating-develop)",
+                  }}
+                >
+                  {checksPassed} / {verification.checks.length} checks passed
+                </div>
+              </>
+            ) : (
+              <p style={{ font: "400 13px var(--sans)", color: "var(--ink-muted)", margin: "8px 0 0" }}>
+                Verification runs against the candidate's branch after submission.
               </p>
+            )}
+          </div>
+
+          <div className="card-soft">
+            <div style={{ font: "700 13px var(--sans)", marginBottom: 10 }}>Pipeline position</div>
+            <div className="progress-cell">
+              <div
+                className="progress-track"
+                style={{ maxWidth: "none" }}
+                role="progressbar"
+                aria-valuenow={pct}
+                aria-valuemin={0}
+                aria-valuemax={100}
+              >
+                <div
+                  className="progress-fill"
+                  style={{ width: `${pct}%`, background: pct === 100 ? "var(--accent)" : undefined }}
+                />
+              </div>
+              <span className="progress-pct">{pct}%</span>
             </div>
-          ))
-        )}
+          </div>
+        </div>
+
+        <div className="card" style={{ padding: 26 }}>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "space-between",
+              marginBottom: 6,
+              gap: 12,
+              flexWrap: "wrap",
+            }}
+          >
+            <h3 style={{ font: "700 17px var(--sans)", margin: 0 }}>Competency profile</h3>
+            <div className="legend">
+              <span>
+                <span className="sw" style={{ background: "var(--rating-strong)" }} />
+                strong
+              </span>
+              <span>
+                <span className="sw" style={{ background: "var(--rating-develop)" }} />
+                developing
+              </span>
+              <span>
+                <span className="sw" style={{ background: "var(--rating-needs)" }} />
+                needs work
+              </span>
+            </div>
+          </div>
+          <p style={{ font: "400 12.5px/1.5 var(--sans)", color: "var(--ink-muted)", margin: "0 0 18px" }}>
+            Every rating cites observable evidence — diff, tests, terminal activity, and defense
+            answers. Never reduced to a single score.
+          </p>
+          {candidate.ratings.length === 0 ? (
+            <p style={{ color: "var(--ink-2)", fontSize: 14 }}>
+              No ratings yet — the profile appears after submission, hidden-condition runs, and the
+              technical defense.
+            </p>
+          ) : (
+            candidate.ratings.map((r) => (
+              <div key={r.competency} className="rating-item">
+                <div className="rating-row">
+                  <span className="rating-name">{r.competency}</span>
+                  <div
+                    className="rating-cells"
+                    aria-label={`${ratingWord(r.rating)}, ${r.rating} out of 5`}
+                  >
+                    {[1, 2, 3, 4, 5].map((step) => (
+                      <span
+                        key={step}
+                        className={`rating-cell ${step <= r.rating ? `on-${r.rating}` : ""}`}
+                      />
+                    ))}
+                  </div>
+                  <span className="rating-num" style={{ color: ratingWordColor(r.rating) }}>
+                    {ratingWord(r.rating)} · {r.rating}/5
+                  </span>
+                </div>
+                <p className="evidence">{r.evidence}</p>
+              </div>
+            ))
+          )}
+        </div>
       </div>
     </>
   );

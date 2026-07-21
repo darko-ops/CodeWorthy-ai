@@ -31,81 +31,77 @@ export function ExamPage() {
   return (
     <>
       <div className="crumb">
-        <Link to="/learn">My assessments</Link> / <span className="artifact">{exam.ticket}</span>
+        <Link to="/learn">My assessments</Link> / <span className="here">{exam.ticket}</span>
       </div>
-      <div className="page-head">
+
+      <div className="ticket-band">
+        <div className="band-chips">
+          <span className="band-chip">{exam.ticket}</span>
+          <span className="band-chip">{exam.timeboxHours}h timebox</span>
+          <span className="band-chip green">AI tools allowed</span>
+        </div>
+        <div className="band-foot">
+          <div>
+            <h1>{exam.title}</h1>
+            <p className="sub">{exam.summary}</p>
+          </div>
+          {progress === "not_started" && (
+            <button className="btn btn-primary btn-lg" onClick={() => update("in_progress")}>
+              Start assessment
+            </button>
+          )}
+          {progress === "in_progress" && (
+            <button className="btn btn-primary btn-lg" onClick={() => update("submitted")}>
+              Mark as submitted
+            </button>
+          )}
+          {progress === "submitted" && (
+            <span className="badge badge-solid">✓ SUBMITTED — AWAITING REVIEW</span>
+          )}
+        </div>
+      </div>
+
+      <div className="exam-grid">
         <div>
-          <h1>{exam.title}</h1>
-          <p>{exam.summary}</p>
-        </div>
-        {progress === "not_started" && (
-          <button className="btn btn-primary btn-lg" onClick={() => update("in_progress")}>
-            Start assessment
-          </button>
-        )}
-        {progress === "in_progress" && (
-          <button className="btn btn-primary btn-lg" onClick={() => update("submitted")}>
-            Mark as submitted
-          </button>
-        )}
-        {progress === "submitted" && (
-          <span className="badge badge-pass">✓ Submitted — awaiting review</span>
-        )}
-      </div>
-
-      <div className="exam-meta">
-        <span className="badge">{exam.ticket}</span>
-        <span className="badge">{exam.timeboxHours}h timebox</span>
-        <span className="badge">AI tools allowed</span>
-      </div>
-
-      <div className="prose">
-        <h2>Scenario</h2>
-        <p style={{ color: "var(--ink-2)" }}>{exam.scenario}</p>
-
-        <h2>What you'll do</h2>
-        <div className="card" style={{ padding: "6px 20px" }}>
-          {exam.steps.map((step, i) => (
-            <div className="mission-step" key={step}>
-              <span className="mission-idx">{String(i + 1).padStart(2, "0")}</span>
-              <p>{step}</p>
-              {isAutomatedStep(step) ? (
-                <span className="badge">auto check</span>
-              ) : (
-                <span className="badge">pending review</span>
-              )}
-            </div>
-          ))}
+          <h2 className="mono-h">Scenario</h2>
+          <p style={{ font: "400 15px/1.6 var(--sans)", color: "var(--ink-2)", margin: "0 0 28px" }}>
+            {exam.scenario}
+          </p>
+          <h2 className="mono-h">What you'll do</h2>
+          <div>
+            {exam.steps.map((step, i) => (
+              <div className="mission-step" key={step}>
+                <span className="mission-idx">{String(i + 1).padStart(2, "0")}</span>
+                <p>{step}</p>
+                {isAutomatedStep(step) ? (
+                  <span className="badge badge-pass">auto check</span>
+                ) : (
+                  <span className="badge">pending review</span>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
 
-        <h2>Competencies in focus</h2>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {exam.focusCompetencies.map((c) => (
-            <span className="competency-chip" key={c}>
-              {c}
-            </span>
-          ))}
+        <div className="card-soft">
+          <h3 style={{ font: "700 13px var(--sans)", margin: "0 0 14px" }}>Competencies in focus</h3>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 22 }}>
+            {exam.focusCompetencies.map((c) => (
+              <span className="competency-chip" key={c}>
+                {c}
+              </span>
+            ))}
+          </div>
+          <h3 style={{ font: "700 13px var(--sans)", margin: "0 0 10px" }}>Ground rules</h3>
+          <ul style={{ margin: 0, paddingLeft: 16, font: "400 12.5px/1.6 var(--sans)", color: "var(--ink-muted)" }}>
+            <li>Open a PR with the provided template when done.</li>
+            <li>Stay in control of your diff — you'll explain every line.</li>
+            <li>Hidden conditions run against your branch after submission.</li>
+            <li>
+              Out of time is <em>unassessed</em>, not failed.
+            </li>
+          </ul>
         </div>
-
-        <h2>Ground rules</h2>
-        <ul style={{ paddingLeft: 20 }}>
-          <li>
-            Work in the repository you're invited to; open a PR with the provided template when
-            done.
-          </li>
-          <li>
-            Use any AI tools you normally would — you'll be asked to explain and defend your diff,
-            so stay in control of it.
-          </li>
-          <li>
-            Hidden conditions (concurrency, replicas, restarts, unrelated regressions) run against
-            your branch after submission.
-          </li>
-          <li>
-            Running out of time is reported as <em>unassessed</em>, not failed — ship the most
-            trustworthy subset you can.
-          </li>
-        </ul>
       </div>
     </>
   );

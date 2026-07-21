@@ -9,80 +9,108 @@ const PROGRESS_LABEL: Record<ExamProgress, string> = {
   submitted: "Submitted",
 };
 
+// Track rail colors, one per progression-ladder level.
+const RAILS: Record<string, string> = {
+  contributor: "#16a34a",
+  maintainer: "#2a78d6",
+  owner: "#7c3aed",
+  release: "#d9a200",
+  oncall: "#e86a5e",
+};
+
+const STRIP = [
+  { k: "REAL REPO", v: "Clone it, run it, read the ticket. The bug reproduces in production conditions." },
+  { k: "AI ALLOWED", v: "Guide, inspect, verify. You'll defend every line of your diff." },
+  { k: "HIDDEN CONDITIONS", v: "Concurrency, replicas, restarts, and unrelated-regression checks." },
+  { k: "EVIDENCE PROFILE", v: "Twelve competencies — the report employers actually see." },
+];
+
 export function Learn() {
   const { session } = useAuth();
   const [progress] = useState(readProgress);
 
+  const inProgress = EXAMS.filter((e) => progress[e.id] === "in_progress").length;
+  const submitted = EXAMS.filter((e) => progress[e.id] === "submitted").length;
+  const available = EXAMS.length - inProgress - submitted;
+
   return (
-    <>
-      <div className="page-head">
+    <div className="learn-bg">
+      <div className="learn-head">
         <div>
-          <h1>Welcome, {session?.name}</h1>
-          <p>Advance by demonstrating competencies under different conditions — never by consuming content.</p>
+          <h1 style={{ font: "800 30px var(--sans)", letterSpacing: "-0.02em", margin: 0 }}>
+            Welcome, {session?.name}
+          </h1>
+          <p style={{ font: "400 15px var(--sans)", color: "var(--ink-2)", margin: "8px 0 0", maxWidth: 560 }}>
+            Advance by demonstrating competencies under different conditions — never by consuming
+            content.
+          </p>
+        </div>
+        <div className="learn-stats">
+          <div>
+            <div className="learn-stat-n" style={{ color: "var(--accent-strong)" }}>{inProgress}</div>
+            <div className="learn-stat-l">in progress</div>
+          </div>
+          <div className="sep" />
+          <div>
+            <div className="learn-stat-n">{available}</div>
+            <div className="learn-stat-l">available</div>
+          </div>
+          <div className="sep" />
+          <div>
+            <div className="learn-stat-n" style={{ color: "var(--ink-faint)" }}>{submitted}</div>
+            <div className="learn-stat-l">submitted</div>
+          </div>
         </div>
       </div>
 
-      <div className="card prose" style={{ marginBottom: 28 }}>
-        <h3 style={{ marginBottom: 8 }}>How assessments work</h3>
-        <ul style={{ margin: 0, paddingLeft: 20 }}>
-          <li>
-            <strong>You get a real repository.</strong> Clone it, run it, read the ticket. The bug
-            reproduces in production conditions, not on the happy path.
-          </li>
-          <li>
-            <strong>AI tools are allowed — and scored on control.</strong> Guide, inspect, and
-            verify. You will defend every line of your diff.
-          </li>
-          <li>
-            <strong>Hidden conditions run against your branch.</strong> Concurrency, replicas,
-            restarts, and unrelated-regression checks.
-          </li>
-          <li>
-            <strong>Your work becomes an evidence-backed profile</strong> across twelve
-            competencies — the report employers actually see.
-          </li>
-        </ul>
+      <div className="navy-strip">
+        {STRIP.map((s) => (
+          <div key={s.k}>
+            <div className="k">{s.k}</div>
+            <div className="v">{s.v}</div>
+          </div>
+        ))}
       </div>
 
-      {LESSONS.map((lesson) => {
+      {LESSONS.map((lesson, idx) => {
         const exams = EXAMS.filter((e) => e.lessonId === lesson.id);
         if (exams.length === 0) return null;
+        const rail = RAILS[lesson.id] ?? "var(--ink)";
         return (
-          <section key={lesson.id} className="lesson-section">
-            <span className="lesson-level">{lesson.level}</span>
-            <h2 style={{ margin: "2px 0 4px", letterSpacing: "-0.02em" }}>{lesson.title}</h2>
-            <p style={{ color: "var(--ink-2)", margin: "0 0 14px", maxWidth: 720 }}>
-              {lesson.summary}
-            </p>
-            <div className="grid-2">
-              {exams.map((exam) => {
-                const state = progress[exam.id] ?? "not_started";
-                return (
-                  <Link
-                    key={exam.id}
-                    to={`/learn/exams/${exam.id}`}
-                    className="card"
-                    style={{ color: "inherit", display: "block" }}
-                  >
-                    <div className="exam-meta" style={{ margin: "0 0 8px" }}>
-                      <span className="badge">{exam.ticket}</span>
-                      <span className="badge">{exam.timeboxHours}h timebox</span>
-                      <span className={`badge${state === "submitted" ? " badge-pass" : ""}`}>
-                        {state === "submitted" ? "✓ " : ""}
-                        {PROGRESS_LABEL[state]}
-                      </span>
-                    </div>
-                    <strong style={{ fontSize: 16 }}>{exam.title}</strong>
-                    <p style={{ color: "var(--ink-2)", fontSize: 14, margin: "6px 0 0" }}>
-                      {exam.summary}
-                    </p>
-                  </Link>
-                );
-              })}
+          <section key={lesson.id} className="track" style={{ "--rail": rail } as React.CSSProperties}>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
+              <span className="track-level">{lesson.level}</span>
+              <span className="track-idx">track {idx + 1} / {LESSONS.length}</span>
             </div>
+            <h2>{lesson.title}</h2>
+            <p>{lesson.summary}</p>
+            {exams.map((exam) => {
+              const state = progress[exam.id] ?? "not_started";
+              return (
+                <Link key={exam.id} to={`/learn/exams/${exam.id}`} className="exam-card">
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    <span className="badge">{exam.ticket}</span>
+                    <span className="badge">{exam.timeboxHours}h timebox</span>
+                    <span className={`badge${state === "submitted" ? " badge-pass" : ""}`}>
+                      {state === "submitted" ? "✓ " : ""}
+                      {PROGRESS_LABEL[state]}
+                    </span>
+                    <span className="go">
+                      {state === "in_progress" ? "Continue" : state === "submitted" ? "Review" : "Open"} →
+                    </span>
+                  </div>
+                  <div style={{ font: "700 15px var(--sans)", color: "var(--ink)", marginBottom: 5 }}>
+                    {exam.title}
+                  </div>
+                  <p style={{ font: "400 13px/1.5 var(--sans)", color: "var(--ink-muted)", margin: 0 }}>
+                    {exam.summary}
+                  </p>
+                </Link>
+              );
+            })}
           </section>
         );
       })}
-    </>
+    </div>
   );
 }

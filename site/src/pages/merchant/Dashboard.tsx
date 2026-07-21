@@ -1,10 +1,16 @@
-import { Link } from "react-router-dom";
-import { useAuth } from "../../auth";
+import { Link, useNavigate } from "react-router-dom";
 import { StatusBadge } from "../../components/StatusBadge";
 import { averageRating, CANDIDATES, examById, STATUS_PROGRESS } from "../../data";
 
+function avgColor(avg: number | null): string {
+  if (avg === null) return "var(--ink-faint)";
+  if (avg >= 4) return "var(--accent-bright)";
+  if (avg >= 3) return "var(--amber-bright)";
+  return "var(--rating-needs)";
+}
+
 export function Dashboard() {
-  const { session } = useAuth();
+  const navigate = useNavigate();
 
   const total = CANDIDATES.length;
   const active = CANDIDATES.filter((c) => c.status === "in_progress").length;
@@ -12,9 +18,7 @@ export function Dashboard() {
     (c) => c.status === "submitted" || c.status === "defense"
   ).length;
   const reported = CANDIDATES.filter((c) => c.status === "reported");
-  const ratedAverages = reported
-    .map(averageRating)
-    .filter((avg): avg is number => avg !== null);
+  const ratedAverages = reported.map(averageRating).filter((avg): avg is number => avg !== null);
   const avgCompetency =
     ratedAverages.length > 0
       ? ratedAverages.reduce((a, b) => a + b, 0) / ratedAverages.length
@@ -27,15 +31,20 @@ export function Dashboard() {
       <div className="page-head">
         <div>
           <h1>Hiring dashboard</h1>
-          <p>{session?.email} · Acme Wholesale assessments</p>
+          <p>Acme Wholesale · production-access candidates</p>
         </div>
+        <button className="btn btn-primary" title="Coming soon">
+          + Invite candidate
+        </button>
       </div>
 
       <div className="stat-row">
         <div className="stat-tile">
-          <p className="stat-label">Total potential hires</p>
+          <p className="stat-label">Total candidates</p>
           <p className="stat-value">{total}</p>
-          <p className="stat-sub">▲ 2 this week</p>
+          <p className="stat-sub" style={{ color: "var(--accent-bright)" }}>
+            ▲ 2 this week
+          </p>
         </div>
         <div className="stat-tile">
           <p className="stat-label">Currently assessing</p>
@@ -47,7 +56,7 @@ export function Dashboard() {
           <p className="stat-value">{awaitingReview}</p>
           <p className="stat-sub">submitted or in defense</p>
         </div>
-        <div className="stat-tile">
+        <div className="stat-tile glow">
           <p className="stat-label">Reports ready</p>
           <p className="stat-value">{reported.length}</p>
           <p className="stat-sub">
@@ -63,9 +72,9 @@ export function Dashboard() {
               <th>Candidate</th>
               <th>Assessment</th>
               <th>Status</th>
-              <th>Pipeline progress</th>
-              <th className="num">Avg rating</th>
-              <th>Last activity</th>
+              <th>Pipeline</th>
+              <th className="num">Avg</th>
+              <th>Activity</th>
             </tr>
           </thead>
           <tbody>
@@ -74,17 +83,27 @@ export function Dashboard() {
               const pct = STATUS_PROGRESS[c.status];
               const avg = averageRating(c);
               return (
-                <tr key={c.id}>
+                <tr
+                  key={c.id}
+                  onClick={() => navigate(`/dashboard/candidates/${c.id}`)}
+                  style={{ cursor: "pointer" }}
+                >
                   <td>
-                    <Link to={`/dashboard/candidates/${c.id}`} style={{ fontWeight: 600 }}>
+                    <Link
+                      to={`/dashboard/candidates/${c.id}`}
+                      style={{ fontWeight: 600 }}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {c.name}
                     </Link>
-                    <div style={{ fontSize: 12, color: "var(--ink-muted)" }}>{c.email}</div>
+                    <div style={{ font: "500 11px var(--mono)", color: "var(--ink-faint)", marginTop: 2 }}>
+                      {c.email}
+                    </div>
                   </td>
-                  <td>
+                  <td style={{ color: "var(--ink-2)", fontSize: 13 }}>
                     {exam ? (
                       <>
-                        <span className="artifact">{exam.ticket}</span> · {exam.title}
+                        <span className="artifact" style={{ color: "var(--ink)" }}>{exam.ticket}</span> · {exam.title}
                       </>
                     ) : (
                       c.examId
@@ -102,13 +121,23 @@ export function Dashboard() {
                         aria-valuemin={0}
                         aria-valuemax={100}
                       >
-                        <div className="progress-fill" style={{ width: `${pct}%` }} />
+                        <div
+                          className="progress-fill"
+                          style={{
+                            width: `${pct}%`,
+                            background: pct === 100 ? "var(--accent)" : undefined,
+                          }}
+                        />
                       </div>
                       <span className="progress-pct">{pct}%</span>
                     </div>
                   </td>
-                  <td className="num">{avg !== null ? `${avg.toFixed(1)} / 5` : "—"}</td>
-                  <td>{c.updatedAt}</td>
+                  <td className="num" style={{ color: avgColor(avg) }}>
+                    {avg !== null ? avg.toFixed(1) : "—"}
+                  </td>
+                  <td style={{ font: "500 11px var(--mono)", color: "var(--ink-muted)" }}>
+                    {c.updatedAt}
+                  </td>
                 </tr>
               );
             })}
