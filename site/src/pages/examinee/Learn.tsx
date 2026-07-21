@@ -9,14 +9,11 @@ const PROGRESS_LABEL: Record<ExamProgress, string> = {
   submitted: "Submitted",
 };
 
-// Track rail colors, one per progression-ladder level.
-const RAILS: Record<string, string> = {
-  contributor: "#16a34a",
-  maintainer: "#2a78d6",
-  owner: "#7c3aed",
-  release: "#d9a200",
-  oncall: "#e86a5e",
-};
+// Rail color follows activity (mockup 1f): green for the track you're in,
+// navy for the rest.
+function railFor(states: ExamProgress[]): string {
+  return states.some((s) => s === "in_progress" || s === "submitted") ? "#16a34a" : "#3a5a63";
+}
 
 const STRIP = [
   { k: "REAL REPO", v: "Clone it, run it, read the ticket. The bug reproduces in production conditions." },
@@ -75,7 +72,7 @@ export function Learn() {
       {LESSONS.map((lesson, idx) => {
         const exams = EXAMS.filter((e) => e.lessonId === lesson.id);
         if (exams.length === 0) return null;
-        const rail = RAILS[lesson.id] ?? "var(--ink)";
+        const rail = railFor(exams.map((e) => progress[e.id] ?? "not_started"));
         return (
           <section key={lesson.id} className="track" style={{ "--rail": rail } as React.CSSProperties}>
             <div style={{ display: "flex", alignItems: "baseline", gap: 12, marginBottom: 4 }}>
@@ -91,12 +88,16 @@ export function Learn() {
                   <div style={{ display: "flex", gap: 8, marginBottom: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <span className="badge">{exam.ticket}</span>
                     <span className="badge">{exam.timeboxHours}h timebox</span>
-                    <span className={`badge${state === "submitted" ? " badge-pass" : ""}`}>
+                    <span
+                      className={`badge${
+                        state === "submitted" ? " badge-pass" : state === "in_progress" ? " badge-amber" : ""
+                      }`}
+                    >
                       {state === "submitted" ? "✓ " : ""}
                       {PROGRESS_LABEL[state]}
                     </span>
                     <span className="go">
-                      {state === "in_progress" ? "Continue" : state === "submitted" ? "Review" : "Open"} →
+                      {state === "in_progress" ? "Resume" : state === "submitted" ? "Review" : "Start"} →
                     </span>
                   </div>
                   <div style={{ font: "700 15px var(--sans)", color: "var(--ink)", marginBottom: 5 }}>

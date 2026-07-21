@@ -33,9 +33,14 @@ export function Dashboard() {
           <h1>Hiring dashboard</h1>
           <p>Acme Wholesale · production-access candidates</p>
         </div>
-        <button className="btn btn-primary" title="Coming soon">
-          + Invite candidate
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <Link to="/dashboard/compare" className="btn">
+            Compare
+          </Link>
+          <Link to="/dashboard/invite" className="btn btn-primary">
+            + Invite candidate
+          </Link>
+        </div>
       </div>
 
       <div className="stat-row">

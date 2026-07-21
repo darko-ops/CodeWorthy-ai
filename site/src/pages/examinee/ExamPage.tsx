@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { examById, readProgress, writeProgress, type ExamProgress } from "../../data";
+import { EXAMINEE_RESULTS, examById, readProgress, writeProgress, type ExamProgress } from "../../data";
 
 // Presentation only: steps that a machine verifies live (checks that tick)
 // versus steps a human reviews after submission.
@@ -55,9 +55,14 @@ export function ExamPage() {
               Mark as submitted
             </button>
           )}
-          {progress === "submitted" && (
-            <span className="badge badge-solid">✓ SUBMITTED — AWAITING REVIEW</span>
-          )}
+          {progress === "submitted" &&
+            (EXAMINEE_RESULTS[exam.id] ? (
+              <Link to={`/learn/results/${exam.id}`} className="btn btn-primary btn-lg">
+                View your result →
+              </Link>
+            ) : (
+              <span className="badge badge-solid">✓ SUBMITTED — AWAITING REVIEW</span>
+            ))}
         </div>
       </div>
 

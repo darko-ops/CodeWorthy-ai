@@ -73,12 +73,12 @@ export function Shell() {
               <NavLink to="/dashboard" end className="nav-tab">
                 Dashboard
               </NavLink>
-              <span className="nav-tab" aria-disabled title="Coming soon">
-                Assessments
-              </span>
-              <span className="nav-tab" aria-disabled title="Coming soon">
+              <NavLink to="/dashboard/team" className="nav-tab">
                 Team
-              </span>
+              </NavLink>
+              <NavLink to="/dashboard/settings" className="nav-tab">
+                Settings
+              </NavLink>
             </>
           )}
           {session?.role === "examinee" && (

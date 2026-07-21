@@ -369,6 +369,69 @@ export const VERIFICATIONS: Record<string, VerificationResult> = {
   },
 };
 
+// ---------------------------------------------------------------------------
+// Team, billing, compare, and examinee-result demo data (mockups 1g-1l).
+// ---------------------------------------------------------------------------
+
+export type TeamRole = "Owner" | "Reviewer" | "Viewer";
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: TeamRole;
+  lastActive: string;
+  reviews: number | null;
+  isYou?: boolean;
+}
+
+export const TEAM: TeamMember[] = [
+  { id: "tm-1", name: "Dana Kim", email: "dana.kim@acme.com", role: "Owner", lastActive: "Just now", reviews: 18, isYou: true },
+  { id: "tm-2", name: "Raj Mehta", email: "raj.mehta@acme.com", role: "Reviewer", lastActive: "2h ago", reviews: 31 },
+  { id: "tm-3", name: "Lena Graff", email: "lena.graff@acme.com", role: "Reviewer", lastActive: "Yesterday", reviews: 12 },
+  { id: "tm-4", name: "Theo Owens", email: "theo.owens@acme.com", role: "Viewer", lastActive: "3d ago", reviews: null },
+];
+
+export const PENDING_TEAM_INVITES = [
+  { email: "sam.ortiz@acme.com", role: "Reviewer" as TeamRole, invited: "2 days ago" },
+];
+
+export const BILLING = {
+  plan: "Team",
+  priceMonthly: 499,
+  renews: "Aug 6, 2026",
+  included: { assessments: 50, seats: 5, overage: "$12 / assessment" },
+  usage: { assessments: 8, seats: 4, cycle: "Jul 6 – Aug 6" },
+  invoices: [
+    { date: "Jul 6, 2026", id: "INV-2026-07", amount: "$499.00", status: "Paid" },
+    { date: "Jun 6, 2026", id: "INV-2026-06", amount: "$499.00", status: "Paid" },
+    { date: "May 6, 2026", id: "INV-2026-05", amount: "$511.00", status: "Paid" },
+  ],
+  card: { brand: "VISA", last4: "4242", expires: "08 / 28" },
+  upsell: {
+    plan: "Scale",
+    priceMonthly: 1499,
+    pitch: "Unlimited assessments, 20 seats, SSO, and a custom simulation library.",
+  },
+};
+
+export type Recommendation = "Advance" | "In review" | "Hold";
+
+// Compare view: candidate ids side by side with the reviewer recommendation.
+export const COMPARE: Array<{ candidateId: string; recommendation: Recommendation }> = [
+  { candidateId: "cand-01", recommendation: "Advance" },
+  { candidateId: "cand-03", recommendation: "In review" },
+  { candidateId: "cand-02", recommendation: "Hold" },
+];
+
+// The examinee's own released result (demo: Priya's ACME-1287 profile).
+export const EXAMINEE_RESULTS: Record<
+  string,
+  { candidateId: string; growthEdgeTrack: string }
+> = {
+  "acme-1287": { candidateId: "cand-01", growthEdgeTrack: "Release engineer" },
+};
+
 export function examById(id: string): Exam | undefined {
   return EXAMS.find((e) => e.id === id);
 }
