@@ -12,7 +12,9 @@
 #       [--org <github-org>] [--dry-run] [--verify] [--keep-workdir]
 #
 #   --org           GitHub org to create the repo under (default: $CW_GITHUB_ORG,
-#                   else the authenticated user's namespace).
+#                   else the authenticated user's namespace). CodeWorthy's org
+#                   is CodeWorthy-ai — set CW_GITHUB_ORG=CodeWorthy-ai. See
+#                   docs/github-topology.md.
 #   --dry-run       Assemble + leak-check locally, but print GitHub commands
 #                   instead of executing them. Works without `gh` installed.
 #   --verify        After assembly, run `npm ci && npm test` in the working tree
