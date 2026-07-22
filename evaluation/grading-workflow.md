@@ -20,27 +20,30 @@ Check out the candidate's branch **into `simulations/acme-orders`** (their asses
 
 ## 1. Mechanical checks (10 min)
 
-```bash
-npm test                          # their branch: visible suite must be green
-npm run typecheck
-../../evaluation/hidden-tests/run.sh   # hidden suite against their fix (full output)
-../../evaluation/hidden-tests/run.sh --summary   # candidate-safe summary for their report
-```
-
-Then the **red/green baseline check** — the core verification. It overlays only
-their test-file changes onto the pristine baseline (must fail) and runs the
-same tests on their branch (must pass):
+One command runs the whole automated half — the red/green baseline check and
+the sanitized hidden-suite summary — against the candidate's clone, and writes a
+consolidated `grading-record.json`:
 
 ```bash
-node ../../evaluation/baseline-check/baseline-check.mjs \
-  --repo . --baseline main --branch <their-branch> \
-  --db-server postgres://acme:acme@localhost:5432 --out baseline-record.json
+scripts/grade-submission.sh --repo <candidate-clone> \
+  --scenario acme-orders --branch <their-branch> \
+  --db-server postgres://acme:acme@localhost:5432
 ```
+
+(For the wrong-merge scenario pass `--scenario wrong-merge`; the merge-commit
+baseline is derived automatically.) The record's `automatedSummary` reports the
+baseline-check verdict and hidden pass/fail — it scores **none** of the
+human-judgment competencies and makes no hiring recommendation.
 
 Only verdict `genuine-regression-test` earns the regression-testing signal;
 `test-theater` (passes on the buggy baseline) is recorded verbatim in the
-report. Attach `baseline-record.json` and the summary output to the report's
-evidence.
+report. Attach `grading-record.json` to the report's evidence, and confirm the
+visible suite and typecheck are green on their branch (`npm test`,
+`npm run typecheck`).
+
+The underlying tools remain runnable directly when you want to inspect a step:
+`evaluation/hidden-tests/run.sh <repo> [--summary]` (or the wrong-merge runner)
+and `evaluation/baseline-check/baseline-check.mjs`.
 
 ## 2. Read the work (15 min)
 
