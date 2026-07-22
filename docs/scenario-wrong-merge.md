@@ -342,9 +342,10 @@ skill is archaeology + integration repair across three subsystems (auth,
 observability, flags), and one loss is only findable by auditing rather than
 reproducing. That is repository stewardship — the Maintainer rung's definition
 ("features spanning multiple modules," "someone else's work is in the repo"),
-with the flag/pilot reasoning reaching toward Owner. Suggested timebox: **2h**
-(note: the 90-minute-standard vs. longer-timebox conflict flagged in
-`docs/design/README.md` applies here too — resolve before invite copy).
+with the flag/pilot reasoning reaching toward Owner. Timebox: **2h**, per the
+per-scenario timebox standard (every assessment declares its own timebox up
+front, matched to scenario complexity; running out of time is unassessed,
+never failed).
 
 Competency emphasis (anchors to be written in the scenario rubric, gated
 identically to ACME-1287 — baseline-check verdict caps the testing row,

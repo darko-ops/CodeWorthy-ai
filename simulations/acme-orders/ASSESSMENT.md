@@ -15,7 +15,7 @@ Work the ticket in [TICKET.md](TICKET.md): customers occasionally receive **dupl
 
 ## Ground rules
 
-- **Time:** aim for **90 minutes**. If you run out of time, submit what you have and note in the PR what you'd do next — an honest "here's what's missing" is evaluated far better than silence.
+- **Time:** the timebox for this assessment is **4 hours**. If you run out of time, submit what you have and note in the PR what you'd do next — an honest "here's what's missing" is evaluated far better than silence.
 - **AI tools are allowed and expected.** Use Claude, Cursor, Codex, ChatGPT, docs, search — whatever you normally work with. You remain responsible for every line you submit and will be asked to explain it.
 - **Stay focused.** Fix the ticket; don't refactor unrelated code. The repo has warts — some are load-bearing.
 - **Keep the existing test suite green** (`npm test`).

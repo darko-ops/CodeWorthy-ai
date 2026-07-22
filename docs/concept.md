@@ -52,7 +52,7 @@ After submission, an **AI defense** asks adaptive questions generated from the c
 
 ## Candidate experience and fairness
 
-Rules: keep the standardized test under 90 minutes; tell candidates exactly what is evaluated; let them use their normal tools; never ask them to build a real company feature for free; give candidates their competency report; distinguish "did not finish" from "does not understand."
+Rules: every assessment declares its timebox up front, matched to scenario complexity (standardized scenarios stay short enough to be a screen, not a take-home); tell candidates exactly what is evaluated; let them use their normal tools; never ask them to build a real company feature for free; give candidates their competency report; distinguish "did not finish" from "does not understand."
 
 Never: webcam surveillance, keystroke suspicion scores, unreliable AI-cheating detection, personality analysis from coding behavior, or one opaque pass/fail number. Evaluate observable engineering work only.
 

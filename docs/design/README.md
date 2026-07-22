@@ -42,4 +42,4 @@ The designs already honor the hard rules in [`../mvp-architecture.md`](../mvp-ar
 ## Open conflicts (decide before build)
 
 1. **Overall score (4.1 / 5.0).** Centerpiece of most screens, but the architecture forbids reducing to a single number. Decide: drop it, or amend the rule to allow a clearly-labeled competency average that never appears without the profile and is never a pass/fail.
-2. **Timebox.** Mockups say **4h**; concept doc and ASSESSMENT.md say the standardized assessment stays **under 90 minutes**. Reconcile before invite-email copy is built.
+2. **Timebox — RESOLVED.** Per-scenario timeboxes are the standard: every assessment declares its own timebox up front, matched to scenario complexity (ACME-1287 Contributor = 4h, ACME-1490 Maintainer = 2h), disclosed before the candidate starts. The fairness rules the old flat limit carried remain: standardized scenarios stay screen-length not take-home-length, longer custom assessments are compensated, and running out of time is unassessed, never failed.

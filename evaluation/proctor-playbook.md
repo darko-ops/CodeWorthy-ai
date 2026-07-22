@@ -47,7 +47,7 @@ This single thread separates pattern-matchers from candidates who reason about f
 - *Correctness probe* (if their fix looks racy): "Walk me through the two-replica case: both get the same key, both run your existence check before either has committed. What stops two orders here — a constraint, or just a smaller window?"
 - *Contract concern* (if they changed the replay response shape/status): "The Northfield integration parses the full order body on replay per our API docs — this now returns something different. Compatible or not?"
 
-Respond to their replies in character, briefly. One round is usually enough; never exceed two rounds in a 90-minute assessment.
+Respond to their replies in character, briefly. One round is usually enough; never exceed two rounds within the assessment's timebox.
 
 ## Rules for the proctor
 

@@ -1,7 +1,7 @@
 # Candidate Competency Report
 
 **Candidate:** _______  **Assessment:** ACME-1287 (duplicate order on checkout retry)
-**Date:** _______  **Time spent:** ___ min (target 90)  **Reviewer:** _______
+**Date:** _______  **Time spent:** ___ min (timebox: 4h)  **Reviewer:** _______
 **Submission:** PR link · diff stats (files / +lines / −lines): _______
 
 > This report is shared with the candidate as well as the employer.
@@ -82,4 +82,4 @@ _Specific threads worth pulling in a final conversation (e.g. "ask them about id
 
 ## What this report does not claim
 
-This assessment observes ~90 minutes of work on one production-style task. It does not measure algorithmic ability, long-horizon collaboration, or domain knowledge, and scores have not yet been validated against on-the-job performance.
+This assessment observes one timeboxed (4h) production-style task. It does not measure algorithmic ability, long-horizon collaboration, or domain knowledge, and scores have not yet been validated against on-the-job performance.

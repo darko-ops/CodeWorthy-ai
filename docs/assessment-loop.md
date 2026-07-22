@@ -69,7 +69,7 @@ Git and GitHub artifacts are **evidence, not a complete record**. Candidates ame
 - Algorithms/data-structures recall, syntax trivia, typing speed
 - Working without AI or documentation (the job allows both; so do we)
 - Building anything from scratch — the whole point is brownfield
-- Speed beyond the 90-minute box (unfinished-but-honest is scored on what exists; gaps are marked unassessed, not failed)
+- Speed beyond the scenario's stated timebox (unfinished-but-honest is scored on what exists; gaps are marked unassessed, not failed)
 
 ## MVP scope vs. later
 

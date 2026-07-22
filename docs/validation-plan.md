@@ -24,7 +24,7 @@ Observe them directly. Measure:
 - Which AI tools they use and how
 - Whether the instructions are clear
 - Whether strong and weak performance look meaningfully different
-- How long the challenge takes (target: under 90 minutes)
+- How long the challenge takes against the scenario's declared timebox (4h for ACME-1287) — is the timebox realistic?
 - Whether the defense exposes shallow understanding
 
 ## Week 3 — Produce employer reports
