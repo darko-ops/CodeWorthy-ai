@@ -20,6 +20,11 @@
 #                here; the hidden suite gets a scratch DB on the same server.
 #   --baseline   Override the baseline ref (defaults per scenario below).
 #
+# Requires `psql` on PATH (this script and baseline-check both shell out to
+# it). On macOS the server usually runs in Docker without client tools:
+#   brew install libpq   # keg-only — then add it to PATH:
+#   export PATH="/opt/homebrew/opt/libpq/bin:$PATH"
+#
 # Untrusted input: the candidate repo is treated as untrusted. This script
 # checks out their branch and runs `npm ci` + the existing sandboxed test
 # invocations only — nothing else is sourced or executed. Run it on a
