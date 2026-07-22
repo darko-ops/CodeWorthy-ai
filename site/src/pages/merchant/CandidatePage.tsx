@@ -5,14 +5,32 @@ import {
   averageRating,
   candidateById,
   examById,
+  RUBRIC_GATES,
   STATUS_PROGRESS,
   VERIFICATIONS,
+  type Competency,
+  type VerificationResult,
 } from "../../data";
 
 function ratingWord(rating: number): string {
   if (rating >= 4) return "Strong";
   if (rating === 3) return "Developing";
   return "Needs work";
+}
+
+// Scenario rubric gates: a competency is capped unless every required hidden
+// check passed. Returns the failing check ids when the gate fires.
+function failedGateChecks(
+  examId: string,
+  competency: Competency,
+  verification: VerificationResult | undefined
+): { cap: number; failing: string[] } | null {
+  const gate = (RUBRIC_GATES[examId] ?? []).find((g) => g.competency === competency);
+  if (!gate) return null;
+  const failing = gate.requires.filter(
+    (id) => verification?.checks.find((c) => c.id === id)?.result !== "pass"
+  );
+  return failing.length > 0 ? { cap: gate.cap, failing } : null;
 }
 
 function ratingWordColor(rating: number): string {
@@ -34,9 +52,17 @@ export function CandidatePage() {
   }
 
   const exam = examById(candidate.examId);
-  const avg = averageRating(candidate);
   const pct = STATUS_PROGRESS[candidate.status];
   const verification = VERIFICATIONS[candidate.id];
+  // The displayed average respects rubric gates (capped ratings count capped).
+  const effectiveRatings = candidate.ratings.map((r) => {
+    const gate = failedGateChecks(candidate.examId, r.competency, verification);
+    return gate !== null && r.rating > gate.cap ? gate.cap : r.rating;
+  });
+  const avg =
+    effectiveRatings.length > 0
+      ? effectiveRatings.reduce((a, b) => a + b, 0) / effectiveRatings.length
+      : averageRating(candidate);
   const checksPassed = verification?.checks.filter((c) => c.result === "pass").length ?? 0;
   const lowest =
     candidate.ratings.length > 0
@@ -200,28 +226,41 @@ export function CandidatePage() {
               technical defense.
             </p>
           ) : (
-            candidate.ratings.map((r) => (
-              <div key={r.competency} className="rating-item">
-                <div className="rating-row">
-                  <span className="rating-name">{r.competency}</span>
-                  <div
-                    className="rating-cells"
-                    aria-label={`${ratingWord(r.rating)}, ${r.rating} out of 5`}
-                  >
-                    {[1, 2, 3, 4, 5].map((step) => (
-                      <span
-                        key={step}
-                        className={`rating-cell ${step <= r.rating ? `on-${r.rating}` : ""}`}
-                      />
-                    ))}
+            candidate.ratings.map((r) => {
+              const gate = failedGateChecks(candidate.examId, r.competency, verification);
+              const capped = gate !== null && r.rating > gate.cap;
+              const shown = capped ? gate.cap : r.rating;
+              return (
+                <div key={r.competency} className="rating-item">
+                  <div className="rating-row">
+                    <span className="rating-name">{r.competency}</span>
+                    <div
+                      className="rating-cells"
+                      aria-label={`${ratingWord(shown)}, ${shown} out of 5${capped ? ", capped by failed verification" : ""}`}
+                    >
+                      {[1, 2, 3, 4, 5].map((step) => (
+                        <span
+                          key={step}
+                          className={`rating-cell ${step <= shown ? `on-${shown}` : ""}`}
+                        />
+                      ))}
+                    </div>
+                    <span className="rating-num" style={{ color: ratingWordColor(shown) }}>
+                      {ratingWord(shown)} · {shown}/5
+                    </span>
                   </div>
-                  <span className="rating-num" style={{ color: ratingWordColor(r.rating) }}>
-                    {ratingWord(r.rating)} · {r.rating}/5
-                  </span>
+                  {capped && (
+                    <p
+                      className="evidence"
+                      style={{ margin: "4px 0 0", fontFamily: "var(--mono)", fontSize: 11 }}
+                    >
+                      capped — {gate.failing.map((id) => `${id}: fail`).join(" · ")}
+                    </p>
+                  )}
+                  <p className="evidence">{r.evidence}</p>
                 </div>
-                <p className="evidence">{r.evidence}</p>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>

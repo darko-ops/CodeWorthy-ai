@@ -1,11 +1,36 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { EXAMINEE_RESULTS, examById, readProgress, writeProgress, type ExamProgress } from "../../data";
+import {
+  EXAM_STEP_MODES,
+  EXAMINEE_RESULTS,
+  examById,
+  readProgress,
+  writeProgress,
+  type ExamProgress,
+} from "../../data";
 
 // Presentation only: steps that a machine verifies live (checks that tick)
-// versus steps a human reviews after submission.
-function isAutomatedStep(step: string): boolean {
+// versus steps a human reviews after submission. Exams with an explicit
+// EXAM_STEP_MODES entry use it; others fall back to the keyword heuristic.
+function isAutomatedStep(examId: string, step: string, index: number): boolean {
+  const modes = EXAM_STEP_MODES[examId];
+  if (modes && modes[index] !== undefined) return modes[index] === "auto";
   return /reproduce|test|regression|green|metric|migration|backfill/i.test(step);
+}
+
+// Ticket ids (ACME-1234) and check ids (snake_case tokens) are real system
+// artifacts — render them in mono wherever they appear in step text.
+function renderArtifacts(text: string) {
+  const parts = text.split(/(ACME-\d{4}|\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b)/g);
+  return parts.map((part, i) =>
+    /^(ACME-\d{4}|[a-z][a-z0-9]*(?:_[a-z0-9]+)+)$/.test(part) ? (
+      <span key={i} className="artifact">
+        {part}
+      </span>
+    ) : (
+      part
+    )
+  );
 }
 
 export function ExamPage() {
@@ -77,8 +102,8 @@ export function ExamPage() {
             {exam.steps.map((step, i) => (
               <div className="mission-step" key={step}>
                 <span className="mission-idx">{String(i + 1).padStart(2, "0")}</span>
-                <p>{step}</p>
-                {isAutomatedStep(step) ? (
+                <p>{renderArtifacts(step)}</p>
+                {isAutomatedStep(exam.id, step, i) ? (
                   <span className="badge badge-pass">auto check</span>
                 ) : (
                   <span className="badge">pending review</span>

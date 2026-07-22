@@ -70,6 +70,44 @@ jobs:
             echo "Hidden suite failed as expected: seeded bug still reproduces."
           fi
 
+  wrong-merge-seeded-state:
+    # Guards the wrong-merge scenario (ACME-1490): the stamped baseline must
+    # keep the EXACT calibrated signature (fail/fail/fail/pass/pass) — any
+    # drift means a seeded deletion stopped reproducing. The leak guard runs
+    # in the same job so a sanitizer edit that reintroduces an error-path
+    # leak also fails CI.
+    name: Wrong-merge scenario — seeded state + leak guard
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acme
+          POSTGRES_PASSWORD: acme
+          POSTGRES_DB: acme_orders
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acme -d acme_orders"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    env:
+      DATABASE_URL: postgres://acme:acme@localhost:5432/acme_orders
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Stamp the candidate repo from the scenario bundle
+        working-directory: .
+        run: |
+          bash simulations/wrong-merge/stamp.sh /tmp/wrong-merge-candidate
+          cd /tmp/wrong-merge-candidate && npm ci
+      - name: Assert the exact baseline signature
+        working-directory: .
+        run: node evaluation/hidden-tests-wrong-merge/assert-baseline-signature.mjs --repo /tmp/wrong-merge-candidate
+      - name: Error-path leak guard (blocking)
+        working-directory: .
+        run: node evaluation/hidden-tests-wrong-merge/leak-guard.mjs --repo /tmp/wrong-merge-candidate
+
   web-build:
     name: Dashboard — typecheck + build
     runs-on: ubuntu-latest
