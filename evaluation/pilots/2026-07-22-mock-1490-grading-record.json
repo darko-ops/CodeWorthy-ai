@@ -1,0 +1,85 @@
+{
+  "scenario": "wrong-merge",
+  "branch": "fix/acme-1490",
+  "baselineRef": "9997d60",
+  "generatedAt": "2026-07-22T04:49:24Z",
+  "baselineCheck": {
+    "verdict": "genuine-regression-test",
+    "failsOnBaseline": true,
+    "passesOnBranch": true,
+    "record": {
+      "baselineRef": "9997d60da74502314753b41c7f700c249e304da7",
+      "branchRef": "089f5483970a3c3f507adec7b2f697df270682a3",
+      "changedTestFiles": [
+        "test/acme-1490-regression.test.ts"
+      ],
+      "runnableTests": [
+        "test/acme-1490-regression.test.ts"
+      ],
+      "baseline": {
+        "mustFail": true,
+        "failed": true,
+        "failures": [
+          {
+            "test": "ACME-1490 regressions requires the ops key on the bare cross-customer order listing",
+            "message": "AssertionError: expected 200 to be 401 // Object.is equality"
+          },
+          {
+            "test": "ACME-1490 regressions emits the order.checkout monitor line on checkout",
+            "message": "AssertionError: order.checkout line must be emitted for the duplicate-charge monitor: expected undefined to be truthy"
+          },
+          {
+            "test": "ACME-1490 regressions accepts over-stock checkouts as backorders when FLAG_BACKORDERS is on",
+            "message": "AssertionError: expected 409 to be 201 // Object.is equality"
+          }
+        ]
+      },
+      "branch": {
+        "mustPass": true,
+        "passed": true,
+        "failures": []
+      },
+      "verdict": "genuine-regression-test"
+    }
+  },
+  "hiddenSuite": {
+    "checks": [
+      {
+        "id": "authz_check_present",
+        "label": "The cross-customer order listing requires the ops key",
+        "result": "pass"
+      },
+      {
+        "id": "structured_logging_present",
+        "label": "Checkout emits the order.checkout monitor line with all fields",
+        "result": "pass"
+      },
+      {
+        "id": "feature_flag_guard_present",
+        "label": "Backorders are gated behind FLAG_BACKORDERS",
+        "result": "pass"
+      },
+      {
+        "id": "order_export_intact",
+        "label": "The finance CSV export still works",
+        "result": "pass"
+      },
+      {
+        "id": "unrelated_regression",
+        "label": "Unrelated checkout behavior is not regressed (totals, stock, validation, replay)",
+        "result": "pass"
+      }
+    ],
+    "passed": 5,
+    "failed": 0,
+    "notRun": 0
+  },
+  "automatedSummary": {
+    "regressionTestGenuine": true,
+    "allHiddenChecksPass": true,
+    "hiddenPassed": 5,
+    "hiddenFailed": 0,
+    "automatedChecksAllGreen": true
+  },
+  "note": "Automated half only. Human-judgment competencies are scored by a reviewer via evaluation/report-template*.md \u2014 this record does not make a hiring recommendation."
+}
