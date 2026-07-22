@@ -13,6 +13,7 @@
 #
 #   --org           GitHub org to create the repo under (default: $CW_GITHUB_ORG,
 #                   else CodeWorthy-ai — candidate repos live under the org).
+#                   See docs/github-topology.md for the full repo layout.
 #   --dry-run       Assemble + leak-check locally, but print GitHub commands
 #                   instead of executing them. Works without `gh` installed.
 #   --verify        After assembly, run `npm ci && npm test` in the working tree
