@@ -6,3 +6,4 @@ dist/
 
 # hidden tests are copied in temporarily by evaluation/hidden-tests/run.sh
 simulations/acme-orders/test/hidden/
+.vercel/
