@@ -6,7 +6,7 @@ The candidate must never be confused about the **rules** — only the solution i
 
 ## Provisioning (before the candidate starts)
 
-1. Stamp a private repo from the `simulations/acme-orders` template (that directory only — `evaluation/` never ships).
+1. Provision with `scripts/provision-candidate.sh --scenario acme-orders --candidate <user> --repo-name <name>` — it assembles the tree from the committed `simulations/acme-orders` state only (`evaluation/` never ships; a built-in leak check enforces it), creates the private repo, opens the ticket Issue, and invites the candidate. Steps 2–4 below are what it automates; verify rather than repeat them.
 2. Replace the workflow with `evaluation/candidate-repo/ci.yml` at `.github/workflows/ci.yml`.
 3. Open a GitHub Issue titled **"ACME-1287: Duplicate orders when checkout is retried"** with TICKET.md's body — the ambiguity ("Open product question from Northfield") must be in it.
 4. Add the candidate as a collaborator; confirm Actions are enabled and a dummy push runs green.
@@ -73,10 +73,12 @@ discipline; ignore the ACME-1287 stage timeline. Files:
 
 ## Provisioning
 
-1. Stamp the candidate repo from the bundle: `simulations/wrong-merge/stamp.sh
-   <dest>` (or `scripts/provision-candidate.sh --scenario wrong-merge` once
-   built). This preserves the full multi-parent history — **do not** squash or
-   snapshot; the candidate's discovery path is git archaeology.
+1. Provision with `scripts/provision-candidate.sh --scenario wrong-merge
+   --candidate <user> --repo-name <name>` — it stamps from the bundle
+   (preserving the full multi-parent history; **never** squash or snapshot,
+   the candidate's discovery path is git archaeology), overlays TICKET.md,
+   ASSESSMENT.md, and the candidate CI workflow as one platform commit above
+   the locked merge, and runs the leak check.
 2. Confirm the stamp invariants printed OK (HEAD at the locked merge commit,
    two parents, breadcrumbs present). If they didn't, the repo is unusable —
    fix before inviting.
