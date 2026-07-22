@@ -56,3 +56,71 @@ Respond to their replies in character, briefly. One round is usually enough; nev
 - Answer any rules/process question immediately and completely.
 - If infrastructure genuinely breaks (Actions outage, provisioning error), stop the clock, say so explicitly, fix it, restart. Infrastructure failures are never the candidate's problem.
 - Log timestamps of each stage transition — pacing data feeds calibration, not scoring.
+
+---
+
+# ACME-1490 — The Wrong Merge (scenario-specific notes)
+
+Everything above is written around ACME-1287. This scenario is different in
+kind: there is **no live teammate loop, no upstream change, no Redis review
+thread, and no harness tripwire** — the drama is entirely in the seeded git
+history. Reuse the general "rules vs. solution" principle and the provisioning
+discipline; ignore the ACME-1287 stage timeline. Files:
+`simulations/wrong-merge/{TICKET,ASSESSMENT}.md`,
+`evaluation/rubric-wrong-merge.md`,
+`evaluation/defense-questions-wrong-merge.md`,
+`evaluation/report-template-wrong-merge.md`.
+
+## Provisioning
+
+1. Stamp the candidate repo from the bundle: `simulations/wrong-merge/stamp.sh
+   <dest>` (or `scripts/provision-candidate.sh --scenario wrong-merge` once
+   built). This preserves the full multi-parent history — **do not** squash or
+   snapshot; the candidate's discovery path is git archaeology.
+2. Confirm the stamp invariants printed OK (HEAD at the locked merge commit,
+   two parents, breadcrumbs present). If they didn't, the repo is unusable —
+   fix before inviting.
+3. Place `evaluation/candidate-repo/ci.yml` at `.github/workflows/ci.yml`.
+4. Open the Issue with `TICKET.md`'s body. The ticket names **two** of the
+   three losses (monitor flatline, cross-tenant leak) and is silent on the flag
+   guard — keep it that way.
+5. Add the candidate as collaborator; confirm `npm ci && npm test` is green.
+
+## What is seeded (reviewer eyes only — never hint any of this)
+
+The `feature/order-export` merge (`9997d60`) resolved the one conflicted file
+(`src/routes/orders.ts`) by taking the incoming side whole, deleting three
+main-parent behaviors: the ops-key auth guard (commit `68ec8bc`), the
+`order.checkout` log line (`40f6adb`), and the `FLAG_BACKORDERS` backorder path
+(`8444911`). Breadcrumbs survive orphaned: `opsKey.ts`, `flags.ts`,
+`config.opsApiKey`, `.env.example` entries, and an orphaned `createBackorder`
+in `orderService.ts`. Discovery command: `git diff 8444911 9997d60 --
+src/routes/orders.ts`.
+
+## Proctor conduct during the assessment
+
+- **Do not point at the third loss.** Finding the flag guard without a ticket
+  pointer is the ownership probe (rubric §Ownership). If they ask "is there
+  anything else broken?" answer only as a process fact: "the ticket lists what
+  ops reported; whether the merge did more than ops noticed is exactly what the
+  audit is for."
+- **Do not confirm or deny discovery methods.** If they ask "is diffing against
+  the parent the right approach?", that's solution, not rules — don't answer.
+  If they ask "which commit is the merge?", that's readable from `git log` —
+  point them to the history, don't hand them the SHA.
+- **The unguarded export route is a stretch finding, not a required fix.** Never
+  raise it. If they raise it unprompted, note it (Security/Systems 5 signal) and
+  stay neutral.
+- **Green CI is intended.** If they're unsettled that everything passes, confirm
+  only that "the visible suite is green and the logs are accurate" — the point
+  of the scenario is that green didn't catch the loss.
+
+## After submission
+
+Run grading per `evaluation/grading-workflow.md` using the wrong-merge suite
+(`evaluation/hidden-tests-wrong-merge/run.sh <repo> [--summary]`) and the
+baseline check with `--baseline` = the merge commit `M` (`9997d60`). Then the
+defense (`defense-questions-wrong-merge.md`) and the report
+(`report-template-wrong-merge.md`). The baseline signature at `M` is
+fail/fail/fail/pass/pass — if a candidate's *branch* still shows that, they
+changed nothing that the checks observe.
