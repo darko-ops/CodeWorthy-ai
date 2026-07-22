@@ -5,6 +5,7 @@ import {
   averageRating,
   candidateById,
   examById,
+  PILOT_REPOS,
   RUBRIC_GATES,
   STATUS_PROGRESS,
   VERIFICATIONS,
@@ -84,6 +85,16 @@ export function CandidatePage() {
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <StatusBadge status={candidate.status} />
+          {PILOT_REPOS[candidate.examId] && (
+            <a
+              className="btn"
+              href={PILOT_REPOS[candidate.examId]}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Repo ↗
+            </a>
+          )}
           <button className="btn" onClick={() => window.print()}>
             Export PDF
           </button>

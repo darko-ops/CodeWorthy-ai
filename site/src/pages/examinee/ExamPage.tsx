@@ -4,6 +4,7 @@ import {
   EXAM_STEP_MODES,
   EXAMINEE_RESULTS,
   examById,
+  PILOT_REPOS,
   readProgress,
   writeProgress,
   type ExamProgress,
@@ -64,6 +65,17 @@ export function ExamPage() {
           <span className="band-chip">{exam.ticket}</span>
           <span className="band-chip">{exam.timeboxHours}h timebox</span>
           <span className="band-chip green">AI tools allowed</span>
+          {PILOT_REPOS[exam.id] && (
+            <a
+              className="band-chip"
+              href={PILOT_REPOS[exam.id]}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: "#cfe0e4" }}
+            >
+              assessment repo ↗
+            </a>
+          )}
         </div>
         <div className="band-foot">
           <div>
