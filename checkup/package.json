@@ -1,0 +1,11 @@
+{
+  "name": "codeworthy-checkup",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CodeWorthy Repo Checkup — deterministic repo-health engine (the Steward product's first tier)",
+  "type": "module",
+  "bin": { "codeworthy-checkup": "checkup.mjs" },
+  "scripts": {
+    "checkup": "node checkup.mjs"
+  }
+}
