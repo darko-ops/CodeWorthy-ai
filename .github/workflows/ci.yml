@@ -120,3 +120,31 @@ jobs:
         working-directory: simulations/acme-orders/web
       - run: npm run build
         working-directory: simulations/acme-orders/web
+
+  server:
+    name: Server — typecheck + tests (incl. the no-merge/force/delete doctrine)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acme
+          POSTGRES_PASSWORD: acme
+          POSTGRES_DB: steward_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acme -d steward_test"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          DATABASE_URL: postgres://acme:acme@localhost:5432/steward_test
