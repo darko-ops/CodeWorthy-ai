@@ -60,6 +60,7 @@ not serverless (LLM calls run 30–120s; the audit log wants a real connection).
 
 - **Tamper-evidence** (hash chain + WORM/S3 anchoring) → **M1.5**, gated on a
   design partner asking. The columns add additively; the table contract holds.
+- **Weekly digest / change-log page** → **M4** ✅ (`src/digest/`, served at `/steward/digest[.html|.txt]`).
 - **LLM advise tier** → **M3**, off by default, opt-in per install, and its
   data-flow (diffs to a third-party model) disclosed. The deterministic gate and
   checkup never call out; only this tier does. It **advises, never gates** —
