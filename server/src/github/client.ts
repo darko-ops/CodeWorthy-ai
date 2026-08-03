@@ -36,6 +36,7 @@ export interface GitHubClient {
   createBranch(repo: string, newBranch: string, fromSha: string): Promise<unknown>;
   openDraftPullRequest(repo: string, opts: { head: string; base: string; title: string; body: string }): Promise<unknown>;
   createReviewComment(repo: string, number: number, body: string): Promise<unknown>;
+  createCommitComment(repo: string, sha: string, body: string): Promise<unknown>;
   createCheckRun(repo: string, opts: { name: string; headSha: string; conclusion: string; summary: string }): Promise<unknown>;
   // ── admin: branch protection (the one privileged, consented capability) ──
   setBranchProtection(repo: string, branch: string, rules: unknown): Promise<unknown>;
@@ -56,6 +57,8 @@ export function createGitHubClient(token: string): GitHubClient {
       gh(token, "POST", `/repos/${repo}/pulls`, { head: o.head, base: o.base, title: o.title, body: o.body, draft: true }),
     createReviewComment: (repo, number, body) =>
       gh(token, "POST", `/repos/${repo}/issues/${number}/comments`, { body }),
+    createCommitComment: (repo, sha, body) =>
+      gh(token, "POST", `/repos/${repo}/commits/${sha}/comments`, { body }),
     createCheckRun: (repo, o) =>
       gh(token, "POST", `/repos/${repo}/check-runs`, {
         name: o.name, head_sha: o.headSha, status: "completed", conclusion: o.conclusion,

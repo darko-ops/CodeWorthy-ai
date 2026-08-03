@@ -33,11 +33,33 @@ not serverless (LLM calls run 30–120s; the audit log wants a real connection).
   malformed config falls back to defaults, never crashes; the LLM tier is
   opt-in (`false`) by default.
 
+## What M2 adds (safe-mechanics + protection)
+
+- **App auth** (`github/auth.ts`) — mints a short-lived App JWT (RS256) and
+  exchanges it for an installation token; `getInstallationClient(id)` is how
+  the App acts on a repo.
+- **Safe-mechanics** (`steward/mechanics.ts`) — on a direct-to-default push it
+  preserves a `steward/edit-<sha>` branch and leaves a plain-language comment on
+  the exact commit that skipped review, then logs it. **Honest semantics:** the
+  commit is already on the branch, and turning it into a PR after the fact would
+  need a force-push we forbid — so it doesn't fake a PR it can't open. The cure
+  is protection (below), which stops the *next* one.
+- **Branch-protection configurator** (`steward/protection.ts`) — requires a PR +
+  the `CodeWorthy PR review` check and blocks force-pushes/deletions. Applied
+  **only with consent** (`STEWARD_AUTO_PROTECT=1`; the real product consents on
+  the install screen) — never silently changing repo settings.
+- **Drift detection** — `runDriftCheck` compares live protection to desired and
+  logs a `protection.weakened` audit event (the thing SOC 2 auditors care
+  about). A scheduled job calls it per installation; the schedule is deployment
+  config (Fly cron / a scheduled workflow).
+- **Actions dispatch** (`steward/actions.ts`) — runs after logging, fully
+  guarded: no App creds or no installation → no-op (local stays M1 log-only);
+  protection auto-config is consent-gated. Injectable client for tests.
+
 ## Deferred (by decision)
 
 - **Tamper-evidence** (hash chain + WORM/S3 anchoring) → **M1.5**, gated on a
   design partner asking. The columns add additively; the table contract holds.
-- **Safe-mechanics + branch-protection configurator** → **M2**.
 - **LLM advise tier** → **M3**, off by default, opt-in per install, and its
   data-flow (diffs to a third-party model) disclosed. The deterministic gate and
   checkup never call out; only this tier does. It **advises, never gates** —

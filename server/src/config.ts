@@ -11,4 +11,7 @@ export const config = {
   // M3. Off unless explicitly enabled AND the installation opts in. The
   // deterministic gate and checkup never call out; only this tier does.
   llmEnabled: process.env.STEWARD_LLM_ENABLED === "1",
+  // M2. Auto-configuring branch protection changes a customer's repo settings,
+  // so it is opt-in (consent) and off by default — never silent.
+  autoProtect: process.env.STEWARD_AUTO_PROTECT === "1",
 };
