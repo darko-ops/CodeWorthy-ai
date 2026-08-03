@@ -33,6 +33,34 @@ not serverless (LLM calls run 30–120s; the audit log wants a real connection).
   malformed config falls back to defaults, never crashes; the LLM tier is
   opt-in (`false`) by default.
 
+## What M1.5 adds (tamper-evidence — from append-only to provable)
+
+M1 stops the app and ordinary roles from mutating history. M1.5 makes tampering
+by an *insider* — someone who can `DISABLE TRIGGER` and edit rows directly —
+**detectable**. Two layers, both in `audit/tamper.ts` + `0002_audit_hash_chain.sql`:
+
+- **A DB-computed hash chain.** A `BEFORE INSERT` trigger sets
+  `row_hash = sha256(prev_hash ‖ canonical(row))`, serialized by an advisory lock
+  into one linear chain. It's in the DB, not the app, so it binds **every**
+  writer — even a raw `psql` insert. `audit_canonical()` is a SQL function shared
+  by the trigger *and* the verifier, so the recompute can't drift from the
+  original. `verifyAuditChain()` recomputes the whole chain in one SQL pass and
+  returns the **first** row that breaks, classified as `content` (a field was
+  edited) or `linkage` (a row was deleted or reordered).
+- **External WORM anchoring.** The chain alone can't catch an insider who
+  rewrites *every* row and recomputes the *whole* chain (it stays internally
+  consistent). `anchorAuditHead()` pins the chain head to write-once storage
+  **outside** the DB; `verifyAgainstAnchor()` proves the anchored row is still
+  present and unchanged. The `Anchor` seam is injectable — `InMemoryAnchor`
+  (tests), `FileAnchor` (dev), and prod is **S3 Object Lock in compliance mode**
+  (undeletable even by root; documented in `tamper.ts`).
+- **`GET /steward/integrity`** — an auditor or the founder asks "has the record
+  been tampered with?" and gets a straight `{ ok, chain, anchor }`. Anchoring
+  itself is a scheduled job (deployment config, like the drift check).
+
+All additive: the M1 table contract and existing rows are untouched, and
+`appendAuditEvent` didn't change — the trigger fills the new columns.
+
 ## What M2 adds (safe-mechanics + protection)
 
 - **App auth** (`github/auth.ts`) — mints a short-lived App JWT (RS256) and
@@ -91,8 +119,10 @@ both). No `ANTHROPIC_API_KEY` → the tier is a silent no-op (deterministic-only
 
 ## Deferred (by decision)
 
-- **Tamper-evidence** (hash chain + WORM/S3 anchoring) → **M1.5**, gated on a
-  design partner asking. The columns add additively; the table contract holds.
+- **Tamper-evidence** (hash chain + WORM/S3 anchoring) → **M1.5** ✅
+  (`src/audit/tamper.ts`, `db/migrations/0002_audit_hash_chain.sql`, served at
+  `/steward/integrity`). Prod S3-Object-Lock anchor is a seam implementation, not
+  yet wired (needs a bucket + IAM the deployment owns).
 - **Weekly digest / change-log page** → **M4** ✅ (`src/digest/`, served at `/steward/digest[.html|.txt]`).
 - **Promoting an LLM finding to a gate** — deliberately *not* built. A model
   finding stays advice until it's calibrated against real outcomes; only then
@@ -111,7 +141,7 @@ npm run typecheck
 
 Tests need a disposable Postgres (`DATABASE_URL`, default a local `steward_test`).
 
-## Endpoints (M1)
+## Endpoints
 
 | Method | Path | Purpose |
 |---|---|---|
@@ -119,6 +149,8 @@ Tests need a disposable Postgres (`DATABASE_URL`, default a local `steward_test`
 | GET | `/api/health` | api module seam (DB check) |
 | POST | `/webhooks/github` | signed webhook intake → audit |
 | GET | `/steward/changelog?repo=&limit=` | plain-language change log |
+| GET | `/steward/integrity` | tamper-evidence check (M1.5) — verify the hash chain + WORM anchor |
+| GET | `/steward/digest[.html\|.txt]?repo=&days=` | weekly digest (M4) |
 
 ## The invariant
 

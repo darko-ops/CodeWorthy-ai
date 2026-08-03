@@ -7,6 +7,7 @@ import { config } from "./config.js";
 import { registerApi } from "./api/health.js";
 import { registerSteward } from "./steward/routes.js";
 import { recentChangelog } from "./audit/audit.js";
+import { verifyAuditChain, verifyAgainstAnchor, FileAnchor } from "./audit/tamper.js";
 import { buildDigest } from "./digest/digest.js";
 import { renderDigestHtml, renderDigestText } from "./digest/render.js";
 
@@ -34,6 +35,18 @@ export function buildServer(pool: Pool) {
   app.get("/steward/digest.txt", async (req, reply) => {
     const d = await buildDigest(pool, digestOpts(req.query as any));
     reply.type("text/plain").send(renderDigestText(d));
+  });
+
+  // Integrity check (M1.5) — an auditor or the founder can ask "has the record
+  // been tampered with?" and get a straight answer. Recomputes the hash chain;
+  // if a WORM anchor file is configured, also checks the head against it.
+  app.get("/steward/integrity", async () => {
+    const chain = await verifyAuditChain(pool);
+    const anchor = config.anchorFile
+      ? await verifyAgainstAnchor(pool, new FileAnchor(config.anchorFile))
+      : { status: "no-anchor" as const, detail: "no WORM anchor configured" };
+    const ok = chain.intact && anchor.status !== "tampered";
+    return { ok, chain, anchor };
   });
 
   registerSteward(app, pool);
