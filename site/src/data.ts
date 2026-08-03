@@ -566,8 +566,8 @@ export const RUBRIC_GATES: Record<string, RubricGate[]> = {
 // without an entry render no repo link. These are private repos under the
 // CodeWorthy GitHub account — the links resolve only for signed-in owners.
 export const PILOT_REPOS: Record<string, string> = {
-  "acme-1287": "https://github.com/CodeWorthy-ai/cw-pilot-1287-01",
-  "acme-1490": "https://github.com/CodeWorthy-ai/cw-pilot-1490-01",
+  "acme-1287": "https://github.com/darko-ops/cw-pilot-1287-01",
+  "acme-1490": "https://github.com/darko-ops/cw-pilot-1490-01",
 };
 
 export function examById(id: string): Exam | undefined {

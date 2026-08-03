@@ -11,9 +11,9 @@
 #       --candidate <github-username> --repo-name <name> \
 #       [--org <github-org>] [--dry-run] [--verify] [--keep-workdir]
 #
-#   --org           GitHub org to create the repo under (default: $CW_GITHUB_ORG,
-#                   else CodeWorthy-ai — candidate repos live under the org).
-#                   See docs/github-topology.md for the full repo layout.
+#   --org           GitHub owner to create the repo under (default:
+#                   $CW_GITHUB_ORG, else darko-ops — see docs/github-topology.md
+#                   for the full repo layout).
 #   --dry-run       Assemble + leak-check locally, but print GitHub commands
 #                   instead of executing them. Works without `gh` installed.
 #   --verify        After assembly, run `npm ci && npm test` in the working tree
@@ -27,7 +27,7 @@ set -euo pipefail
 
 die() { echo "provision: error: $*" >&2; exit 1; }
 
-scenario="" candidate="" repo_name="" org="${CW_GITHUB_ORG:-CodeWorthy-ai}"
+scenario="" candidate="" repo_name="" org="${CW_GITHUB_ORG:-darko-ops}"
 dry_run=0 verify=0 keep_workdir=0
 while [ $# -gt 0 ]; do
   case "$1" in

@@ -1,25 +1,30 @@
 # GitHub Topology
 
-How CodeWorthy uses GitHub: the org, the platform repo, and the per-candidate
-assessment repos.
+How CodeWorthy uses GitHub: the account, the platform repo, and the
+per-candidate assessment repos.
 
-## Org
+## Account
 
-**`CodeWorthy-ai`** — the GitHub organization for everything CodeWorthy.
+**`darko-ops`** — the personal account is home for everything CodeWorthy during
+the validation phase (decision 2026-08-03, superseding the earlier
+`CodeWorthy-ai` org experiment: one operator, no team yet — org-level access
+boundaries add ceremony without adding safety until there are org members to
+bound). Candidates are added as **repo collaborators scoped to their single
+repo**, so they cannot see the platform repo or any other candidate's repo —
+that isolation property holds identically on a personal account.
 
-Rationale (see the discussion captured in the status work): CodeWorthy invites
-outside people (candidates) into repositories and will provision repos
-programmatically via a GitHub App. Both need proper org-level access boundaries,
-not a personal namespace. Candidates are added as **outside collaborators scoped
-to their single repo** — never org members — so they cannot see the platform
-repo or any other candidate's repo.
+Revisit when there is a second teammate or the GitHub App lands (roadmap Phase
+3): programmatic provisioning and reviewer roles are the point where an org
+earns its keep. The `CodeWorthy-ai` org still exists; its `CodeWorthy` repo is
+a retired stale copy (archive it) and nothing should push there.
 
 ## Repositories
 
 | Repo | Visibility | Contents | Who can see it |
 |---|---|---|---|
-| `CodeWorthy-ai/CodeWorthy` | **private** | The platform monorepo — scenarios, evaluation engine, hidden tests, rubrics, operator scripts, the product site, docs | CodeWorthy team only. **Never shared with candidates.** |
-| `CodeWorthy-ai/cw-<scenario>-<candidate>-<n>` | private | One assessment repo per candidate, assembled by `scripts/provision-candidate.sh` from committed platform state (leak-checked — no evaluation material) | The one candidate (outside collaborator) + the team |
+| `darko-ops/CodeWorthy-ai` | **private** | The platform monorepo — scenarios, evaluation engine, hidden tests, rubrics, operator scripts, the product site, docs | Operator only. **Never shared with candidates.** |
+| `darko-ops/cw-<scenario>-<candidate>-<n>` | private | One assessment repo per candidate, assembled by `scripts/provision-candidate.sh` from committed platform state (leak-checked — no evaluation material) | The one candidate (collaborator) + the operator |
+| `darko-ops/CodeWorthy` | archived | The original working repo, read-only history | — |
 
 The platform repo holds the answer keys (hidden tests, rubrics, reference
 solutions). Its privacy is the outer wall; the provisioning leak check is the
@@ -34,35 +39,26 @@ exit). When the GitHub App / isolated evaluation runner lands (roadmap Phase
 1.1 / 3), the stronger posture from `mvp-architecture.md` Principle 5 applies:
 hidden tests execute in a CodeWorthy-controlled context the candidate branch
 cannot inspect, with only the sanitized `--summary` leaving the environment. At
-real volume, consider a separate org (or a dedicated private repo with no
-candidate access) for the hidden-test material so a candidate-repo Actions
+real volume, consider a dedicated private repo (or org) with no candidate
+access for the hidden-test material so a candidate-repo Actions
 misconfiguration can never reach it.
 
 ## Wiring
 
-The operator tooling is org-parameterized — point it at the org via env:
+`scripts/provision-candidate.sh` creates each candidate repo under `darko-ops/`
+by default. Override for a one-off (or a future org move) with `--org` or:
 
 ```bash
-export CW_GITHUB_ORG=CodeWorthy-ai
+export CW_GITHUB_ORG=<owner>
 ```
-
-`scripts/provision-candidate.sh` then creates each candidate repo under
-`CodeWorthy-ai/` and adds the candidate as an outside collaborator. Pass
-`--org` to override for a one-off.
-
-## Team roles (org level)
-
-The product's own Team screen models these; they map to GitHub org roles:
-
-- **Owner** — full access + billing (founder).
-- **Reviewer** — grades submissions and releases reports (org member, write on
-  candidate repos).
-- **Viewer** — read-only.
 
 ## Access rules (the short version)
 
-1. The platform repo is private; candidates are never members of the org.
-2. Each candidate is an outside collaborator on exactly one assessment repo.
+1. The platform repo is private; candidates never gain access to it.
+2. Each candidate is a collaborator on exactly one assessment repo.
 3. Candidate repos are assembled by the leak-checked provisioning script, never
    forked or copied from the platform repo.
 4. Hidden-test material never persists on a candidate-readable path.
+5. Exactly one writable copy of the platform repo exists
+   (`darko-ops/CodeWorthy-ai`); every other copy is archived or read-only by
+   convention — stale writable copies are how histories fork.
