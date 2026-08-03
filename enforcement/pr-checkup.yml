@@ -1,0 +1,81 @@
+# CodeWorthy PR review — the enforcement-tier MVP.
+#
+# Drop this into a repo at .github/workflows/codeworthy.yml. On every pull
+# request it runs the CodeWorthy PR gate over the diff, posts a plain-language
+# review comment, and FAILS the check when there's a blocking finding. Make this
+# check "required" in the branch protection rule and a blocking finding then
+# prevents the merge — real enforcement, no hosted service needed.
+#
+# It never merges, force-pushes, or rewrites history. It gates and advises; the
+# human owns the merge.
+name: CodeWorthy PR review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write   # to post the review comment
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # need the base branch to diff against
+
+      - name: Get the CodeWorthy tool
+        uses: actions/checkout@v4
+        with:
+          repository: CodeWorthy-ai/CodeWorthy
+          path: .codeworthy
+          # If the tool repo is private, add a read-only PAT as a secret:
+          # token: ${{ secrets.CODEWORTHY_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Review the PR diff
+        id: review
+        run: |
+          set +e
+          node .codeworthy/enforcement/pr-review.mjs \
+            --repo . \
+            --base "origin/${{ github.base_ref }}" \
+            --head HEAD \
+            --comment "$RUNNER_TEMP/comment.md" \
+            --audit "$RUNNER_TEMP/audit.jsonl" \
+            --actor "${{ github.event.pull_request.user.login }}"
+          echo "code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post / update the review comment
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- codeworthy-review -->';
+            const body = marker + "\n" + fs.readFileSync(process.env.RUNNER_TEMP + '/comment.md', 'utf8');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+      # Audit trail for SOC 2. Ephemeral here (uploaded as an artifact); the
+      # compliance tier persists this to durable, append-only storage.
+      - name: Upload audit record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeworthy-audit-${{ github.event.pull_request.number }}
+          path: ${{ runner.temp }}/audit.jsonl
+          if-no-files-found: ignore
+
+      - name: Enforce the gate
+        if: always()
+        run: exit ${{ steps.review.outputs.code }}

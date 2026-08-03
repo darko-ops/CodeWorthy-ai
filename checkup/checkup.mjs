@@ -17,6 +17,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { SECRET_PATTERNS } from "./secret-patterns.mjs";
 
 // ── args ─────────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
@@ -137,13 +138,6 @@ const add = (v) => vitals.push(v);
 
 // 3. Security
 (() => {
-  const SECRET_PATTERNS = [
-    [/AKIA[0-9A-Z]{16}/, "AWS access key"],
-    [/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/, "private key"],
-    [/(?:secret|token|api[_-]?key|password)\s*[:=]\s*['"][A-Za-z0-9._\-]{16,}['"]/i, "hard-coded credential"],
-    [/gh[pousr]_[A-Za-z0-9]{20,}/, "GitHub token"],
-    [/sk-[A-Za-z0-9]{20,}/, "API secret key"],
-  ];
   const hits = [];
   for (const f of trackedFiles) {
     if (/node_modules|package-lock|\.min\.|\.map$|\.lock$/.test(f)) continue;
