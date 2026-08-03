@@ -56,16 +56,47 @@ not serverless (LLM calls run 30–120s; the audit log wants a real connection).
   guarded: no App creds or no installation → no-op (local stays M1 log-only);
   protection auto-config is consent-gated. Injectable client for tests.
 
+## What M3 adds (the LLM advise tier — advises, never gates)
+
+`src/steward/llm/` — the one place a reasoning model looks at a change. **Off by
+default; opt-in on both sides** (`STEWARD_LLM_ENABLED=1` operator-side *and*
+`llm.enabled: true` in the repo's `.steward.yml` — `llmReviewEnabled()` requires
+both). No `ANTHROPIC_API_KEY` → the tier is a silent no-op (deterministic-only).
+
+- **`prompt.ts`** — the system prompt *is* the policy: the model-judgment rows of
+  `docs/ai-senior-engineer-policy.md` and the rubric anchors, distilled and
+  version-controlled here (no runtime dependency on repo file layout). The diff
+  is capped (per-file + total); when capped, the comment **says so** rather than
+  reviewing a fraction and implying it saw everything. `REVIEW_SCHEMA` forces
+  every finding to cite a file + line range.
+- **`anthropic.ts`** — the injectable `LlmClient` seam (`@anthropic-ai/sdk`,
+  default `claude-opus-5`, adaptive thinking, structured output). Tests run
+  offline against a fake; the real client is built only when the tier is on and
+  a key is present.
+- **`reviewer.ts`** — `reviewPullRequest()` **advises, never gates**, and it's
+  structural: it only ever calls `getPullRequestFiles` (read) and
+  `createReviewComment` (post one comment). It never touches
+  `setBranchProtection` and never posts the `CodeWorthy PR review` check branch
+  protection requires — so it *cannot* block a merge, even by accident. The
+  deterministic gate does the gating; a model finding is advice a human reads.
+  Every run posts one comment (advisory framing + evidence-cited findings +
+  micro-defense + **data-flow disclosure**) and logs an `llm.reviewed` audit
+  event.
+- **`microdefense.ts`** — a **presence** check, never auto-graded. Green when the
+  PR author replies to the one question in their own words; the answer is
+  surfaced verbatim, never scored (auto-judging it would betray the assessment
+  doctrine — never collapse a human's understanding into a model's pass/fail).
+- Wired into `actions.ts` on `pull_request` opened/synchronize, doubly guarded
+  and injectable.
+
 ## Deferred (by decision)
 
 - **Tamper-evidence** (hash chain + WORM/S3 anchoring) → **M1.5**, gated on a
   design partner asking. The columns add additively; the table contract holds.
 - **Weekly digest / change-log page** → **M4** ✅ (`src/digest/`, served at `/steward/digest[.html|.txt]`).
-- **LLM advise tier** → **M3**, off by default, opt-in per install, and its
-  data-flow (diffs to a third-party model) disclosed. The deterministic gate and
-  checkup never call out; only this tier does. It **advises, never gates** —
-  deterministic checks gate; model findings post as review comments citing the
-  policy row and diff lines, promoted to gate only after calibration.
+- **Promoting an LLM finding to a gate** — deliberately *not* built. A model
+  finding stays advice until it's calibrated against real outcomes; only then
+  would a specific, proven check graduate to the deterministic gate tier.
 
 ## Run it
 

@@ -10,9 +10,21 @@ import { getInstallationClient } from "../github/auth.js";
 import type { GitHubClient } from "../github/client.js";
 import { retroactiveReview } from "./mechanics.js";
 import { configureProtection } from "./protection.js";
+import { DEFAULT_CONFIG, type StewardConfig } from "./stewardConfig.js";
+import { getAnthropicClient, type LlmClient } from "./llm/anthropic.js";
+import { reviewPullRequest } from "./llm/reviewer.js";
 
 export interface ActionDeps {
   client?: GitHubClient; // injected in tests
+  llm?: LlmClient; // injected in tests; real one built from env when the tier is on
+  config?: StewardConfig; // the repo's effective .steward.yml (defaults if absent)
+}
+
+// The LLM advise tier runs ONLY when both the operator (global) and the repo
+// (.steward.yml) have turned it on. Off by default; opt-in on both sides.
+// Injecting an llm client in tests stands in for the operator's global opt-in.
+export function llmReviewEnabled(repoConfig: StewardConfig, operatorEnabled: boolean): boolean {
+  return repoConfig.llm.enabled === true && operatorEnabled === true;
 }
 
 export async function runActions(pool: Pool, eventName: string, payload: any, deps: ActionDeps = {}): Promise<void> {
@@ -42,6 +54,29 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
     for (const r of repos) {
       await configureProtection(client, pool, r.full_name, r.default_branch ?? "main", installationId);
     }
+    return;
+  }
+
+  if (eventName === "pull_request" && (payload.action === "opened" || payload.action === "synchronize")) {
+    // The LLM advise tier. Doubly guarded: the repo config must opt in, AND
+    // either the operator opted in globally OR a client was injected (tests).
+    // The tier only ADVISES — reviewPullRequest cannot gate, merge, or change
+    // settings; it posts one comment and logs it. No creds/key => stays silent.
+    const repoConfig = deps.config ?? DEFAULT_CONFIG;
+    if (!llmReviewEnabled(repoConfig, deps.llm ? true : config.llmEnabled)) return;
+    const llm = deps.llm ?? getAnthropicClient();
+    if (!llm) return; // no ANTHROPIC_API_KEY -> tier unavailable, deterministic-only
+
+    const pr = payload.pull_request ?? {};
+    await reviewPullRequest(client, llm, pool, {
+      repo,
+      number: pr.number,
+      title: pr.title ?? null,
+      body: pr.body ?? null,
+      headSha: pr.head?.sha ?? null,
+      author: pr.user?.login ?? null,
+      installationId,
+    });
   }
 }
 
