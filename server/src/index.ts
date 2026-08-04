@@ -12,6 +12,7 @@ import { buildDigest } from "./digest/digest.js";
 import { renderDigestHtml, renderDigestText } from "./digest/render.js";
 import { buildHealthReport } from "./health/health.js";
 import { renderHealthHtml } from "./health/render.js";
+import { registerAppRoutes } from "./app/routes.js";
 
 export function buildServer(pool: Pool) {
   const app = Fastify({ logger: true });
@@ -64,6 +65,7 @@ export function buildServer(pool: Pool) {
     reply.type("text/html").send(renderHealthHtml(report));
   });
 
+  registerAppRoutes(app, pool);
   registerSteward(app, pool);
   registerApi(app, pool);
   return app;

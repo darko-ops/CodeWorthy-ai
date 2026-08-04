@@ -28,4 +28,17 @@ export const config = {
     // Dev/self-host fallback: an append-only file on disk.
     file: process.env.STEWARD_ANCHOR_FILE ?? "",
   },
+  // Public base URL of this service — used to build the App manifest URLs
+  // (webhook / setup / callback) and links in the digest email.
+  baseUrl: (process.env.STEWARD_BASE_URL ?? "http://localhost:8080").replace(/\/+$/, ""),
+  // The GitHub App's slug (from its URL: github.com/apps/<slug>). Drives the
+  // "Install on GitHub" button on the consent page.
+  appSlug: process.env.GITHUB_APP_SLUG ?? "",
+  // Digest email delivery. No SMTP URL -> a console mailer (dev): the digest is
+  // rendered and logged, never silently dropped. Precedence: SMTP > console.
+  mail: {
+    smtpUrl: process.env.STEWARD_SMTP_URL ?? "", // e.g. smtps://user:pass@smtp.host:465
+    from: process.env.STEWARD_MAIL_FROM ?? "CodeWorthy <steward@codeworthy.dev>",
+    digestTo: process.env.STEWARD_DIGEST_TO ?? "", // comma-separated recipients
+  },
 };

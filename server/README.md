@@ -153,6 +153,32 @@ npm run typecheck
 
 Tests need a disposable Postgres (`DATABASE_URL`, default a local `steward_test`).
 
+## Onboarding a real user (install flow + digest email)
+
+**Register the App (once):** open `/steward/app-manifest` → "Create App on GitHub"
+(the manifest asks for the honest minimum — `contents: read`, `pull_requests: write`,
+`administration: write`, `checks: write`, `metadata: read`; no code-write, no merge).
+GitHub redirects back with the credentials; set `GITHUB_APP_ID`, `GITHUB_APP_SLUG`,
+`GITHUB_PRIVATE_KEY`, `GITHUB_WEBHOOK_SECRET`, and `STEWARD_BASE_URL`, then redeploy.
+
+**A user installs:** share `/steward/install` — it states what CodeWorthy will and
+won't do, then sends them to GitHub to pick repos. GitHub returns them to
+`/steward/setup`, where the single consented action ("Protect my default branch")
+applies branch protection to the installation's repos — never silently.
+
+**Digest email:** the digest is *rendered* by M4; this wires *delivery*.
+
+```bash
+export STEWARD_SMTP_URL='smtps://user:pass@smtp.host:465'   # omit -> console mailer (dev)
+export STEWARD_MAIL_FROM='CodeWorthy <steward@yourdomain>'
+export STEWARD_DIGEST_TO='founder@acme.com'                 # comma-separated
+npm run digest                                             # send now; schedule weekly via cron
+```
+
+With no `STEWARD_SMTP_URL`, `npm run digest` uses the **console mailer** — it prints
+the email instead of dropping it, so dev shows you exactly what would send. With no
+`STEWARD_DIGEST_TO`, the job is a safe no-op.
+
 ## WORM anchor setup (prod tamper-evidence)
 
 The anchor is what makes the audit log's integrity provable to an auditor. One-time:
@@ -191,6 +217,10 @@ The anchor is what makes the audit log's integrity provable to an auditor. One-t
 | GET | `/steward/integrity` | tamper-evidence check (M1.5) — verify the hash chain + WORM anchor |
 | GET | `/steward/digest[.html\|.txt]?repo=&days=` | weekly digest (M4) |
 | GET | `/steward/health[.html]?repo=&days=` | the repo health page — one pull-up chart (vitals + activity + integrity), no login |
+| GET | `/steward/install` | consent landing — what it will/won't do, then "Install on GitHub" |
+| GET | `/steward/setup` | post-install page — the one consented action (protect the default branch) |
+| POST | `/steward/setup/protect` | apply branch protection to the installation's repos (on the click) |
+| GET | `/steward/app-manifest[/callback]` | one-click GitHub App registration (manifest create + credential exchange) |
 
 ## The invariant
 

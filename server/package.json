@@ -11,12 +11,15 @@
     "typecheck": "tsc --noEmit",
     "migrate": "tsx db/migrate.ts",
     "anchor": "tsx src/audit/anchor-job.ts",
+    "digest": "tsx src/digest/digest-job.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@aws-sdk/client-s3": "^3.1102.0",
+    "@types/nodemailer": "^8.0.1",
     "fastify": "^5.2.0",
+    "nodemailer": "^9.0.3",
     "pg": "^8.13.1",
     "yaml": "^2.6.1"
   },

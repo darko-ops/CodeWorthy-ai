@@ -32,6 +32,7 @@ export interface GitHubClient {
   getBranch(repo: string, branch: string): Promise<unknown>;
   getBranchProtection(repo: string, branch: string): Promise<unknown>;
   listCommits(repo: string, params?: Record<string, string>): Promise<unknown>;
+  listInstallationRepositories(): Promise<{ full_name: string; default_branch: string }[]>;
   // ── write: additive + reversible only ──
   createBranch(repo: string, newBranch: string, fromSha: string): Promise<unknown>;
   openDraftPullRequest(repo: string, opts: { head: string; base: string; title: string; body: string }): Promise<unknown>;
@@ -50,6 +51,10 @@ export function createGitHubClient(token: string): GitHubClient {
     getBranch: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}`),
     getBranchProtection: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}/protection`),
     listCommits: (repo, params = {}) => gh(token, "GET", `/repos/${repo}/commits?${new URLSearchParams(params)}`),
+    listInstallationRepositories: async () => {
+      const res = (await gh(token, "GET", `/installation/repositories?per_page=100`)) as { repositories?: Array<{ full_name: string; default_branch: string }> };
+      return (res.repositories ?? []).map((r) => ({ full_name: r.full_name, default_branch: r.default_branch }));
+    },
 
     createBranch: (repo, newBranch, fromSha) =>
       gh(token, "POST", `/repos/${repo}/git/refs`, { ref: `refs/heads/${newBranch}`, sha: fromSha }),
