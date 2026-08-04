@@ -3,6 +3,10 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from "react-router-do
 import { useAuth } from "../auth";
 import { Wordmark } from "./Wordmark";
 
+// The Steward service that runs the guard — the "Protect my repo" CTA points at
+// its install flow. Overridable per environment.
+const STEWARD_URL = (import.meta.env.VITE_STEWARD_URL as string | undefined)?.replace(/\/+$/, "") ?? "https://codeworthy-steward.fly.dev";
+
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -111,9 +115,9 @@ export function Shell() {
                 <NavLink to="/login" className="nav-tab">
                   Sign in
                 </NavLink>
-                <Link to="/login" className="btn btn-primary">
-                  Get started
-                </Link>
+                <a href={`${STEWARD_URL}/steward/install`} className="btn btn-primary">
+                  Protect my repo
+                </a>
               </>
             )}
           </div>

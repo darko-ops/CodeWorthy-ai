@@ -1,19 +1,29 @@
 import { Link } from "react-router-dom";
-import { COMPETENCIES } from "../data";
+
+// The Steward service (the backend that runs the guard). Point the CTAs at the
+// deployed install flow; overridable per environment.
+const STEWARD_URL = (import.meta.env.VITE_STEWARD_URL as string | undefined)?.replace(/\/+$/, "") ?? "https://codeworthy-steward.fly.dev";
+const INSTALL_URL = `${STEWARD_URL}/steward/install`;
 
 const STEPS = [
-  { title: "Inherit a real codebase", body: "A working app with history, legacy corners, and a production bug ticket." },
-  { title: "Investigate & reproduce", body: "Production logs point at the failure; the naive reproduction won't trigger it." },
-  { title: "Fix and ship a PR", body: "Any AI tools you normally use are allowed. Regression coverage is expected." },
-  { title: "Survive hidden conditions", body: "Concurrency, replicas, restarts, and unrelated-regression checks." },
-  { title: "Defend your diff", body: "An AI-led defense generates questions from your actual diff and reasoning." },
-  { title: "Get an evidence-backed report", body: "A competency profile with cited evidence — never a single opaque score." },
+  { title: "Install on your repo", body: "One click. CodeWorthy asks to read your code and comment — never to write it or merge." },
+  { title: "It protects main", body: "Your default branch now takes changes through a reviewable pull request. Force-pushes and deletions are blocked." },
+  { title: "It reviews every change", body: "Secrets, committed .env files, and risky migrations get caught before they merge — in plain language." },
+  { title: "You get a weekly digest", body: "One email: what happened, what needs a look, and nothing to babysit in between." },
 ];
 
-const EVIDENCE_BARS = [
-  { name: "Root-cause analysis", score: "5/5", width: "100%", color: "#22c55e", scoreColor: "#4ade80", delay: "0.7s" },
-  { name: "Testing", score: "4/5", width: "80%", color: "#22c55e", scoreColor: "#4ade80", delay: "0.82s" },
-  { name: "Deployment judgment", score: "3/5", width: "60%", color: "#d9a200", scoreColor: "#f5bd4f", delay: "0.94s" },
+// The hero health-card vitals (mirrors /steward/health).
+const VITALS = [
+  { name: "Branch protection", status: "healthy", word: "ON", color: "#4ade80" },
+  { name: "Review discipline", status: "watch", word: "WATCH", color: "#f5bd4f" },
+  { name: "Record integrity", status: "healthy", word: "VERIFIED", color: "#4ade80" },
+];
+
+const DOES = [
+  { title: "Guards your main branch", body: "Configures branch protection so nothing lands on your default branch without a reviewable pull request — the thing a senior engineer would set up on day one." },
+  { title: "Catches what breaks repos", body: "Secrets in a commit, a committed .env or node_modules, a destructive migration — blocked before merge. Missing tests and sprawling PRs — flagged, not blocked." },
+  { title: "Explains every call", body: "No jargon, no black box. Each decision is a plain-language note on the exact commit or PR, and every one is reversible." },
+  { title: "Keeps tamper-evident records", body: "An append-only, hash-chained change log — the SOC 2 change-control evidence an auditor asks for, without you thinking about it." },
 ];
 
 export function Landing() {
@@ -21,80 +31,76 @@ export function Landing() {
     <>
       <section className="hero-grid">
         <div>
-          <div className="hero-eyebrow fu">Production-readiness, proven ▸</div>
+          <div className="hero-eyebrow fu">A senior engineer for your repo ▸</div>
           <h1 className="fu">
-            Make your work
+            Build with AI.
             <br />
-            production-
+            Ship code that's
             <span className="hero-worthy">
-              worthy
+              {" "}worthy
               <span className="underline" aria-hidden />
             </span>
             .
           </h1>
           <p className="fu">
-            Anyone can build fast with AI. The scarce thing is shipping code a team can trust.
-            CodeWorthy proves it — realistic inherited codebases, hidden failure conditions, and an
-            evidence-backed report employers can act on.
+            CodeWorthy stewards your repository the way a senior engineer would — it protects your
+            main branch, reviews changes before they land, and keeps a plain-language record. You
+            keep building; it makes sure what ships is safe.
           </p>
           <div className="hero-ctas fu">
-            <Link to="/login?role=examinee" className="btn btn-primary btn-lg">
-              Start proving it
-            </Link>
+            <a href={INSTALL_URL} className="btn btn-primary btn-lg">
+              Protect my repo
+            </a>
             <Link to="/login?role=merchant" className="btn btn-lg">
-              I'm hiring →
+              For hiring teams →
             </Link>
           </div>
           <div className="hero-chips">
-            <span className="badge">12 competencies</span>
-            <span className="badge">AI tools allowed</span>
-            <span className="badge">Evidence, not a score</span>
+            <span className="badge">Never merges — you own that</span>
+            <span className="badge">Plain language</span>
+            <span className="badge">Tamper-evident log</span>
           </div>
         </div>
 
         <div className="evidence-card">
           <div className="evidence-head">
-            <span>Competency report</span>
-            <span className="badge badge-solid">✓ REPORT READY</span>
+            <span>Repo health</span>
+            <span className="badge badge-solid">🩺 LIVE CHART</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
             <div
               className="ring"
-              style={{ width: 66, height: 66, background: "conic-gradient(#22c55e 82%, #16404e 0)" }}
+              style={{ width: 66, height: 66, background: "conic-gradient(#f5bd4f 66%, #16404e 0)" }}
               aria-hidden
             >
               <div className="ring-inner" style={{ width: 50, height: 50 }}>
-                <span className="ring-value" style={{ fontSize: 18 }}>4.1</span>
-                <span style={{ font: "500 8px var(--mono)", color: "var(--navy-muted)" }}>/ 5.0 avg</span>
+                <span className="ring-value" style={{ fontSize: 13 }}>Needs</span>
+                <span style={{ font: "500 8px var(--mono)", color: "var(--navy-muted)" }}>attention</span>
               </div>
             </div>
             <div>
-              <div style={{ font: "700 15px var(--sans)", color: "#fff" }}>Priya Raman</div>
+              <div style={{ font: "700 15px var(--sans)", color: "#fff" }}>dana/recipe-app</div>
               <div style={{ font: "500 12px var(--mono)", color: "var(--navy-muted)", marginTop: 2 }}>
-                ACME-1287 · duplicate charges
+                1 vital needs a look
               </div>
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-            {EVIDENCE_BARS.map((b) => (
-              <div key={b.name}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 5 }}>
-                  <span style={{ font: "500 12px var(--sans)", color: "#cfe0e4" }}>{b.name}</span>
-                  <span style={{ font: "600 11px var(--mono)", color: b.scoreColor }}>{b.score}</span>
-                </div>
-                <div className="evidence-bar">
-                  <div style={{ width: b.width, background: b.color, animationDelay: b.delay }} />
-                </div>
+            {VITALS.map((v) => (
+              <div key={v.name} style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                <span style={{ width: 9, height: 9, borderRadius: "50%", background: v.color, display: "inline-block" }} aria-hidden />
+                <span style={{ font: "500 12px var(--sans)", color: "#cfe0e4" }}>{v.name}</span>
+                <span style={{ marginLeft: "auto", font: "600 11px var(--mono)", color: v.color }}>{v.word}</span>
               </div>
             ))}
           </div>
-          <div className="evidence-foot">5/5 hidden-suite checks passed · evidence-cited</div>
+          <div className="evidence-foot">append-only · hash-chained · SOC 2 evidence</div>
         </div>
       </section>
 
       <section className="steps-strip">
-        <p className="eyebrow">How an assessment works</p>
-        <h2 className="section-title">Six steps, zero trivia questions</h2>
+        <p className="eyebrow">How it works</p>
+        <h2 className="section-title">Set it up once, then forget it's there</h2>
         <div className="steps-grid">
           {STEPS.map((step, i) => (
             <div key={step.title}>
@@ -107,50 +113,52 @@ export function Landing() {
       </section>
 
       <p className="eyebrow" style={{ marginTop: 56 }}>
-        For employers
+        What it does
       </p>
-      <h2 className="section-title">A competency profile, never a single score</h2>
+      <h2 className="section-title">A tech lead in a box — not a dashboard to babysit</h2>
       <div className="grid-2">
-        <div className="card">
-          <h3>Evidence you can inspect</h3>
-          <p style={{ color: "var(--ink-2)", fontSize: 14 }}>
-            Every rating cites the candidate's actual work: the diff, the tests, the terminal
-            activity, the defense answers. "Did not finish" is distinguished from "does not
-            understand."
-          </p>
-        </div>
-        <div className="card">
-          <h3>AI usage scored on control</h3>
-          <p style={{ color: "var(--ink-2)", fontSize: 14 }}>
-            Candidates use whatever AI tools they normally would. We measure whether they guide,
-            inspect, and verify the output — never whether they used it.
-          </p>
-        </div>
-      </div>
-
-      <p className="eyebrow" style={{ marginTop: 56 }}>
-        What we measure
-      </p>
-      <h2 className="section-title">Twelve competencies, rated 1–5 with evidence</h2>
-      <div className="grid-3">
-        {COMPETENCIES.map((c) => (
-          <div className="card" key={c} style={{ padding: "14px 16px" }}>
-            <strong style={{ fontSize: 14 }}>{c}</strong>
+        {DOES.map((d) => (
+          <div className="card" key={d.title}>
+            <h3>{d.title}</h3>
+            <p style={{ color: "var(--ink-2)", fontSize: 14 }}>{d.body}</p>
           </div>
         ))}
       </div>
 
+      <p className="eyebrow" style={{ marginTop: 56 }}>
+        The one rule it lives by
+      </p>
+      <h2 className="section-title">It gates, advises, and does the safe git chores — you own every merge</h2>
+      <div className="grid-2">
+        <div className="card">
+          <h3>Never a black box</h3>
+          <p style={{ color: "var(--ink-2)", fontSize: 14 }}>
+            CodeWorthy never merges, force-pushes, or rewrites history — not "we choose not to," but
+            the capability isn't on its surface. It changes your repo settings only after you click
+            "yes." The AI-review tier is <strong>off by default</strong>, opt-in per repo, and
+            discloses exactly what leaves.
+          </p>
+        </div>
+        <div className="card">
+          <h3>The same engine that measures engineers</h3>
+          <p style={{ color: "var(--ink-2)", fontSize: 14 }}>
+            The rules CodeWorthy enforces are the very competencies our assessment measures — root
+            cause, testing, systems thinking, git discipline. One model, two products.{" "}
+            <Link to="/login?role=merchant" style={{ color: "var(--accent-strong)", fontWeight: 600 }}>Hiring? See the assessment →</Link>
+          </p>
+        </div>
+      </div>
+
       <div className="card" style={{ marginTop: 64, textAlign: "center", padding: 40 }}>
         <h2 className="section-title" style={{ marginBottom: 8 }}>
-          Ready to see it in action?
+          Hand your <span className="artifact">main</span> branch to a senior engineer
         </h2>
         <p style={{ color: "var(--ink-2)", marginTop: 0 }}>
-          The flagship assessment is live: a duplicate-charge bug in an inherited order-management
-          API — ticket <span className="artifact">ACME-1287</span>.
+          Install CodeWorthy, pick your repositories, and keep building. It protects the rest.
         </p>
-        <Link to="/login" className="btn btn-primary btn-lg">
-          Sign in to get started
-        </Link>
+        <a href={INSTALL_URL} className="btn btn-primary btn-lg">
+          Protect my repo
+        </a>
       </div>
     </>
   );
