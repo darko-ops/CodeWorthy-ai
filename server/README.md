@@ -52,11 +52,23 @@ by an *insider* — someone who can `DISABLE TRIGGER` and edit rows directly —
   consistent). `anchorAuditHead()` pins the chain head to write-once storage
   **outside** the DB; `verifyAgainstAnchor()` proves the anchored row is still
   present and unchanged. The `Anchor` seam is injectable — `InMemoryAnchor`
-  (tests), `FileAnchor` (dev), and prod is **S3 Object Lock in compliance mode**
-  (undeletable even by root; documented in `tamper.ts`).
+  (tests), `FileAnchor` (dev), and **`S3ObjectLockAnchor` (prod)**.
+- **The prod anchor** (`S3ObjectLockAnchor`) PUTs each head to an S3 bucket with
+  **Object Lock in COMPLIANCE mode** — write-once, undeletable and unoverwritable
+  for the retention window, *even by the account root* — plus `IfNoneMatch: "*"`
+  so an anchored head can never be clobbered. Keys are zero-padded seq, so
+  `latest()` is a cheap max-key scan. Credentials come from the default AWS chain
+  (an instance/task role — no secrets in env). The transport is injectable, so
+  the wiring (key scheme, lock params, retention date, latest-selection) is
+  unit-tested offline against a fake S3; `@aws-sdk/client-s3` is dynamic-imported
+  so a deployment that never sets a bucket doesn't pay to load it.
 - **`GET /steward/integrity`** — an auditor or the founder asks "has the record
-  been tampered with?" and gets a straight `{ ok, chain, anchor }`. Anchoring
-  itself is a scheduled job (deployment config, like the drift check).
+  been tampered with?" and gets a straight `{ ok, chain, anchor }`.
+- **The anchor job** (`npm run anchor`, `src/audit/anchor-job.ts`) — a scheduled
+  task (Fly cron / a scheduled workflow). It **verifies the chain and the prior
+  anchor before writing a new one**, so it can't launder tampering into the
+  record: a broken chain or a drifted anchored head makes it exit `2` (page on
+  it) instead of anchoring. Idempotent — a run with an unchanged head is a no-op.
 
 All additive: the M1 table contract and existing rows are untouched, and
 `appendAuditEvent` didn't change — the trigger fills the new columns.
@@ -121,8 +133,8 @@ both). No `ANTHROPIC_API_KEY` → the tier is a silent no-op (deterministic-only
 
 - **Tamper-evidence** (hash chain + WORM/S3 anchoring) → **M1.5** ✅
   (`src/audit/tamper.ts`, `db/migrations/0002_audit_hash_chain.sql`, served at
-  `/steward/integrity`). Prod S3-Object-Lock anchor is a seam implementation, not
-  yet wired (needs a bucket + IAM the deployment owns).
+  `/steward/integrity`, anchored by `npm run anchor`). The deployment provides
+  the bucket + IAM; see **WORM anchor setup** below.
 - **Weekly digest / change-log page** → **M4** ✅ (`src/digest/`, served at `/steward/digest[.html|.txt]`).
 - **Promoting an LLM finding to a gate** — deliberately *not* built. A model
   finding stays advice until it's calibrated against real outcomes; only then
@@ -140,6 +152,33 @@ npm run typecheck
 ```
 
 Tests need a disposable Postgres (`DATABASE_URL`, default a local `steward_test`).
+
+## WORM anchor setup (prod tamper-evidence)
+
+The anchor is what makes the audit log's integrity provable to an auditor. One-time:
+
+1. **Create an S3 bucket with Object Lock enabled** (must be enabled at creation).
+   A default retention isn't required — the app sets per-object COMPLIANCE
+   retention on each PUT.
+2. **Grant the service's role** `s3:PutObject`, `s3:GetObject`, and
+   `s3:ListBucket` on that bucket. No delete permission is needed or wanted.
+   Credentials resolve from the default AWS chain (instance/task role) — don't
+   put keys in env.
+3. **Point the service at it:**
+
+   ```bash
+   export STEWARD_ANCHOR_S3_BUCKET=my-codeworthy-audit
+   export STEWARD_ANCHOR_S3_REGION=us-east-1      # or AWS_REGION
+   export STEWARD_ANCHOR_S3_PREFIX=prod/          # optional
+   export STEWARD_ANCHOR_RETENTION_DAYS=3650      # optional; default 10 years
+   ```
+
+   Dev/self-host without S3: set `STEWARD_ANCHOR_FILE=/path/anchors.jsonl` instead
+   (S3 wins if both are set). With neither, `/steward/integrity` still verifies
+   the in-DB chain and reports `no-anchor`.
+4. **Schedule the anchor job** (`npm run anchor`) on an interval — nightly is
+   typical. It verifies the chain + prior anchor, then pins the current head;
+   it exits `2` on detected tampering, so wire that to an alert.
 
 ## Endpoints
 

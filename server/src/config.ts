@@ -14,8 +14,18 @@ export const config = {
   // M2. Auto-configuring branch protection changes a customer's repo settings,
   // so it is opt-in (consent) and off by default — never silent.
   autoProtect: process.env.STEWARD_AUTO_PROTECT === "1",
-  // M1.5. Path to an append-only WORM anchor file for the audit hash chain. When
-  // set, the integrity endpoint also checks the chain head against the anchor.
-  // Prod swaps this for an S3 Object Lock anchor (see src/audit/tamper.ts).
-  anchorFile: process.env.STEWARD_ANCHOR_FILE ?? "",
+  // M1.5. WORM anchor for the audit hash chain's head. Precedence: S3 (prod) >
+  // file (dev) > none. When set, the integrity endpoint also checks the chain
+  // head against the anchor, and the anchor job (npm run anchor) pins it.
+  anchor: {
+    // Prod: an S3 bucket with Object Lock enabled. Credentials come from the
+    // default AWS chain (instance/task role) — never from env here.
+    s3Bucket: process.env.STEWARD_ANCHOR_S3_BUCKET ?? "",
+    s3Prefix: process.env.STEWARD_ANCHOR_S3_PREFIX ?? "",
+    s3Region: process.env.STEWARD_ANCHOR_S3_REGION ?? process.env.AWS_REGION ?? "",
+    // Object Lock compliance window in days (default 10 years).
+    retentionDays: parseInt(process.env.STEWARD_ANCHOR_RETENTION_DAYS ?? "3650", 10),
+    // Dev/self-host fallback: an append-only file on disk.
+    file: process.env.STEWARD_ANCHOR_FILE ?? "",
+  },
 };

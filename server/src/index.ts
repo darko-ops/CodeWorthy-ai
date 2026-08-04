@@ -7,7 +7,7 @@ import { config } from "./config.js";
 import { registerApi } from "./api/health.js";
 import { registerSteward } from "./steward/routes.js";
 import { recentChangelog } from "./audit/audit.js";
-import { verifyAuditChain, verifyAgainstAnchor, FileAnchor } from "./audit/tamper.js";
+import { verifyAuditChain, verifyAgainstAnchor, makeAnchor } from "./audit/tamper.js";
 import { buildDigest } from "./digest/digest.js";
 import { renderDigestHtml, renderDigestText } from "./digest/render.js";
 
@@ -42,8 +42,9 @@ export function buildServer(pool: Pool) {
   // if a WORM anchor file is configured, also checks the head against it.
   app.get("/steward/integrity", async () => {
     const chain = await verifyAuditChain(pool);
-    const anchor = config.anchorFile
-      ? await verifyAgainstAnchor(pool, new FileAnchor(config.anchorFile))
+    const sink = makeAnchor(config.anchor);
+    const anchor = sink
+      ? await verifyAgainstAnchor(pool, sink)
       : { status: "no-anchor" as const, detail: "no WORM anchor configured" };
     const ok = chain.intact && anchor.status !== "tampered";
     return { ok, chain, anchor };

@@ -127,6 +127,27 @@ export async function verifyAgainstAnchor(pool: Pool, anchor: Anchor): Promise<A
   return { status: "consistent", anchoredSeq: rec.seq };
 }
 
+// Resolve the configured anchor: S3 (prod) > file (dev) > none. Kept here so the
+// server and the anchor job pick the same one from the same config.
+export function makeAnchor(cfg: {
+  s3Bucket?: string;
+  s3Prefix?: string;
+  s3Region?: string;
+  retentionDays?: number;
+  file?: string;
+}): Anchor | null {
+  if (cfg.s3Bucket) {
+    return new S3ObjectLockAnchor({
+      bucket: cfg.s3Bucket,
+      prefix: cfg.s3Prefix || undefined,
+      region: cfg.s3Region || undefined,
+      retentionDays: cfg.retentionDays,
+    });
+  }
+  if (cfg.file) return new FileAnchor(cfg.file);
+  return null;
+}
+
 // ── Anchor implementations ─────────────────────────────────────────────────
 
 // For tests and single-process dev. Not durable — a real anchor is external.
@@ -165,8 +186,96 @@ export class FileAnchor implements Anchor {
 // unoverwritable for the retention window, even by the account root. That is
 // what makes a full consistent rewrite of audit_events provably detectable: the
 // previously-anchored head still exists, outside the DB, beyond reach.
-// Deliberately not wired here — it needs a bucket + IAM the deployment owns; the
-// seam above (implement Anchor) is the whole integration surface.
-//   e.g.  s3.putObject({ Bucket, Key: `anchors/${rec.seq}.json`,
-//                        Body: JSON.stringify(rec), ObjectLockMode: "COMPLIANCE",
-//                        ObjectLockRetainUntilDate: <now + retention> })
+//
+// The transport is injectable (S3Like) so the wiring — key scheme, the Object
+// Lock params, latest-selection — is unit-tested offline against a fake. In prod
+// the real S3Client is built lazily from the default AWS credential chain (an
+// instance/task role — no secrets in env). The @aws-sdk/client-s3 command
+// classes are dynamic-imported so a deployment that never sets a bucket doesn't
+// pay to load them.
+
+// The one method we use off the S3 client — kept narrow so a fake is trivial.
+export interface S3Like {
+  send(command: unknown): Promise<any>;
+}
+
+export interface S3AnchorOptions {
+  bucket: string;
+  prefix?: string; // key prefix, e.g. "codeworthy/"; default ""
+  region?: string; // else the SDK's default resolution
+  retentionDays?: number; // Object Lock compliance window; default 10 years
+  client?: S3Like; // injected in tests; else a real S3Client is built lazily
+  now?: () => Date; // injectable clock for the retain-until date
+}
+
+// Anchor keys are zero-padded so lexical order (how S3 lists) equals chain
+// order, making latest() a max-key scan rather than a fetch-and-compare of every
+// record.
+const SEQ_WIDTH = 20;
+const anchorKey = (prefix: string, seq: string) => `${prefix}anchors/${seq.padStart(SEQ_WIDTH, "0")}.json`;
+
+export class S3ObjectLockAnchor implements Anchor {
+  private client: S3Like | null;
+  private readonly bucket: string;
+  private readonly prefix: string;
+  private readonly region?: string;
+  private readonly retentionDays: number;
+  private readonly now: () => Date;
+
+  constructor(opts: S3AnchorOptions) {
+    this.bucket = opts.bucket;
+    this.prefix = opts.prefix ?? "";
+    this.region = opts.region;
+    this.retentionDays = opts.retentionDays ?? 3650;
+    this.now = opts.now ?? (() => new Date());
+    this.client = opts.client ?? null;
+  }
+
+  private async s3(): Promise<S3Like> {
+    if (!this.client) {
+      const { S3Client } = await import("@aws-sdk/client-s3");
+      this.client = new S3Client(this.region ? { region: this.region } : {}) as unknown as S3Like;
+    }
+    return this.client;
+  }
+
+  async append(rec: AnchorRecord): Promise<void> {
+    const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.s3();
+    const retainUntil = new Date(this.now().getTime() + this.retentionDays * 86_400_000);
+    await client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: anchorKey(this.prefix, rec.seq),
+        Body: JSON.stringify(rec),
+        ContentType: "application/json",
+        // Write-once for the retention window — the whole point.
+        ObjectLockMode: "COMPLIANCE",
+        ObjectLockRetainUntilDate: retainUntil,
+        // Don't clobber an existing anchor at this seq (they must never change).
+        IfNoneMatch: "*",
+      })
+    );
+  }
+
+  async latest(): Promise<AnchorRecord | null> {
+    const { ListObjectsV2Command, GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.s3();
+    const listPrefix = `${this.prefix}anchors/`;
+    let maxKey: string | null = null;
+    let token: string | undefined;
+    do {
+      const res = await client.send(
+        new ListObjectsV2Command({ Bucket: this.bucket, Prefix: listPrefix, ContinuationToken: token })
+      );
+      for (const o of res.Contents ?? []) {
+        if (o.Key && (maxKey === null || o.Key > maxKey)) maxKey = o.Key;
+      }
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+    if (!maxKey) return null;
+    const got = await client.send(new GetObjectCommand({ Bucket: this.bucket, Key: maxKey }));
+    const body = await got.Body.transformToString();
+    return JSON.parse(body) as AnchorRecord;
+  }
+}
