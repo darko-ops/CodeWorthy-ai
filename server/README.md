@@ -190,6 +190,7 @@ The anchor is what makes the audit log's integrity provable to an auditor. One-t
 | GET | `/steward/changelog?repo=&limit=` | plain-language change log |
 | GET | `/steward/integrity` | tamper-evidence check (M1.5) — verify the hash chain + WORM anchor |
 | GET | `/steward/digest[.html\|.txt]?repo=&days=` | weekly digest (M4) |
+| GET | `/steward/health[.html]?repo=&days=` | the repo health page — one pull-up chart (vitals + activity + integrity), no login |
 
 ## The invariant
 

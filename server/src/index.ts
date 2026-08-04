@@ -10,6 +10,8 @@ import { recentChangelog } from "./audit/audit.js";
 import { verifyAuditChain, verifyAgainstAnchor, makeAnchor } from "./audit/tamper.js";
 import { buildDigest } from "./digest/digest.js";
 import { renderDigestHtml, renderDigestText } from "./digest/render.js";
+import { buildHealthReport } from "./health/health.js";
+import { renderHealthHtml } from "./health/render.js";
 
 export function buildServer(pool: Pool) {
   const app = Fastify({ logger: true });
@@ -48,6 +50,18 @@ export function buildServer(pool: Pool) {
       : { status: "no-anchor" as const, detail: "no WORM anchor configured" };
     const ok = chain.intact && anchor.status !== "tampered";
     return { ok, chain, anchor };
+  });
+
+  // The repo health page (tier 3) — one pull-up chart, no login. Folds the
+  // Steward's vitals, the change log, and the integrity check into one view.
+  const healthOpts = (q: { repo?: string; days?: string }) => ({
+    repo: q.repo,
+    windowDays: q.days ? parseInt(q.days, 10) : 30,
+  });
+  app.get("/steward/health", async (req) => buildHealthReport(pool, healthOpts(req.query as any)));
+  app.get("/steward/health.html", async (req, reply) => {
+    const report = await buildHealthReport(pool, healthOpts(req.query as any));
+    reply.type("text/html").send(renderHealthHtml(report));
   });
 
   registerSteward(app, pool);
