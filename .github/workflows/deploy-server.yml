@@ -1,0 +1,70 @@
+# Deploy the Steward service to Fly.io on push to main.
+#
+# Test-gated: the same typecheck + full suite (including the no-merge/force/delete
+# doctrine) must pass before anything ships. Path-filtered to server/** so a
+# docs- or site-only change never triggers a redeploy.
+#
+# Requires one repo secret: FLY_API_TOKEN  (create with `fly tokens create deploy`).
+name: Deploy Steward (Fly.io)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - ".github/workflows/deploy-server.yml"
+  workflow_dispatch: {}
+
+# Never let two deploys race; don't cancel an in-flight deploy.
+concurrency:
+  group: deploy-steward
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Test before deploy
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: acme
+          POSTGRES_PASSWORD: acme
+          POSTGRES_DB: steward_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U acme -d steward_test"
+          --health-interval 2s --health-timeout 2s --health-retries 15
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          DATABASE_URL: postgres://acme:acme@localhost:5432/steward_test
+
+  deploy:
+    name: Deploy to Fly.io
+    needs: test
+    runs-on: ubuntu-latest
+    # Don't deploy from forks (they have no FLY_API_TOKEN anyway).
+    if: github.repository_owner == 'darko-ops'
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      # Reads server/fly.toml + server/Dockerfile; the release_command applies
+      # migrations before the new version takes traffic.
+      - run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}

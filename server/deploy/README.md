@@ -58,6 +58,22 @@ The release command applies migrations; the machine then serves on `:8080`.
 Point the GitHub App's webhook at `https://<your-app>.fly.dev/webhooks/github`
 (the manifest already set this).
 
+## Continuous deployment (GitHub Actions)
+
+`.github/workflows/deploy-server.yml` deploys on every push to `main` that
+touches `server/**` — after the full test suite (typecheck + the
+no-merge/force/delete doctrine) passes. One secret is required:
+
+```bash
+fly tokens create deploy -x 999999h        # a deploy-scoped token
+# add it as a repo secret named FLY_API_TOKEN (Settings → Secrets → Actions)
+```
+
+The first deploy still needs a one-time local `fly launch` / `fly apps create`
+so the app exists; after that, push-to-main ships it. The marketing site
+(`site/`) auto-deploys via Vercel's own Git integration — set `VITE_STEWARD_URL`
+in the Vercel project env to this service's URL.
+
 ## Scheduled jobs
 
 `STEWARD_SCHEDULER=1` (default in `fly.toml`) runs the periodic jobs **inside**
