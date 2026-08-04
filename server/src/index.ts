@@ -13,6 +13,7 @@ import { renderDigestHtml, renderDigestText } from "./digest/render.js";
 import { buildHealthReport } from "./health/health.js";
 import { renderHealthHtml } from "./health/render.js";
 import { registerAppRoutes } from "./app/routes.js";
+import { startScheduler } from "./scheduler.js";
 
 export function buildServer(pool: Pool) {
   const app = Fastify({ logger: true });
@@ -75,6 +76,9 @@ async function main() {
   const pool = new Pool({ connectionString: config.databaseUrl });
   const app = buildServer(pool);
   await app.listen({ port: config.port, host: "0.0.0.0" });
+  // Periodic jobs (anchor nightly, digest weekly) run in-process when enabled —
+  // on exactly one instance, so a job never double-fires.
+  if (config.scheduler) startScheduler(pool, {}, { log: (l) => app.log.info(l) });
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

@@ -6,7 +6,7 @@
   "description": "CodeWorthy backend service — Steward GitHub App webhook handler + audit spine, and the seed of the site's Phase 2 API. Modular monolith: src/steward and src/api, shared Postgres, separate schemas.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "node dist/index.js",
+    "start": "node dist/src/index.js",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx db/migrate.ts",

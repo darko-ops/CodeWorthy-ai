@@ -1,0 +1,43 @@
+# CodeWorthy Steward on Fly.io — a single always-on Node service.
+# One machine serves the webhook, the API, the health page, and (with
+# STEWARD_SCHEDULER=1) the periodic anchor + digest jobs. Postgres is external
+# (Neon). See deploy/README.md for the full stand-up.
+
+app = "codeworthy-steward"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[deploy]
+  # Runs once per release, before the new version takes traffic — applies any
+  # pending migrations against DATABASE_URL. Idempotent (schema_migrations).
+  release_command = "node dist/db/migrate.js"
+
+[env]
+  PORT = "8080"
+  STEWARD_BASE_URL = "https://codeworthy-steward.fly.dev"
+  # The scheduler runs in-process. Keep this to a single instance (below) so a
+  # job never double-fires. Secrets (DATABASE_URL, GitHub App creds, SMTP,
+  # anchor bucket) are set with `fly secrets set` — never in this file.
+  STEWARD_SCHEDULER = "1"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false   # always-on: the audit log wants a live connection
+  auto_start_machines = true
+  min_machines_running = 1
+  max_machines_running = 1     # single instance -> the in-process scheduler is safe
+
+  [http_service.checks]
+    [[http_service.checks.http]]
+      method = "GET"
+      path = "/health"
+      interval = "15s"
+      timeout = "2s"
+      grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

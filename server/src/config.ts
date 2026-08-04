@@ -41,4 +41,9 @@ export const config = {
     from: process.env.STEWARD_MAIL_FROM ?? "CodeWorthy <steward@codeworthy.dev>",
     digestTo: process.env.STEWARD_DIGEST_TO ?? "", // comma-separated recipients
   },
+  // Run the in-process scheduler (anchor nightly, digest weekly) inside this
+  // service. On a single always-on instance this is the whole cron story; for a
+  // multi-instance deploy, run it on exactly one machine (or split to Fly
+  // scheduled machines) so a job never double-fires.
+  scheduler: process.env.STEWARD_SCHEDULER === "1",
 };
