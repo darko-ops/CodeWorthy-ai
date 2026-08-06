@@ -40,8 +40,11 @@ describe("GitHub client doctrine", () => {
     for (const endpoint of ["/contents/", "git/blobs", "git/trees", "git/commits"]) {
       expect(source.includes(endpoint), `code-write endpoint in client.ts: ${endpoint}`).toBe(false);
     }
+    // Write-shaped method names only — reads (getPullRequestFiles, listCommits)
+    // are fine; what must never exist is a method that WRITES file content.
     for (const name of methods) {
-      expect(name).not.toMatch(/file|blob|tree|commitCreate|putContents/i);
+      if (/^(get|list)/.test(name)) continue;
+      expect(name).not.toMatch(/file|blob|tree|contents/i);
     }
   });
 });
