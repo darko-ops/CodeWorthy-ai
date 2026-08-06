@@ -46,7 +46,10 @@ export function buildAppManifest(baseUrl: string): AppManifest {
       checks: "write",
       metadata: "read",
     },
-    default_events: ["push", "pull_request", "installation", "installation_repositories"],
+    // installation / installation_repositories are NOT listed here: GitHub
+    // delivers installation webhooks to every App automatically, and the
+    // manifest API rejects them as subscribable events.
+    default_events: ["push", "pull_request", "issue_comment"],
   };
 }
 
