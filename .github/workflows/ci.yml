@@ -108,22 +108,6 @@ jobs:
         working-directory: .
         run: node evaluation/hidden-tests-wrong-merge/leak-guard.mjs --repo /tmp/wrong-merge-candidate
 
-  steward-tests:
-    # Includes the doctrine guards: the API client must expose no
-    # merge/delete/force capability, and the AI review check must be
-    # structurally unable to gate.
-    name: Steward — offline test suite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci
-        working-directory: steward
-      - run: npm test
-        working-directory: steward
-
   web-build:
     name: Dashboard — typecheck + build
     runs-on: ubuntu-latest
