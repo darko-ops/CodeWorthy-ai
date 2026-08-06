@@ -121,18 +121,32 @@ export function renderManifestForm(manifest: AppManifest): string {
 <div class="foot">After you confirm on GitHub, you'll be redirected back and shown the credentials to save.</div>`);
 }
 
-export function renderManifestCredentials(o: { id: number; slug: string; htmlUrl: string }): string {
+export function renderManifestCredentials(o: {
+  id: number;
+  slug: string;
+  htmlUrl: string;
+  pem: string;
+  webhookSecret: string;
+}): string {
+  // GitHub returns the private key and webhook secret exactly once, in this
+  // conversion response — so this page must SHOW them, ready to paste. The
+  // PEM's newlines are escaped as \n (the server restores them on boot).
+  const pemEscaped = o.pem.replace(/\r?\n/g, "\\n");
+  const flyCommand = [
+    "fly secrets set --app codeworthy-steward \\",
+    `  GITHUB_APP_ID='${o.id}' \\`,
+    `  GITHUB_APP_SLUG='${o.slug}' \\`,
+    `  GITHUB_WEBHOOK_SECRET='${o.webhookSecret}' \\`,
+    `  GITHUB_PRIVATE_KEY='${pemEscaped}'`,
+  ].join("\n");
   return page("App created — save these", `
 <h1>🎉 CodeWorthy App created</h1>
-<div class="sub">Set these in the service's environment, then redeploy. The private key and webhook secret are shown once.</div>
-<div class="card"><h2>Environment</h2><ul>
-  <li><code>GITHUB_APP_ID=${esc(o.id)}</code></li>
-  <li><code>GITHUB_APP_SLUG=${esc(o.slug)}</code></li>
-  <li><code>GITHUB_PRIVATE_KEY</code> — the PEM returned by GitHub (newlines escaped as <code>\\n</code>)</li>
-  <li><code>GITHUB_WEBHOOK_SECRET</code> — the webhook secret returned by GitHub</li>
-</ul></div>
+<div class="sub"><strong>Shown once.</strong> Copy the command below and run it now — GitHub will not display the private key or webhook secret again.</div>
+<div class="card"><h2>One command sets everything</h2>
+<pre style="white-space:pre-wrap;word-break:break-all">${esc(flyCommand)}</pre>
+<p class="muted">Then redeploy: <code>fly deploy</code></p></div>
 <a class="btn secondary" href="${esc(o.htmlUrl)}">Open the App on GitHub →</a>
-<div class="foot">Once the env is set, share <code>/steward/install</code> with anyone who wants to add CodeWorthy to their repos.</div>`);
+<div class="foot">Once the secrets are set and deployed, share <code>/steward/install</code> with anyone who wants to add CodeWorthy to their repos.</div>`);
 }
 
 export interface ConsentDeps {
