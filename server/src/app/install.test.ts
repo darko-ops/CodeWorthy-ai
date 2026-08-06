@@ -27,9 +27,14 @@ class FakeClient implements GitHubClient {
 }
 
 describe("install flow — manifest & pages", () => {
-  it("manifest asks for the honest minimum: no code-write, no merge scope", () => {
+  it("manifest asks for the honest minimum: no merge scope; code-write barred at the client surface", () => {
     const m = buildAppManifest("https://cw.example.com/");
-    expect(m.default_permissions.contents).toBe("read"); // never write code
+    // contents:write is required for safe-mechanics branch creation (GitHub
+    // has no refs-only scope — POST /git/refs needs it; read-only would 403
+    // createBranch at runtime). The "never write code" guarantee lives in the
+    // client capability surface instead: no file/blob/tree/commit-creation
+    // method exists (see client.doctrine.test.ts).
+    expect(m.default_permissions.contents).toBe("write");
     expect(m.default_permissions.administration).toBe("write"); // branch protection
     expect(m.default_permissions).not.toHaveProperty("merge");
     expect(m.hook_attributes.url).toBe("https://cw.example.com/webhooks/github");
