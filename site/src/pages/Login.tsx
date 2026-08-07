@@ -1,14 +1,26 @@
 import { useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { homeForRole, useAuth, type Role } from "../auth";
+import { useGitHubAuth } from "../github-auth";
 import { Wordmark } from "../components/Wordmark";
+
+// OAuth failures come back as ?error=<code>; turn them into a plain sentence.
+const OAUTH_ERRORS: Record<string, string> = {
+  not_configured: "GitHub sign-in isn't finished being set up yet. Try the demo login below for now.",
+  bad_state: "That sign-in link expired. Please try connecting GitHub again.",
+  oauth_failed: "GitHub sign-in didn't complete. Please try again.",
+  no_session: "Something went wrong finishing sign-in. Please try again.",
+  access_denied: "GitHub sign-in was cancelled.",
+};
 
 export function Login() {
   const { login } = useAuth();
+  const { signIn } = useGitHubAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
   const initialRole: Role = params.get("role") === "merchant" ? "merchant" : "examinee";
+  const oauthError = params.get("error") ? (OAUTH_ERRORS[params.get("error")!] ?? "GitHub sign-in didn't complete.") : null;
 
   const [role, setRole] = useState<Role>(initialRole);
   const [email, setEmail] = useState("");
@@ -70,9 +82,22 @@ export function Login() {
         <h1 style={{ font: "800 28px var(--sans)", letterSpacing: "-0.02em", margin: "0 0 6px" }}>
           Sign in
         </h1>
-        <p className="hint" style={{ margin: "0 0 24px" }}>
-          Demo environment — any email and password work. Pick the role to explore.
+        <p className="hint" style={{ margin: "0 0 20px" }}>
+          Connect the repositories CodeWorthy watches, and see their activity in one place.
         </p>
+
+        {oauthError && (
+          <p className="login-oauth-error">{oauthError}</p>
+        )}
+
+        <button type="button" className="btn btn-github" onClick={signIn}>
+          <svg width="18" height="18" viewBox="0 0 16 16" aria-hidden fill="currentColor">
+            <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+          </svg>
+          Sign in with GitHub
+        </button>
+
+        <div className="login-or"><span>or explore the demo</span></div>
 
         <div className="role-toggle" role="tablist" aria-label="Account type">
           <button

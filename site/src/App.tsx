@@ -1,8 +1,11 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireRole } from "./auth";
+import { getSessionId } from "./api";
 import { Shell } from "./components/Shell";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
+import { AuthComplete } from "./pages/AuthComplete";
+import { RepoDashboard } from "./pages/steward/RepoDashboard";
 import { Learn } from "./pages/examinee/Learn";
 import { ExamPage } from "./pages/examinee/ExamPage";
 import { Result } from "./pages/examinee/Result";
@@ -21,16 +24,24 @@ function merchant(page: React.ReactNode) {
   return <RequireRole role="merchant">{page}</RequireRole>;
 }
 
+// /dashboard serves two audiences without colliding: a GitHub-signed-in user
+// (a stored Steward session) gets the live repo dashboard; anyone else falls
+// through to the legacy demo hiring dashboard behind the mock role login.
+function DashboardHome() {
+  return getSessionId() ? <RepoDashboard /> : merchant(<Dashboard />);
+}
+
 export default function App() {
   return (
     <Routes>
       <Route element={<Shell />}>
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/complete" element={<AuthComplete />} />
         <Route path="/learn" element={examinee(<Learn />)} />
         <Route path="/learn/exams/:examId" element={examinee(<ExamPage />)} />
         <Route path="/learn/results/:examId" element={examinee(<Result />)} />
-        <Route path="/dashboard" element={merchant(<Dashboard />)} />
+        <Route path="/dashboard" element={<DashboardHome />} />
         <Route path="/dashboard/candidates/:candidateId" element={merchant(<CandidatePage />)} />
         <Route path="/dashboard/compare" element={merchant(<Compare />)} />
         <Route path="/dashboard/invite" element={merchant(<Invite />)} />
