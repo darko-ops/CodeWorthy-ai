@@ -6,13 +6,18 @@ import { Navigate } from "react-router-dom";
 import {
   apiGet,
   ApiError,
+  installUrl,
   type ActivityEvent,
+  type DigestEntry,
   type HealthReport,
   type HealthVital,
   type InstallationSummary,
   type RepoSummary,
   type VitalStatus,
 } from "../../api";
+
+// Look-back windows offered by the control (days).
+const WINDOWS = [7, 30, 90] as const;
 import { useGitHubAuth } from "../../github-auth";
 import { Wordmark } from "../../components/Wordmark";
 
@@ -49,6 +54,8 @@ export function RepoDashboard() {
   const [activityErr, setActivityErr] = useState<ApiError | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [health, setHealth] = useState<HealthReport | null>(null);
+  const [windowDays, setWindowDays] = useState<number>(30);
+  const [filter, setFilter] = useState("");
 
   // Load installations once authed.
   useEffect(() => {
@@ -92,27 +99,27 @@ export function RepoDashboard() {
     if (!selectedRepo && firstRepo) setSelectedRepo(firstRepo);
   }, [firstRepo, selectedRepo]);
 
-  // Load the selected repo's health checkup (vitals + integrity). Best-effort:
-  // a failure just hides the card, it never blocks the activity feed.
+  // Load the selected repo's health checkup (vitals + integrity) over the chosen
+  // window. Best-effort: a failure just hides the card, never blocks activity.
   useEffect(() => {
     if (!selectedRepo) return;
     let live = true;
     setHealth(null);
-    apiGet<HealthReport>(`/api/repos/${selectedRepo}/health`)
+    apiGet<HealthReport>(`/api/repos/${selectedRepo}/health?days=${windowDays}`)
       .then((h) => live && setHealth(h))
       .catch(() => live && setHealth(null));
     return () => {
       live = false;
     };
-  }, [selectedRepo]);
+  }, [selectedRepo, windowDays]);
 
-  // Load the selected repo's activity.
+  // Load the selected repo's activity over the chosen window.
   useEffect(() => {
     if (!selectedRepo) return;
     let live = true;
     setActivityLoading(true);
     setActivityErr(null);
-    apiGet<ActivityEvent[]>(`/api/repos/${selectedRepo}/activity?limit=100`)
+    apiGet<ActivityEvent[]>(`/api/repos/${selectedRepo}/activity?limit=200&days=${windowDays}`)
       .then((ev) => {
         if (!live) return;
         setActivity(ev);
@@ -126,7 +133,7 @@ export function RepoDashboard() {
     return () => {
       live = false;
     };
-  }, [selectedRepo]);
+  }, [selectedRepo, windowDays]);
 
   // --- Gate / global states ---
   if (status === "anon") return <Navigate to="/login" replace />;
@@ -146,32 +153,53 @@ export function RepoDashboard() {
       <div className="repo-dash">
         <aside className="repo-rail">
           <div className="repo-rail-head">Your repositories</div>
+          {allRepos.length > 6 && (
+            <input
+              className="repo-search"
+              type="search"
+              placeholder="Filter repositories…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              aria-label="Filter repositories"
+            />
+          )}
           {installErr && <RailNote err={installErr} />}
           {installs && installs.length === 0 && (
             <div className="repo-empty-rail">
               CodeWorthy isn't installed on any repos yet.
-              <a className="repo-link" href="/steward/install">Install it →</a>
+              <a className="repo-link" href={installUrl} target="_blank" rel="noreferrer">Add a repository →</a>
             </div>
           )}
-          {(installs ?? []).map((inst) => (
-            <div key={inst.id} className="repo-group">
-              <div className="repo-account">
-                {inst.avatar && <img src={inst.avatar} alt="" width={16} height={16} />}
-                <span>{inst.account}</span>
+          {(installs ?? []).map((inst) => {
+            const list = (repos[inst.id] ?? []).filter((r) =>
+              filter ? r.full_name.toLowerCase().includes(filter.toLowerCase()) : true
+            );
+            if (repos[inst.id] && filter && list.length === 0) return null;
+            return (
+              <div key={inst.id} className="repo-group">
+                <div className="repo-account">
+                  {inst.avatar && <img src={inst.avatar} alt="" width={16} height={16} />}
+                  <span>{inst.account}</span>
+                </div>
+                {list.map((r) => (
+                  <button
+                    key={r.full_name}
+                    className={"repo-item" + (r.full_name === selectedRepo ? " selected" : "")}
+                    onClick={() => setSelectedRepo(r.full_name)}
+                  >
+                    <span className="repo-item-name">{r.name}</span>
+                    {r.private && <span className="repo-badge">private</span>}
+                  </button>
+                ))}
+                {!repos[inst.id] && <div className="repo-item-loading">loading…</div>}
               </div>
-              {(repos[inst.id] ?? []).map((r) => (
-                <button
-                  key={r.full_name}
-                  className={"repo-item" + (r.full_name === selectedRepo ? " selected" : "")}
-                  onClick={() => setSelectedRepo(r.full_name)}
-                >
-                  <span className="repo-item-name">{r.name}</span>
-                  {r.private && <span className="repo-badge">private</span>}
-                </button>
-              ))}
-              {!repos[inst.id] && <div className="repo-item-loading">loading…</div>}
-            </div>
-          ))}
+            );
+          })}
+          {installs && installs.length > 0 && (
+            <a className="repo-add" href={installUrl} target="_blank" rel="noreferrer">
+              <span aria-hidden>＋</span> Add a repository
+            </a>
+          )}
         </aside>
 
         <section className="repo-main">
@@ -191,21 +219,36 @@ export function RepoDashboard() {
                   <div className="repo-eyebrow">Repository</div>
                   <h1 className="repo-title">{selectedRepo}</h1>
                 </div>
-                <div className="repo-doctrine" title="CodeWorthy advises; it never merges, force-pushes, or rewrites history.">
-                  advisory · you own every merge
+                <div className="repo-header-right">
+                  <div className="window-control" role="tablist" aria-label="Time window">
+                    {WINDOWS.map((d) => (
+                      <button
+                        key={d}
+                        role="tab"
+                        aria-selected={windowDays === d}
+                        className={windowDays === d ? "selected" : ""}
+                        onClick={() => setWindowDays(d)}
+                      >
+                        {d}d
+                      </button>
+                    ))}
+                  </div>
+                  <div className="repo-doctrine" title="CodeWorthy advises; it never merges, force-pushes, or rewrites history.">
+                    advisory · you own every merge
+                  </div>
                 </div>
               </header>
 
-              {health && <HealthCard report={health} />}
+              {health && <HealthCard report={health} windowDays={windowDays} />}
 
               {activityLoading && !activity && <Waking label="Reading the change log…" />}
               {activityErr && <ActivityError err={activityErr} />}
               {activity && activity.length === 0 && (
                 <div className="repo-blank">
-                  <h2>No activity recorded yet</h2>
+                  <h2>No activity in the last {windowDays} days</h2>
                   <p className="hint">
-                    Steward is watching {selectedRepo}. The first push, review, or protection change
-                    will appear here in plain language.
+                    Steward is watching {selectedRepo}. Widen the window, or the next push, review,
+                    or protection change will appear here in plain language.
                   </p>
                 </div>
               )}
@@ -250,23 +293,90 @@ const OVERALL_STATUS: Record<HealthReport["overall"], VitalStatus> = {
 // The health card: a status ring (filled by how many vitals are healthy,
 // colored by the overall status), the vitals with their findings, and the
 // tamper-evidence badge. No single opaque number — the word + the evidence.
-function HealthCard({ report }: { report: HealthReport }) {
+// "Details" expands the exact findings, the recommended fixes, and every change
+// that got flagged in the window — so a user can see what was a mistake.
+function HealthCard({ report, windowDays }: { report: HealthReport; windowDays: number }) {
+  const [open, setOpen] = useState(false);
   const overallStatus = OVERALL_STATUS[report.overall];
   const known = report.vitals.filter((v) => v.status !== "unknown");
   const healthy = known.filter((v) => v.status === "healthy").length;
   const pct = known.length ? (healthy / known.length) * 100 : 0;
+  const alertCount = report.activity?.alerts?.length ?? 0;
   return (
-    <section className="health-card">
-      <HealthRing pct={pct} color={STATUS_COLOR[overallStatus]} overall={report.overall} />
-      <div className="health-body">
-        <div className="health-vitals">
-          {report.vitals.map((v) => (
-            <VitalRow key={v.id} vital={v} />
-          ))}
+    <section className="health-card-wrap">
+      <div className="health-card">
+        <HealthRing pct={pct} color={STATUS_COLOR[overallStatus]} overall={report.overall} />
+        <div className="health-body">
+          <div className="health-vitals">
+            {report.vitals.map((v) => (
+              <VitalRow key={v.id} vital={v} />
+            ))}
+          </div>
+          <div className="health-foot">
+            <IntegrityBadge ok={report.integrity.ok} headline={report.integrity.headline} />
+            <button
+              className="health-details-btn"
+              onClick={() => setOpen((o) => !o)}
+              aria-expanded={open}
+            >
+              {open ? "Hide details" : "Details"}
+              {alertCount > 0 && <span className="health-alert-count">{alertCount}</span>}
+            </button>
+          </div>
         </div>
-        <IntegrityBadge ok={report.integrity.ok} headline={report.integrity.headline} />
       </div>
+      {open && <HealthDetails report={report} windowDays={windowDays} />}
     </section>
+  );
+}
+
+// The expanded checkup: recommended fixes (non-healthy vitals) and every change
+// flagged in the window — weakened protection, skipped review, and the like.
+function HealthDetails({ report, windowDays }: { report: HealthReport; windowDays: number }) {
+  const alerts: DigestEntry[] = report.activity?.alerts ?? [];
+  const fixes = report.vitals.filter((v) => v.prescription && v.status !== "healthy");
+  return (
+    <div className="health-details">
+      <div className="health-details-grid">
+        <div>
+          <h3 className="health-details-head">What to look at</h3>
+          {fixes.length === 0 ? (
+            <p className="hint">No open recommendations — every vital is healthy in this window.</p>
+          ) : (
+            fixes.map((v) => (
+              <div key={v.id} className="fix-row">
+                <span className="vital-dot" style={{ background: STATUS_COLOR[v.status] }} aria-hidden />
+                <div>
+                  <div className="fix-label">{v.label}</div>
+                  <div className="fix-finding">{v.finding}</div>
+                  <div className="fix-rx">→ {v.prescription}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+        <div>
+          <h3 className="health-details-head">Flagged in the last {windowDays} days</h3>
+          {alerts.length === 0 ? (
+            <p className="hint">Nothing flagged — no weakened protection or skipped review in this window.</p>
+          ) : (
+            <ol className="flagged">
+              {alerts.map((a, i) => (
+                <li key={i} className="flagged-item">
+                  <p className="flagged-text">{a.plainEnglish}</p>
+                  <div className="activity-meta">
+                    <code className="activity-type">{a.eventType}</code>
+                    {a.actor && <span className="activity-actor">{a.actor}</span>}
+                    <span className="activity-time">{ago(a.ts)}</span>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
+        </div>
+      </div>
+      <p className="health-note">{report.note}</p>
+    </div>
   );
 }
 

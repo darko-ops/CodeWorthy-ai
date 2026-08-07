@@ -1860,3 +1860,189 @@ code {
     gap: 12px;
   }
 }
+
+/* Time-window control + rail navigator + health details */
+.repo-header-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex: none;
+}
+.window-control {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--page);
+}
+.window-control button {
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+  font: 600 12px var(--mono);
+  padding: 6px 12px;
+  cursor: pointer;
+  border-right: 1px solid var(--border);
+}
+.window-control button:last-child {
+  border-right: 0;
+}
+.window-control button.selected {
+  background: var(--ink);
+  color: #fff;
+}
+
+/* Rail: search + add repository */
+.repo-search {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font: 500 13px var(--sans);
+  color: var(--ink);
+  margin: 0 0 12px;
+  background: var(--page);
+}
+.repo-search:focus {
+  outline: none;
+  border-color: var(--focus);
+}
+.repo-add {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  color: var(--ink-muted);
+  font: 600 13px var(--sans);
+  text-decoration: none;
+}
+.repo-add:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+}
+.repo-add span {
+  font-size: 15px;
+  line-height: 1;
+}
+
+/* Health card wrapper + details */
+.health-card-wrap {
+  margin-bottom: 26px;
+}
+.health-card-wrap .health-card {
+  margin-bottom: 0;
+}
+.health-foot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.health-foot .integrity-badge {
+  flex: 1;
+  min-width: 220px;
+}
+.health-details-btn {
+  border: 1px solid var(--border);
+  background: var(--page);
+  color: var(--ink);
+  border-radius: 8px;
+  padding: 9px 14px;
+  font: 600 13px var(--sans);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.health-details-btn:hover {
+  border-color: var(--ink);
+}
+.health-alert-count {
+  background: var(--rating-needs);
+  color: #fff;
+  font: 700 10px var(--mono);
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+.health-details {
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
+  background: var(--surface);
+  padding: 20px 22px;
+  margin-top: -1px;
+}
+.health-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 28px;
+}
+.health-details-head {
+  font: 700 11px var(--sans);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin: 0 0 12px;
+}
+.fix-row {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.fix-row .vital-dot {
+  margin-top: 5px;
+}
+.fix-label {
+  font: 700 13px var(--sans);
+  color: var(--ink);
+}
+.fix-finding {
+  font: 500 12.5px/1.45 var(--sans);
+  color: var(--ink-muted);
+  margin: 2px 0;
+}
+.fix-rx {
+  font: 600 12.5px/1.45 var(--sans);
+  color: var(--accent-strong);
+}
+.flagged {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.flagged-item {
+  padding: 10px 12px;
+  border-left: 3px solid var(--rating-needs);
+  background: var(--page);
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 10px;
+}
+.flagged-text {
+  margin: 0 0 6px;
+  font: 500 13px/1.45 var(--sans);
+  color: var(--ink);
+}
+.health-note {
+  margin: 18px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font: 500 12px/1.5 var(--sans);
+  color: var(--ink-faint);
+}
+
+@media (max-width: 720px) {
+  .health-details-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  .repo-header-right {
+    align-items: stretch;
+  }
+}

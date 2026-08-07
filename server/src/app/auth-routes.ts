@@ -141,13 +141,16 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       reply.code(403).send({ error: "no access to repo" });
       return;
     }
-    const q = req.query as { limit?: string };
-    const limit = q.limit ? parseInt(q.limit, 10) : 50;
-    return recentChangelog(pool, { repo: fullName, limit });
+    const q = req.query as { limit?: string; days?: string };
+    const limit = q.limit ? parseInt(q.limit, 10) : 100;
+    const sinceDays = q.days ? parseInt(q.days, 10) : undefined;
+    return recentChangelog(pool, { repo: fullName, limit, sinceDays });
   });
 
   // A repo's health checkup (vitals + integrity), same access gate. Feeds the
-  // dashboard's health ring and the tamper-evidence badge in one call.
+  // dashboard's health ring, the tamper-evidence badge, and the details view in
+  // one call. `days` sets the window the review-discipline vital and activity
+  // summary look back over.
   app.get("/api/repos/:owner/:repo/health", async (req, reply) => {
     const s = await requireSession(req, reply);
     if (!s) return;
@@ -157,6 +160,8 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       reply.code(403).send({ error: "no access to repo" });
       return;
     }
-    return buildHealthReport(pool, { repo: fullName });
+    const q = req.query as { days?: string };
+    const windowDays = q.days ? parseInt(q.days, 10) : undefined;
+    return buildHealthReport(pool, { repo: fullName, windowDays });
   });
 }

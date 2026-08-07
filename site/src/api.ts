@@ -36,6 +36,10 @@ export function clearSessionId(): void {
 // Where the browser goes to start "Sign in with GitHub".
 export const loginUrl = `${API_BASE}/auth/github/login`;
 
+// Where to send a user to add CodeWorthy to more repositories (GitHub's install
+// / repo-selection screen for the App).
+export const installUrl = "https://github.com/apps/codeworthy-steward/installations/new";
+
 export type ApiErrorKind = "unauthenticated" | "offline" | "forbidden" | "server";
 
 export class ApiError extends Error {
@@ -112,11 +116,19 @@ export interface HealthVital {
   finding: string;
   prescription: string;
 }
+export interface DigestEntry {
+  ts: string;
+  repo: string;
+  actor: string | null;
+  eventType: string;
+  plainEnglish: string;
+}
 export interface HealthReport {
   repoFilter: string | null;
   generatedAt: string;
   overall: "Healthy" | "Needs attention" | "At risk";
   vitals: HealthVital[];
+  activity: { total: number; windowDays: number; alerts: DigestEntry[]; recent: DigestEntry[] };
   integrity: { ok: boolean; headline: string; chain: string; anchor: string };
   note: string;
 }
