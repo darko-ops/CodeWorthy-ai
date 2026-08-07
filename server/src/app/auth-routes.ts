@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { config } from "../config.js";
 import { recentChangelog } from "../audit/audit.js";
+import { buildHealthReport } from "../health/health.js";
 import {
   authorizeUrl,
   exchangeCode,
@@ -143,5 +144,19 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     const q = req.query as { limit?: string };
     const limit = q.limit ? parseInt(q.limit, 10) : 50;
     return recentChangelog(pool, { repo: fullName, limit });
+  });
+
+  // A repo's health checkup (vitals + integrity), same access gate. Feeds the
+  // dashboard's health ring and the tamper-evidence badge in one call.
+  app.get("/api/repos/:owner/:repo/health", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const p = req.params as { owner: string; repo: string };
+    const fullName = `${p.owner}/${p.repo}`;
+    if (!(await userCanAccessRepo(s.token, fullName))) {
+      reply.code(403).send({ error: "no access to repo" });
+      return;
+    }
+    return buildHealthReport(pool, { repo: fullName });
   });
 }

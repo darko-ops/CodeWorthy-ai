@@ -7,8 +7,11 @@ import {
   apiGet,
   ApiError,
   type ActivityEvent,
+  type HealthReport,
+  type HealthVital,
   type InstallationSummary,
   type RepoSummary,
+  type VitalStatus,
 } from "../../api";
 import { useGitHubAuth } from "../../github-auth";
 import { Wordmark } from "../../components/Wordmark";
@@ -45,6 +48,7 @@ export function RepoDashboard() {
   const [activity, setActivity] = useState<ActivityEvent[] | null>(null);
   const [activityErr, setActivityErr] = useState<ApiError | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
+  const [health, setHealth] = useState<HealthReport | null>(null);
 
   // Load installations once authed.
   useEffect(() => {
@@ -87,6 +91,20 @@ export function RepoDashboard() {
   useEffect(() => {
     if (!selectedRepo && firstRepo) setSelectedRepo(firstRepo);
   }, [firstRepo, selectedRepo]);
+
+  // Load the selected repo's health checkup (vitals + integrity). Best-effort:
+  // a failure just hides the card, it never blocks the activity feed.
+  useEffect(() => {
+    if (!selectedRepo) return;
+    let live = true;
+    setHealth(null);
+    apiGet<HealthReport>(`/api/repos/${selectedRepo}/health`)
+      .then((h) => live && setHealth(h))
+      .catch(() => live && setHealth(null));
+    return () => {
+      live = false;
+    };
+  }, [selectedRepo]);
 
   // Load the selected repo's activity.
   useEffect(() => {
@@ -178,6 +196,8 @@ export function RepoDashboard() {
                 </div>
               </header>
 
+              {health && <HealthCard report={health} />}
+
               {activityLoading && !activity && <Waking label="Reading the change log…" />}
               {activityErr && <ActivityError err={activityErr} />}
               {activity && activity.length === 0 && (
@@ -211,6 +231,89 @@ export function RepoDashboard() {
         </section>
       </div>
     </DashShell>
+  );
+}
+
+// Status → the site's rating tokens. Honest: a REPO health status, not a score.
+const STATUS_COLOR: Record<VitalStatus, string> = {
+  healthy: "var(--rating-strong)",
+  watch: "var(--rating-develop)",
+  "at risk": "var(--rating-needs)",
+  unknown: "var(--rating-none)",
+};
+const OVERALL_STATUS: Record<HealthReport["overall"], VitalStatus> = {
+  Healthy: "healthy",
+  "Needs attention": "watch",
+  "At risk": "at risk",
+};
+
+// The health card: a status ring (filled by how many vitals are healthy,
+// colored by the overall status), the vitals with their findings, and the
+// tamper-evidence badge. No single opaque number — the word + the evidence.
+function HealthCard({ report }: { report: HealthReport }) {
+  const overallStatus = OVERALL_STATUS[report.overall];
+  const known = report.vitals.filter((v) => v.status !== "unknown");
+  const healthy = known.filter((v) => v.status === "healthy").length;
+  const pct = known.length ? (healthy / known.length) * 100 : 0;
+  return (
+    <section className="health-card">
+      <HealthRing pct={pct} color={STATUS_COLOR[overallStatus]} overall={report.overall} />
+      <div className="health-body">
+        <div className="health-vitals">
+          {report.vitals.map((v) => (
+            <VitalRow key={v.id} vital={v} />
+          ))}
+        </div>
+        <IntegrityBadge ok={report.integrity.ok} headline={report.integrity.headline} />
+      </div>
+    </section>
+  );
+}
+
+function HealthRing({ pct, color, overall }: { pct: number; color: string; overall: string }) {
+  return (
+    <div className="health-ring-wrap">
+      <div
+        className="health-ring"
+        role="img"
+        aria-label={`Repository health: ${overall}`}
+        style={{ background: `conic-gradient(${color} ${pct}%, var(--surface-2) 0)` }}
+      >
+        <div className="health-ring-inner">
+          <span className="health-ring-label" style={{ color }}>{overall}</span>
+        </div>
+      </div>
+      <div className="health-ring-cap">repo health</div>
+    </div>
+  );
+}
+
+function VitalRow({ vital }: { vital: HealthVital }) {
+  return (
+    <div className="vital-row">
+      <span className="vital-dot" style={{ background: STATUS_COLOR[vital.status] }} aria-hidden />
+      <div className="vital-text">
+        <div className="vital-label">
+          {vital.label}
+          <span className="vital-status" style={{ color: STATUS_COLOR[vital.status] }}>
+            {vital.status}
+          </span>
+        </div>
+        <div className="vital-finding">{vital.finding}</div>
+      </div>
+    </div>
+  );
+}
+
+function IntegrityBadge({ ok, headline }: { ok: boolean; headline: string }) {
+  return (
+    <div className={"integrity-badge" + (ok ? " ok" : " warn")} title={headline}>
+      <span className="integrity-icon" aria-hidden>{ok ? "🛡️" : "⚠️"}</span>
+      <div>
+        <div className="integrity-title">{ok ? "Tamper-evident" : "Integrity check needed"}</div>
+        <div className="integrity-sub">{headline}</div>
+      </div>
+    </div>
   );
 }
 

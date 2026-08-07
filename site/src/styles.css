@@ -1728,3 +1728,135 @@ code {
     border-bottom: 1px solid var(--border);
   }
 }
+
+/* Health card: status ring + vitals + integrity badge */
+.health-card {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  background: var(--page);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px 22px;
+  margin-bottom: 26px;
+}
+.health-ring-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+.health-ring {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+}
+.health-ring-inner {
+  width: 76px;
+  height: 76px;
+  border-radius: 50%;
+  background: var(--page);
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 0 6px;
+}
+.health-ring-label {
+  font: 800 13px var(--sans);
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.health-ring-cap {
+  font: 600 10px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+}
+.health-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.health-vitals {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vital-row {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.vital-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-top: 5px;
+}
+.vital-label {
+  font: 700 13px var(--sans);
+  color: var(--ink);
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.vital-status {
+  font: 600 10px var(--mono);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.vital-finding {
+  font: 500 12.5px/1.45 var(--sans);
+  color: var(--ink-muted);
+  margin-top: 1px;
+}
+.integrity-badge {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  border-radius: 9px;
+  padding: 10px 13px;
+  border: 1px solid var(--border);
+}
+.integrity-badge.ok {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.integrity-badge.warn {
+  background: #fef6ec;
+  border-color: #f3d9a8;
+}
+.integrity-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+.integrity-title {
+  font: 700 13px var(--sans);
+  color: var(--ink);
+}
+.integrity-sub {
+  font: 500 12px var(--sans);
+  color: var(--ink-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 380px;
+}
+
+@media (max-width: 720px) {
+  .health-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .health-ring-wrap {
+    flex-direction: row;
+    justify-content: center;
+    gap: 12px;
+  }
+}

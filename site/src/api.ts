@@ -104,3 +104,19 @@ export interface ActivityEvent {
   event_type: string;
   plain_english: string;
 }
+export type VitalStatus = "healthy" | "watch" | "at risk" | "unknown";
+export interface HealthVital {
+  id: string;
+  label: string;
+  status: VitalStatus;
+  finding: string;
+  prescription: string;
+}
+export interface HealthReport {
+  repoFilter: string | null;
+  generatedAt: string;
+  overall: "Healthy" | "Needs attention" | "At risk";
+  vitals: HealthVital[];
+  integrity: { ok: boolean; headline: string; chain: string; anchor: string };
+  note: string;
+}
