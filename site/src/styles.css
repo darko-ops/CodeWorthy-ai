@@ -2273,3 +2273,19 @@ code {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Overview card search */
+.overview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.overview-search {
+  margin: 0;
+  max-width: 320px;
+}
+.overview-count {
+  font: 500 12px var(--sans);
+  color: var(--ink-faint);
+}

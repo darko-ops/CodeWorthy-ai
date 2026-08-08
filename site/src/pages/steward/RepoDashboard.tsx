@@ -368,6 +368,10 @@ function OverviewPanel({
   onSelect: (repo: string) => void;
 }) {
   const t = report.totals;
+  const [q, setQ] = useState("");
+  const shown = q
+    ? report.repos.filter((r) => r.full_name.toLowerCase().includes(q.toLowerCase()))
+    : report.repos;
   return (
     <div className="overview">
       <header className="repo-header">
@@ -410,11 +414,37 @@ function OverviewPanel({
           <p className="hint">Add CodeWorthy to a repository to see it here.</p>
         </div>
       ) : (
-        <div className="repo-cards">
-          {report.repos.map((r) => (
-            <RepoCard key={r.full_name} repo={r} windowDays={windowDays} onSelect={onSelect} />
-          ))}
-        </div>
+        <>
+          {report.repos.length > 6 && (
+            <div className="overview-toolbar">
+              <input
+                className="repo-search overview-search"
+                type="search"
+                placeholder="Search repositories…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                aria-label="Search repositories"
+              />
+              {q && (
+                <span className="overview-count">
+                  {shown.length} of {report.repos.length}
+                </span>
+              )}
+            </div>
+          )}
+          {shown.length === 0 ? (
+            <div className="repo-blank">
+              <h2>No repositories match “{q}”</h2>
+              <p className="hint">Try a different search.</p>
+            </div>
+          ) : (
+            <div className="repo-cards">
+              {shown.map((r) => (
+                <RepoCard key={r.full_name} repo={r} windowDays={windowDays} onSelect={onSelect} />
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
