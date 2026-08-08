@@ -7,6 +7,12 @@ export const config = {
     webhookSecret: process.env.GITHUB_WEBHOOK_SECRET ?? "",
     // PEM stored with escaped newlines in env; restore real newlines here.
     privateKey: (process.env.GITHUB_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
+    // GitHub App user-to-server OAuth (the "Sign in with GitHub" dashboard flow).
+    // The App already has a client_id; a client secret is generated in the App
+    // settings. When either is unset, the sign-in routes report "not configured"
+    // rather than 500 — the frontend degrades to a clear state.
+    clientId: process.env.GITHUB_CLIENT_ID ?? "",
+    clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
   },
   // M3. Off unless explicitly enabled AND the installation opts in. The
   // deterministic gate and checkup never call out; only this tier does.
@@ -34,6 +40,13 @@ export const config = {
   // The GitHub App's slug (from its URL: github.com/apps/<slug>). Drives the
   // "Install on GitHub" button on the consent page.
   appSlug: process.env.GITHUB_APP_SLUG ?? "",
+  // The dashboard SPA origin (codeworthy.ai) — the OAuth callback redirects the
+  // browser back here, and CORS allows it to call the /api/* endpoints.
+  webBaseUrl: (process.env.STEWARD_WEB_BASE_URL ?? "https://codeworthy.ai").replace(/\/+$/, ""),
+  // Secret used to (a) HMAC-sign the OAuth `state` (CSRF) and (b) derive session
+  // ids. Any long random string. Unset -> a boot-time random, which is fine for
+  // a single instance but means sessions don't survive a restart.
+  sessionSecret: process.env.STEWARD_SESSION_SECRET ?? "",
   // Digest email delivery. No SMTP URL -> a console mailer (dev): the digest is
   // rendered and logged, never silently dropped. Precedence: SMTP > console.
   mail: {

@@ -1,165 +1,252 @@
 import { Link } from "react-router-dom";
+import type { VitalStatus } from "../api";
+import { Wordmark } from "../components/Wordmark";
+import { VitalsMeter, VITAL_COLOR } from "../components/VitalsMeter";
 
-// The Steward service (the backend that runs the guard). Point the CTAs at the
-// deployed install flow; overridable per environment.
-const STEWARD_URL = (import.meta.env.VITE_STEWARD_URL as string | undefined)?.replace(/\/+$/, "") ?? "https://codeworthy-steward.fly.dev";
-const INSTALL_URL = `${STEWARD_URL}/steward/install`;
-
-const STEPS = [
-  { title: "Install on your repo", body: "One click. CodeWorthy asks to read your code and comment — never to write it or merge." },
-  { title: "It protects main", body: "Your default branch now takes changes through a reviewable pull request. Force-pushes and deletions are blocked." },
-  { title: "It reviews every change", body: "Secrets, committed .env files, and risky migrations get caught before they merge — in plain language." },
-  { title: "You get a weekly digest", body: "One email: what happened, what needs a look, and nothing to babysit in between." },
+// "How it works" — four steps, once. Copy carried from the prototype.
+const STEPS: { title: string; body: string }[] = [
+  {
+    title: "Install on your repo",
+    body: "One click. It asks to read your code and comment — never to write it or merge.",
+  },
+  {
+    title: "It protects main",
+    body: "Changes go through a reviewable pull request. Force-pushes and deletions stop being possible.",
+  },
+  {
+    title: "It reads every change",
+    body: "Secrets, committed .env files, destructive migrations — caught before they merge, explained in plain language.",
+  },
+  {
+    title: "You get one email a week",
+    body: "What happened, what needs a look, and nothing to check in between.",
+  },
 ];
 
-// The hero health-card vitals (mirrors /steward/health).
-const VITALS = [
-  { name: "Branch protection", status: "healthy", word: "ON", color: "#4ade80" },
-  { name: "Review discipline", status: "watch", word: "WATCH", color: "#f5bd4f" },
-  { name: "Record integrity", status: "healthy", word: "VERIFIED", color: "#4ade80" },
-];
-
-const DOES = [
-  { title: "Guards your main branch", body: "Configures branch protection so nothing lands on your default branch without a reviewable pull request — the thing a senior engineer would set up on day one." },
-  { title: "Catches what breaks repos", body: "Secrets in a commit, a committed .env or node_modules, a destructive migration — blocked before merge. Missing tests and sprawling PRs — flagged, not blocked." },
-  { title: "Explains every call", body: "No jargon, no black box. Each decision is a plain-language note on the exact commit or PR, and every one is reversible." },
-  { title: "Keeps tamper-evident records", body: "An append-only, hash-chained change log — the SOC 2 change-control evidence an auditor asks for, without you thinking about it." },
+// The hero health-instrument card (mirrors /steward/health). `status` drives the
+// bar + dot + word color; `word` is the label the system emitted for that vital.
+type HeroVital = { id: string; label: string; status: VitalStatus; word: string };
+const HERO_VITALS: HeroVital[] = [
+  { id: "branch", label: "Branch protection", status: "healthy", word: "HEALTHY" },
+  { id: "review", label: "Review discipline", status: "watch", word: "WATCH" },
+  { id: "secret", label: "Secret hygiene", status: "healthy", word: "HEALTHY" },
+  { id: "record", label: "Record integrity", status: "healthy", word: "VERIFIED" },
 ];
 
 export function Landing() {
   return (
-    <>
-      <section className="hero-grid">
-        <div>
-          <div className="hero-eyebrow fu">A senior engineer for your repo ▸</div>
-          <h1 className="fu">
-            Build with AI.
-            <br />
-            Ship code that's
-            <span className="hero-worthy">
-              {" "}worthy
-              <span className="underline" aria-hidden />
-            </span>
-            .
-          </h1>
-          <p className="fu">
-            CodeWorthy stewards your repository the way a senior engineer would — it protects your
-            main branch, reviews changes before they land, and keeps a plain-language record. You
-            keep building; it makes sure what ships is safe.
-          </p>
-          <div className="hero-ctas fu">
-            <a href={INSTALL_URL} className="btn btn-primary btn-lg">
+    <div className="lp">
+      {/* ---- nav (dark) ---- */}
+      <header className="lp-nav">
+        <div className="lp-inner lp-nav-inner">
+          <Link to="/" className="lp-nav-brand" aria-label="Codeworthy home">
+            <Wordmark onDark />
+          </Link>
+          <a className="lp-nav-link" href="#how">
+            How it works
+          </a>
+          <a className="lp-nav-link" href="#catches">
+            What it catches
+          </a>
+          <div className="lp-nav-right">
+            <Link to="/login" className="lp-nav-link">
+              Sign in
+            </Link>
+            <Link to="/login" className="lp-btn lp-btn-primary">
               Protect my repo
-            </a>
-            <Link to="/login?role=merchant" className="btn btn-lg">
-              For hiring teams →
             </Link>
           </div>
-          <div className="hero-chips">
-            <span className="badge">Never merges — you own that</span>
-            <span className="badge">Plain language</span>
-            <span className="badge">Tamper-evident log</span>
+        </div>
+      </header>
+
+      {/* ---- hero (dark) ---- */}
+      <section className="lp-band lp-hero">
+        <div className="lp-inner lp-hero-grid">
+          <div className="lp-hero-copy">
+            <div className="lp-eyebrow-pill">
+              <span className="lp-dot" aria-hidden />
+              A senior engineer for your repo
+            </div>
+            <h1 className="lp-hero-h1">
+              Build at AI speed.
+              <br />
+              Land like a
+              <br />
+              <span className="lp-accent">senior engineer.</span>
+            </h1>
+            <p className="lp-hero-body">
+              Codeworthy watches the repository the way a tech lead would — it protects{" "}
+              <span className="lp-mono">main</span>, reads every change before it lands, and writes
+              down what happened in plain English. It never merges. You still own that.
+            </p>
+            <div className="lp-hero-ctas">
+              <Link to="/login" className="lp-btn lp-btn-primary lp-btn-lg">
+                Protect my repo — free
+              </Link>
+              <Link to="/login" className="lp-btn lp-btn-ghost lp-btn-lg">
+                See a live report →
+              </Link>
+            </div>
+            <div className="lp-trust-row">
+              <span>read-only + comment</span>
+              <span className="lp-trust-sep">·</span>
+              <span>never merges</span>
+              <span className="lp-trust-sep">·</span>
+              <span>hash-chained log</span>
+            </div>
+          </div>
+
+          {/* health instrument card */}
+          <div className="lp-instrument">
+            <div className="lp-instrument-head">
+              <span className="lp-instrument-repo">dana-ops/recipe-app</span>
+              <span className="lp-instrument-window">Last 30 days</span>
+            </div>
+            <div className="lp-instrument-body">
+              <div className="lp-instrument-label">Repo health</div>
+              <div className="health-verdict" style={{ color: VITAL_COLOR.watch }}>
+                Needs attention
+              </div>
+              <VitalsMeter sm vitals={HERO_VITALS} />
+              <div className="lp-vitals-rows">
+                {HERO_VITALS.map((v) => (
+                  <div className="lp-vital-row" key={v.id}>
+                    <span
+                      className="lp-vital-dot"
+                      style={{ background: VITAL_COLOR[v.status] }}
+                      aria-hidden
+                    />
+                    <span className="lp-vital-label">{v.label}</span>
+                    <span className="lp-vital-word" style={{ color: VITAL_COLOR[v.status] }}>
+                      {v.word}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="lp-prescription">
+                <div className="lp-prescription-title">3 of 14 merges skipped review</div>
+                <div className="lp-prescription-body">
+                  Require one approving review on <span className="lp-mono-plain">main</span> to close
+                  this.
+                </div>
+              </div>
+            </div>
+            <div className="lp-instrument-foot">418 records · append-only · chain verified 07 Aug</div>
           </div>
         </div>
+      </section>
 
-        <div className="evidence-card">
-          <div className="evidence-head">
-            <span>Repo health</span>
-            <span className="badge badge-solid">🩺 LIVE CHART</span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-            <div
-              className="ring"
-              style={{ width: 66, height: 66, background: "conic-gradient(#f5bd4f 66%, #16404e 0)" }}
-              aria-hidden
-            >
-              <div className="ring-inner" style={{ width: 50, height: 50 }}>
-                <span className="ring-value" style={{ fontSize: 13 }}>Needs</span>
-                <span style={{ font: "500 8px var(--mono)", color: "var(--navy-muted)" }}>attention</span>
-              </div>
-            </div>
-            <div>
-              <div style={{ font: "700 15px var(--sans)", color: "#fff" }}>dana/recipe-app</div>
-              <div style={{ font: "500 12px var(--mono)", color: "var(--navy-muted)", marginTop: 2 }}>
-                1 vital needs a look
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 11 }}>
-            {VITALS.map((v) => (
-              <div key={v.name} style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <span style={{ width: 9, height: 9, borderRadius: "50%", background: v.color, display: "inline-block" }} aria-hidden />
-                <span style={{ font: "500 12px var(--sans)", color: "#cfe0e4" }}>{v.name}</span>
-                <span style={{ marginLeft: "auto", font: "600 11px var(--mono)", color: v.color }}>{v.word}</span>
+      {/* ---- how it works (sand) ---- */}
+      <section className="lp-band lp-how" id="how">
+        <div className="lp-inner">
+          <p className="lp-eyebrow lp-eyebrow-sand">How it works</p>
+          <h2 className="lp-h2 lp-h2-sand">Set it up on a Tuesday. Forget it by Thursday.</h2>
+          <p className="lp-deck lp-deck-sand">
+            No dashboard to babysit, no rules to write. Four steps, once.
+          </p>
+          <div className="lp-steps">
+            {STEPS.map((step, i) => (
+              <div className="lp-step" key={step.title}>
+                <div className="lp-step-no">{String(i + 1).padStart(2, "0")}</div>
+                <div className="lp-step-title">{step.title}</div>
+                <div className="lp-step-body">{step.body}</div>
               </div>
             ))}
           </div>
-          <div className="evidence-foot">append-only · hash-chained · SOC 2 evidence</div>
         </div>
       </section>
 
-      <section className="steps-strip">
-        <p className="eyebrow">How it works</p>
-        <h2 className="section-title">Set it up once, then forget it's there</h2>
-        <div className="steps-grid">
-          {STEPS.map((step, i) => (
-            <div key={step.title}>
-              <div className="step-no">{String(i + 1).padStart(2, "0")}</div>
-              <div className="step-title">{step.title}</div>
-              <div className="step-body">{step.body}</div>
+      {/* ---- what it catches (surface) ---- */}
+      <section className="lp-band lp-catches" id="catches">
+        <div className="lp-inner">
+          <p className="lp-eyebrow">What it catches</p>
+          <h2 className="lp-h2 lp-h2-catches">
+            The four things that quietly wreck a young codebase
+          </h2>
+          <div className="lp-catch-grid">
+            <div className="lp-catch-card">
+              <div className="lp-catch-kicker lp-catch-kicker--signal">Unguarded main</div>
+              <h3 className="lp-catch-h3">Guards your default branch</h3>
+              <p className="lp-catch-body">
+                Branch protection configured so nothing lands without a reviewable pull request — the
+                thing a senior engineer sets up on day one, and nobody else remembers.
+              </p>
             </div>
-          ))}
+            <div className="lp-catch-card">
+              <div className="lp-catch-kicker lp-catch-kicker--risk">Leaked credentials</div>
+              <h3 className="lp-catch-h3">Blocks what breaks repos</h3>
+              <p className="lp-catch-body">
+                A secret in a commit, a committed <span className="lp-mono-plain">.env</span>, a
+                destructive migration — blocked before merge. Missing tests and sprawling PRs —
+                flagged, not blocked.
+              </p>
+            </div>
+            <div className="lp-catch-card">
+              <div className="lp-catch-kicker lp-catch-kicker--signal">Black-box tooling</div>
+              <h3 className="lp-catch-h3">Explains every call it makes</h3>
+              <p className="lp-catch-body">
+                Each decision is a plain-language note on the exact commit or PR. No scores, no
+                jargon, and every action is reversible by you.
+              </p>
+            </div>
+            <div className="lp-catch-card">
+              <div className="lp-catch-kicker lp-catch-kicker--signal">Audit season</div>
+              <h3 className="lp-catch-h3">Keeps tamper-evident records</h3>
+              <p className="lp-catch-body">
+                An append-only, hash-chained change log — the SOC 2 change-control evidence an auditor
+                asks for, produced without you thinking about it.
+              </p>
+            </div>
+          </div>
         </div>
       </section>
 
-      <p className="eyebrow" style={{ marginTop: 56 }}>
-        What it does
-      </p>
-      <h2 className="section-title">A tech lead in a box — not a dashboard to babysit</h2>
-      <div className="grid-2">
-        {DOES.map((d) => (
-          <div className="card" key={d.title}>
-            <h3>{d.title}</h3>
-            <p style={{ color: "var(--ink-2)", fontSize: 14 }}>{d.body}</p>
+      {/* ---- the one rule (dark) ---- */}
+      <section className="lp-band lp-rule">
+        <div className="lp-inner lp-rule-grid">
+          <div>
+            <p className="lp-eyebrow lp-eyebrow-dark">The one rule</p>
+            <h2 className="lp-h2 lp-h2-dark">
+              It advises.
+              <br />
+              You merge.
+            </h2>
           </div>
-        ))}
-      </div>
-
-      <p className="eyebrow" style={{ marginTop: 56 }}>
-        The one rule it lives by
-      </p>
-      <h2 className="section-title">It gates, advises, and does the safe git chores — you own every merge</h2>
-      <div className="grid-2">
-        <div className="card">
-          <h3>Never a black box</h3>
-          <p style={{ color: "var(--ink-2)", fontSize: 14 }}>
-            CodeWorthy never merges, force-pushes, or rewrites history — not "we choose not to," but
-            the capability isn't on its surface. It changes your repo settings only after you click
-            "yes." The AI-review tier is <strong>off by default</strong>, opt-in per repo, and
-            discloses exactly what leaves.
-          </p>
+          <div className="lp-rule-body">
+            <p className="lp-rule-text">
+              Codeworthy never merges, force-pushes, or rewrites history — not as a policy, but
+              because the capability isn't on its surface. It changes repository settings only after
+              you say yes. The AI-review tier is <strong>off by default</strong>, opt-in per repo, and
+              discloses exactly what leaves your code.
+            </p>
+            <div className="lp-chip-row">
+              <span className="lp-chip">no write access</span>
+              <span className="lp-chip">no history rewrites</span>
+              <span className="lp-chip">opt-in AI review</span>
+              <span className="lp-chip">every action reversible</span>
+            </div>
+          </div>
         </div>
-        <div className="card">
-          <h3>The same engine that measures engineers</h3>
-          <p style={{ color: "var(--ink-2)", fontSize: 14 }}>
-            The rules CodeWorthy enforces are the very competencies our assessment measures — root
-            cause, testing, systems thinking, git discipline. One model, two products.{" "}
-            <Link to="/login?role=merchant" style={{ color: "var(--accent-strong)", fontWeight: 600 }}>Hiring? See the assessment →</Link>
-          </p>
-        </div>
-      </div>
+      </section>
 
-      <div className="card" style={{ marginTop: 64, textAlign: "center", padding: 40 }}>
-        <h2 className="section-title" style={{ marginBottom: 8 }}>
-          Hand your <span className="artifact">main</span> branch to a senior engineer
-        </h2>
-        <p style={{ color: "var(--ink-2)", marginTop: 0 }}>
-          Install CodeWorthy, pick your repositories, and keep building. It protects the rest.
-        </p>
-        <a href={INSTALL_URL} className="btn btn-primary btn-lg">
-          Protect my repo
-        </a>
-      </div>
-    </>
+      {/* ---- final CTA + footer (dark) ---- */}
+      <section className="lp-band lp-final">
+        <div className="lp-inner lp-final-inner">
+          <h2 className="lp-final-h2">
+            Hand <span className="lp-mono lp-final-main">main</span> to a senior engineer
+          </h2>
+          <p className="lp-final-deck">
+            Install it, pick your repositories, keep building. It handles the rest.
+          </p>
+          <Link to="/login" className="lp-btn lp-btn-primary lp-btn-lg">
+            Protect my repo — free
+          </Link>
+          <div className="lp-footer">
+            <Wordmark size={15} onDark />
+            <span className="lp-footer-meta">© 2026 · make your work production-worthy</span>
+          </div>
+        </div>
+      </section>
+    </div>
   );
 }

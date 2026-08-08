@@ -36,14 +36,24 @@ export async function appendAuditEvent(pool: Pool, ev: StewardEvent): Promise<st
 /** The plain-language change log — founder digest and auditor evidence, one query. */
 export async function recentChangelog(
   pool: Pool,
-  opts: { repo?: string; limit?: number } = {}
+  opts: { repo?: string; limit?: number; sinceDays?: number } = {}
 ): Promise<ChangelogRow[]> {
   const limit = Math.min(opts.limit ?? 50, 500);
-  const res = opts.repo
-    ? await pool.query(
-        `SELECT ts, repo, actor, event_type, plain_english FROM audit_changelog WHERE repo = $1 LIMIT $2`,
-        [opts.repo, limit]
-      )
-    : await pool.query(`SELECT ts, repo, actor, event_type, plain_english FROM audit_changelog LIMIT $1`, [limit]);
+  const conds: string[] = [];
+  const params: unknown[] = [];
+  if (opts.repo) {
+    params.push(opts.repo);
+    conds.push(`repo = $${params.length}`);
+  }
+  if (opts.sinceDays && opts.sinceDays > 0) {
+    params.push(String(Math.min(opts.sinceDays, 365)));
+    conds.push(`ts >= now() - ($${params.length} || ' days')::interval`);
+  }
+  params.push(limit);
+  const where = conds.length ? `WHERE ${conds.join(" AND ")}` : "";
+  const res = await pool.query(
+    `SELECT ts, repo, actor, event_type, plain_english FROM audit_changelog ${where} LIMIT $${params.length}`,
+    params
+  );
   return res.rows;
 }

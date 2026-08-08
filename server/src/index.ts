@@ -13,6 +13,7 @@ import { renderDigestHtml, renderDigestText } from "./digest/render.js";
 import { buildHealthReport } from "./health/health.js";
 import { renderHealthHtml } from "./health/render.js";
 import { registerAppRoutes } from "./app/routes.js";
+import { registerAuthRoutes } from "./app/auth-routes.js";
 import { startScheduler } from "./scheduler.js";
 
 export function buildServer(pool: Pool) {
@@ -67,6 +68,7 @@ export function buildServer(pool: Pool) {
   });
 
   registerAppRoutes(app, pool);
+  registerAuthRoutes(app, pool);
   registerSteward(app, pool);
   registerApi(app, pool);
   return app;

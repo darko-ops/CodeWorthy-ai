@@ -66,13 +66,32 @@ export function registerAppRoutes(app: FastifyInstance, pool: Pool) {
     const code = (req.query as { code?: string }).code;
     if (!code) return html(reply.code(400), page("Missing code", "<h1>Missing code</h1><p class='muted'>Start from <a href='/steward/app-manifest'>Create the App</a>.</p>"));
     try {
-      const res = await fetch(`https://api.github.com/app-manifest/${encodeURIComponent(code)}/conversions`, {
+      const res = await fetch(`https://api.github.com/app-manifests/${encodeURIComponent(code)}/conversions`, {
         method: "POST",
-        headers: { accept: "application/vnd.github+json", "x-github-api-version": "2022-11-28" },
+        headers: {
+          accept: "application/vnd.github+json",
+          "x-github-api-version": "2022-11-28",
+          "user-agent": "codeworthy-steward",
+        },
       });
       if (!res.ok) throw new Error(`GitHub conversion -> ${res.status}`);
-      const appData = (await res.json()) as { id: number; slug: string; html_url: string };
-      html(reply, renderManifestCredentials({ id: appData.id, slug: appData.slug, htmlUrl: appData.html_url }));
+      const appData = (await res.json()) as {
+        id: number;
+        slug: string;
+        html_url: string;
+        pem: string;
+        webhook_secret: string;
+      };
+      html(
+        reply,
+        renderManifestCredentials({
+          id: appData.id,
+          slug: appData.slug,
+          htmlUrl: appData.html_url,
+          pem: appData.pem,
+          webhookSecret: appData.webhook_secret,
+        })
+      );
     } catch (err) {
       app.log.error({ err }, "manifest conversion failed");
       html(reply.code(502), page("Couldn't finish", "<h1>⚠️ App creation didn't complete</h1><p class='muted'>The one-time code may have expired. Start again from <a href='/steward/app-manifest'>Create the App</a>.</p>"));

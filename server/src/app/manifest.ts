@@ -33,20 +33,29 @@ export function buildAppManifest(baseUrl: string): AppManifest {
   const base = baseUrl.replace(/\/+$/, "");
   return {
     name: "CodeWorthy Steward",
-    url: "https://codeworthy.dev",
+    url: "https://codeworthy.ai",
     hook_attributes: { url: `${base}/webhooks/github`, active: true },
     redirect_url: `${base}/steward/app-manifest/callback`,
     setup_url: `${base}/steward/setup`,
     setup_on_update: true,
     public: true,
     default_permissions: {
-      contents: "read",
+      // write: safe-mechanics creates restore-point/feature branches (refs).
+      // Never merges, never deletes, never force-updates — the client cannot
+      // express those (github/client.ts + its doctrine test).
+      contents: "write",
       pull_requests: "write",
       administration: "write",
       checks: "write",
+      // issue_comment (micro-defense answers) requires the issues permission;
+      // write lets Steward post its comments via the issues API.
+      issues: "write",
       metadata: "read",
     },
-    default_events: ["push", "pull_request", "installation", "installation_repositories"],
+    // installation / installation_repositories are NOT listed here: GitHub
+    // delivers installation webhooks to every App automatically, and the
+    // manifest API rejects them as subscribable events.
+    default_events: ["push", "pull_request", "issue_comment"],
   };
 }
 
