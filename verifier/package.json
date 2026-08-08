@@ -1,0 +1,11 @@
+{
+  "name": "codeworthy-verify",
+  "version": "0.1.0",
+  "description": "Standalone verifier for CodeWorthy evidence packages — recomputes every claim from raw evidence; trusts nothing from the exporter.",
+  "type": "module",
+  "bin": { "codeworthy-verify": "src/cli.mjs" },
+  "engines": { "node": ">=20" },
+  "files": ["src", "README.md"],
+  "license": "UNLICENSED",
+  "dependencies": {}
+}
