@@ -6,6 +6,7 @@ import { Navigate } from "react-router-dom";
 import {
   apiGet,
   ApiError,
+  digestUrl,
   installUrl,
   type ActivityEvent,
   type DigestEntry,
@@ -243,6 +244,7 @@ export function RepoDashboard() {
                   <h1 className="repo-title">{selectedRepo}</h1>
                 </div>
                 <div className="repo-header-right">
+                  <SummaryLink repo={selectedRepo} days={windowDays} />
                   <div className="window-control" role="tablist" aria-label="Time window">
                     {WINDOWS.map((d) => (
                       <button
@@ -447,6 +449,34 @@ function VitalRow({ vital }: { vital: HealthVital }) {
         </div>
         <div className="vital-finding">{vital.finding}</div>
       </div>
+    </div>
+  );
+}
+
+// A shareable weekly (or windowed) summary: open the rendered digest, or copy
+// its link to forward to a teammate or auditor. The digest page is public by
+// design, so the copied URL works without a login.
+function SummaryLink({ repo, days }: { repo: string; days: number }) {
+  const [copied, setCopied] = useState(false);
+  const url = digestUrl(repo, days);
+  const label = days === 7 ? "Weekly summary" : `${days}-day summary`;
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1600);
+    } catch {
+      window.prompt("Copy this shareable summary link:", url);
+    }
+  };
+  return (
+    <div className="summary-link">
+      <a className="summary-open" href={url} target="_blank" rel="noreferrer">
+        {label} <span aria-hidden>↗</span>
+      </a>
+      <button className="summary-copy" onClick={copy} title="Copy shareable link" aria-label="Copy shareable link">
+        {copied ? "Copied" : "⧉"}
+      </button>
     </div>
   );
 }

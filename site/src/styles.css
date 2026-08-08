@@ -2083,3 +2083,39 @@ code {
   justify-content: center;
   border: 2px solid var(--page);
 }
+
+/* Shareable weekly-summary link in the repo header */
+.summary-link {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--page);
+}
+.summary-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  font: 600 12px var(--sans);
+  color: var(--ink);
+  text-decoration: none;
+}
+.summary-open:hover {
+  background: var(--surface-2);
+}
+.summary-copy {
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink-muted);
+  font: 600 12px var(--sans);
+  padding: 0 10px;
+  cursor: pointer;
+  min-width: 34px;
+}
+.summary-copy:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}

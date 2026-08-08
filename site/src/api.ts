@@ -40,6 +40,13 @@ export const loginUrl = `${API_BASE}/auth/github/login`;
 // / repo-selection screen for the App).
 export const installUrl = "https://github.com/apps/codeworthy-steward/installations/new";
 
+// The rendered, shareable weekly summary (digest) page for a repo. Public by
+// design — the same no-login artifact as the health page — so the link can be
+// forwarded to a teammate or auditor.
+export function digestUrl(repo: string, days = 7): string {
+  return `${API_BASE}/steward/digest.html?repo=${encodeURIComponent(repo)}&days=${days}`;
+}
+
 export type ApiErrorKind = "unauthenticated" | "offline" | "forbidden" | "server";
 
 export class ApiError extends Error {
