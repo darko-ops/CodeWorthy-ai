@@ -34,16 +34,26 @@ export interface Digest {
 
 // event_type -> how a non-engineer should read it.
 const CATEGORY: Record<string, { key: string; label: string; tone: Tone }> = {
-  "protection.weakened": { key: "protection_alert", label: "Protection weakened", tone: "alert" },
+  "protection.weakened": { key: "protection_alert", label: "Protection weakened", tone: "alert" }, // pre-V0.3 name, kept for history
+  "exception.protection_weakened": { key: "protection_alert", label: "Protection weakened", tone: "alert" },
+  "exception.force_push": { key: "exceptions", label: "Exceptions", tone: "alert" },
+  "exception.merged_red_checks": { key: "exceptions", label: "Exceptions", tone: "alert" },
   "push.direct_to_default": { key: "skipped_review", label: "Changes that skipped review", tone: "attention" },
   "mechanic.retroactive_review": { key: "skipped_review", label: "Changes that skipped review", tone: "attention" },
   "pull_request.opened": { key: "prs", label: "Pull requests", tone: "good" },
   "pull_request.merged": { key: "prs", label: "Pull requests", tone: "good" },
+  "change.merged": { key: "prs", label: "Pull requests", tone: "good" },
   "protection.configured": { key: "protection", label: "Protection turned on", tone: "good" },
   "installation.created": { key: "lifecycle", label: "Setup", tone: "neutral" },
   "installation.deleted": { key: "lifecycle", label: "Setup", tone: "neutral" },
 };
-const categorize = (t: string) => CATEGORY[t] ?? { key: "other", label: "Other activity", tone: "neutral" as Tone };
+// Any exception.* not named above is still an alert — the family contract
+// (V0.3): exceptions are the look-at-this register, never "other activity".
+const categorize = (t: string) =>
+  CATEGORY[t] ??
+  (t.startsWith("exception.")
+    ? { key: "exceptions", label: "Exceptions", tone: "alert" as Tone }
+    : { key: "other", label: "Other activity", tone: "neutral" as Tone });
 
 // The event types that count as "flagged" (a look-at-this) — derived from the
 // same CATEGORY the digest/details use, so the rail badge, the ring, and the
@@ -119,7 +129,7 @@ export async function buildDigest(
   const counts = (t: string) => timeline.filter((e) => e.eventType === t).length;
   const headline = buildHeadline(opts.repo ?? null, timeline.length, {
     direct: counts("push.direct_to_default"),
-    weakened: counts("protection.weakened"),
+    weakened: counts("protection.weakened") + counts("exception.protection_weakened"),
     prs: counts("pull_request.opened"),
     protection: counts("protection.configured"),
   });

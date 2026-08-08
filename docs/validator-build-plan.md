@@ -9,6 +9,20 @@ verification (`server/src/audit/tamper.ts`), and the WORM anchor job
 
 ---
 
+## Ratified invariants
+
+*Adopted as doctrine (2026-08-08). Every phase below is bound by these; a change
+that violates one is wrong even if it ships a feature.*
+
+1. **Verification is independent.** The verifier recomputes from raw evidence
+   and never trusts exporter conclusions.
+2. **Evidence is append-only.** Removal requires an explicit protocol-level
+   mechanism, not silent redaction.
+3. **AI is advisory.** Model output may explain evidence but can never
+   constitute or alter a control conclusion.
+
+---
+
 ## 0. What "validator" means here, precisely
 
 Today every verification runs **inside the server, against the live DB**:

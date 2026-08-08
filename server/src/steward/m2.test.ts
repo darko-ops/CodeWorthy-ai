@@ -19,6 +19,8 @@ class FakeClient implements GitHubClient {
   getPullRequestFiles(...a: any[]) { return this.rec("getPullRequestFiles", a, []); }
   listIssueComments(...a: any[]) { return this.rec("listIssueComments", a, []); }
   updateIssueComment(...a: any[]) { return this.rec("updateIssueComment", a, {}); }
+  listPullRequestReviews(...a: any[]) { return this.rec("listPullRequestReviews", a, []); }
+  listCheckRunsForRef(...a: any[]) { return this.rec("listCheckRunsForRef", a, { check_runs: [] }); }
   getBranch(...a: any[]) { return this.rec("getBranch", a, {}); }
   getBranchProtection(...a: any[]) { this.calls.push({ m: "getBranchProtection", args: a }); return Promise.resolve(this.protection); }
   listCommits(...a: any[]) { return this.rec("listCommits", a, []); }
@@ -89,6 +91,6 @@ describe("M2 drift detection", () => {
     const weak = await runDriftCheck(c, pool, "acme/app", "main", 7);
     expect(weak).toContain("force-pushes are now allowed");
     const log = await recentChangelog(pool, { repo: "acme/app" });
-    expect(log[0]!.event_type).toBe("protection.weakened");
+    expect(log[0]!.event_type).toBe("exception.protection_weakened");
   });
 });

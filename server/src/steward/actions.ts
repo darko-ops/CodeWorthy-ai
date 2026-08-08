@@ -8,6 +8,7 @@ import type { Pool } from "pg";
 import { config } from "../config.js";
 import { getInstallationClient } from "../github/auth.js";
 import type { GitHubClient } from "../github/client.js";
+import { recordMergeEvidence } from "./mergeEvidence.js";
 import { retroactiveReview } from "./mechanics.js";
 import { configureProtection } from "./protection.js";
 import { DEFAULT_CONFIG, type StewardConfig } from "./stewardConfig.js";
@@ -54,6 +55,25 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
     for (const r of repos) {
       await configureProtection(client, pool, r.full_name, r.default_branch ?? "main", installationId);
     }
+    return;
+  }
+
+  if (eventName === "pull_request" && payload.action === "closed" && payload.pull_request?.merged) {
+    // V0.2: capture the control facts at merge time — approvers, self-approval,
+    // checks on the head SHA — keyed on the merge commit SHA. Deterministic
+    // reads + template text; failures are recorded as evidenceGaps, not hidden.
+    const pr = payload.pull_request;
+    await recordMergeEvidence(client, pool, {
+      repo,
+      number: pr.number,
+      installationId,
+      author: pr.user?.login ?? null,
+      mergedBy: pr.merged_by?.login ?? payload.sender?.login ?? null,
+      mergedAt: pr.merged_at ?? null,
+      mergeSha: pr.merge_commit_sha ?? null,
+      headSha: pr.head?.sha ?? null,
+      base: pr.base?.ref ?? null,
+    });
     return;
   }
 

@@ -12,9 +12,9 @@ const cls = (s: VitalStatus) => s.replace(" ", "-");
 
 const entryDot = (e: DigestEntry) => {
   const t = e.eventType;
-  if (t === "protection.weakened") return "🔴";
+  if (t === "protection.weakened" || t.startsWith("exception.")) return "🔴";
   if (t.startsWith("push.direct") || t.startsWith("mechanic.")) return "🟡";
-  if (t.startsWith("pull_request") || t === "protection.configured") return "🟢";
+  if (t.startsWith("pull_request") || t === "change.merged" || t === "protection.configured") return "🟢";
   return "⚪";
 };
 const day = (iso: string) => new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });

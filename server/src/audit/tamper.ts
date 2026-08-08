@@ -30,8 +30,11 @@ export interface ChainVerification {
 }
 
 // Recompute every row's hash from its content + the ACTUAL previous row's hash,
-// and flag the first divergence. One SQL pass; audit_canonical() is the shared
-// source of truth so the recompute matches the trigger exactly.
+// and flag the first divergence. One SQL pass; each row is recomputed under the
+// canonical version it was WRITTEN with (audit_canonical for v1 rows,
+// audit_canonical_v2 for v2) — the DB's own functions are the shared source of
+// truth so the recompute matches the trigger exactly, and a canonical upgrade
+// never orphans existing history.
 export async function verifyAuditChain(pool: Pool): Promise<ChainVerification> {
   const { rows } = await pool.query(
     `WITH chain AS (
@@ -39,7 +42,10 @@ export async function verifyAuditChain(pool: Pool): Promise<ChainVerification> {
               lag(row_hash) OVER (ORDER BY id) AS actual_prev,
               digest(
                 coalesce(lag(row_hash) OVER (ORDER BY id), '\\x'::bytea) ||
-                audit_canonical(id, ts, installation_id, repo, event_type, actor, payload, plain_english),
+                CASE canon_version
+                  WHEN 2 THEN audit_canonical_v2(id, ts, installation_id, repo, event_type, actor, payload, plain_english)
+                  ELSE audit_canonical(id, ts, installation_id, repo, event_type, actor, payload, plain_english)
+                END,
                 'sha256'
               ) AS recomputed
        FROM audit_events

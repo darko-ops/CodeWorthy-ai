@@ -77,10 +77,13 @@ export async function runDriftCheck(
     await appendAuditEvent(pool, {
       installationId,
       repo,
-      eventType: "protection.weakened",
+      // V0.3: part of the exception.* family — the first-class register of
+      // control deviations an auditor tests. (Pre-V0.3 rows carry the old name
+      // `protection.weakened`; consumers handle both, history is never renamed.)
+      eventType: "exception.protection_weakened",
       actor: "codeworthy-steward",
       payload: { branch, weakenings: weak },
-      plainEnglish: `Heads up: branch protection on ${branch} in ${repo} was weakened — ${weak.join("; ")}. CodeWorthy can restore it.`,
+      plainEnglish: `Exception: branch protection on ${branch} in ${repo} was weakened — ${weak.join("; ")}. CodeWorthy can restore it.`,
     });
   }
   return weak;
