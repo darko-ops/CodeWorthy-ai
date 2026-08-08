@@ -65,29 +65,6 @@
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* TEMPORARY migration aliases — keep the un-redesigned merchant/examinee pages
-   rendering while the rebrand lands. Remove once those screens are swept. */
-:root {
-  --accent:          var(--signal-deep);
-  --accent-strong:   var(--signal-deep);
-  --accent-bright:   var(--signal);
-  --accent-soft:     var(--signal-wash);
-  --accent-wash:     var(--signal-wash);
-  --accent-line:     var(--signal-line);
-  --navy:            var(--ink-900);
-  --navy-2:          var(--ink-800);
-  --navy-border:     var(--border-dark);
-  --navy-ink-2:      var(--on-dark-3);
-  --navy-muted:      var(--on-dark-5);
-  --brand-blue:      var(--ink);
-  --rating-strong:   var(--signal);
-  --rating-develop:  var(--watch);
-  --rating-needs:    var(--risk);
-  --rating-none:     var(--unknown);
-  --amber-bright:    var(--watch);
-  --highlight:       transparent;
-}
-
 /* The vitals meter — replaces the conic-gradient ring. One bar per vital,
    colored by that vital's status, under a large verdict word. */
 .vitals-meter { display: flex; gap: 5px; }
@@ -105,21 +82,22 @@
   text-transform: uppercase;
 }
 
-/* Dark mission-control scope: same component classes, re-mapped tokens. */
+/* Dark scope for the un-redesigned merchant/examinee screens: re-maps the base
+   tokens (and the teal ones for legibility on dark) using the new palette. */
 .shell-dark {
   color-scheme: dark;
-  --page: #06222c;
-  --surface: #0b3140;
-  --surface-2: #0e3746;
+  --page: var(--ink-900);
+  --surface: var(--ink-800);
+  --surface-2: var(--ink-700);
   --ink: #ffffff;
-  --ink-2: #b8c9ce;
-  --ink-muted: #7e959c;
-  --ink-faint: #5f7b83;
-  --accent-strong: #4ade80;
-  --accent-soft: rgba(34, 197, 94, 0.12);
-  --accent-line: #1c5a3f;
-  --hairline: #16404e;
-  --border: #16404e;
+  --ink-2: var(--on-dark-3);
+  --ink-muted: var(--on-dark-5);
+  --ink-faint: var(--on-dark-6);
+  --signal-deep: var(--signal);
+  --signal-wash: rgba(76, 201, 192, 0.12);
+  --signal-line: rgba(76, 201, 192, 0.28);
+  --hairline: var(--line-dark);
+  --border: var(--border-dark);
   background: var(--page);
 }
 
@@ -249,7 +227,7 @@ a:hover {
 .nav-tab.active {
   color: var(--ink);
   font-weight: 600;
-  border-bottom-color: var(--accent);
+  border-bottom-color: var(--signal-deep);
 }
 .nav-tab:hover {
   text-decoration: none;
@@ -306,9 +284,9 @@ a:hover {
   height: 15px;
   padding: 0 4px;
   border-radius: 999px;
-  background: var(--accent);
+  background: var(--signal-deep);
   border: 2px solid var(--page);
-  color: #082f3c;
+  color: #0d1b2a;
   font: 700 9px var(--mono);
   display: flex;
   align-items: center;
@@ -336,7 +314,7 @@ a:hover {
 }
 .bell-item.unread {
   background: rgba(34, 197, 94, 0.05);
-  border-left-color: var(--accent);
+  border-left-color: var(--signal-deep);
 }
 .bell-item strong {
   color: var(--ink);
@@ -367,24 +345,24 @@ a:hover {
   background: var(--surface);
 }
 .btn-primary {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--signal-deep);
+  border-color: var(--signal-deep);
   color: #ffffff;
   box-shadow: 0 8px 20px -8px rgba(34, 197, 94, 0.6);
   transition: background 0.18s, transform 0.18s, box-shadow 0.18s;
 }
 .btn-primary:hover {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
+  background: var(--signal-deep);
+  border-color: var(--signal-deep);
   transform: translateY(-1px);
   box-shadow: 0 14px 26px -10px rgba(34, 197, 94, 0.75);
 }
 .shell-dark .btn-primary {
-  color: #082f3c;
+  color: #0d1b2a;
 }
 .shell-dark .btn-primary:hover {
-  background: var(--accent-bright);
-  border-color: var(--accent-bright);
+  background: var(--signal);
+  border-color: var(--signal);
 }
 .btn-ghost {
   border-color: transparent;
@@ -411,19 +389,19 @@ a:hover {
   white-space: nowrap;
 }
 .badge-pass {
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+  color: var(--signal-deep);
+  background: var(--signal-wash);
+  border-color: var(--signal-line);
 }
 .badge-solid {
-  color: #082f3c;
-  background: var(--accent);
-  border-color: var(--accent);
+  color: #0d1b2a;
+  background: var(--signal-deep);
+  border-color: var(--signal-deep);
 }
 .badge-attention {
   color: #b3392f;
-  background: color-mix(in srgb, var(--rating-needs) 12%, var(--page));
-  border-color: color-mix(in srgb, var(--rating-needs) 35%, var(--hairline));
+  background: color-mix(in srgb, var(--risk) 12%, var(--page));
+  border-color: color-mix(in srgb, var(--risk) 35%, var(--hairline));
 }
 .badge-amber {
   color: #92700c;
@@ -441,7 +419,7 @@ a:hover {
   border-color: #ddd6fe;
 }
 .shell-dark .badge-amber {
-  color: var(--amber-bright);
+  color: var(--watch);
   background: rgba(217, 162, 0, 0.14);
   border-color: #5a4a1c;
 }
@@ -480,7 +458,7 @@ a:hover {
   box-shadow: none;
 }
 .card-navy {
-  background: var(--navy);
+  background: var(--ink-900);
   color: #ffffff;
   border-radius: 16px;
   padding: 24px;
@@ -510,7 +488,7 @@ a:hover {
   font: 700 12px var(--mono);
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--accent-strong);
+  color: var(--signal-deep);
   margin-bottom: 18px;
 }
 .hero-grid h1 {
@@ -520,7 +498,7 @@ a:hover {
   margin: 0 0 20px;
 }
 .hero-worthy {
-  color: var(--accent-strong);
+  color: var(--signal-deep);
   position: relative;
   white-space: nowrap;
 }
@@ -530,7 +508,7 @@ a:hover {
   right: 0;
   bottom: 4px;
   height: 12px;
-  background: var(--highlight);
+  background: transparent;
   z-index: -1;
   border-radius: 2px;
 }
@@ -555,7 +533,7 @@ a:hover {
 
 /* evidence card (landing hero + login brand panel) */
 .evidence-card {
-  background: var(--navy);
+  background: var(--ink-900);
   border-radius: 16px;
   padding: 24px;
   box-shadow: 0 30px 60px -28px rgba(8, 47, 60, 0.6);
@@ -572,7 +550,7 @@ a:hover {
 }
 .evidence-bar {
   height: 6px;
-  background: var(--navy-border);
+  background: var(--border-dark);
   border-radius: 3px;
   overflow: hidden;
 }
@@ -585,9 +563,9 @@ a:hover {
 .evidence-foot {
   margin-top: 16px;
   padding-top: 14px;
-  border-top: 1px solid var(--navy-border);
+  border-top: 1px solid var(--border-dark);
   font: 500 11px var(--mono);
-  color: var(--navy-muted);
+  color: var(--on-dark-5);
 }
 
 /* ring gauge */
@@ -600,7 +578,7 @@ a:hover {
 }
 .ring-inner {
   border-radius: 50%;
-  background: var(--navy);
+  background: var(--ink-900);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -614,7 +592,7 @@ a:hover {
 }
 .ring-sub {
   font: 500 11px var(--mono);
-  color: var(--navy-muted);
+  color: var(--on-dark-5);
   margin-top: 2px;
 }
 
@@ -655,11 +633,11 @@ a:hover {
 }
 .step-no {
   font: 700 22px var(--mono);
-  color: var(--accent);
+  color: var(--signal-deep);
   margin-bottom: 8px;
 }
 .steps-grid > div:last-child .step-no {
-  color: var(--accent-strong);
+  color: var(--signal-deep);
 }
 .step-title {
   font: 600 14px/1.35 var(--sans);
@@ -693,7 +671,7 @@ a:hover {
   box-shadow: 0 20px 50px -30px rgba(8, 47, 60, 0.35);
 }
 .login-brand {
-  background: linear-gradient(150deg, #082f3c, #0b3140);
+  background: linear-gradient(150deg, #0d1b2a, #101f2c);
   padding: 44px 40px;
   display: flex;
   flex-direction: column;
@@ -706,13 +684,13 @@ a:hover {
   font-size: 20px;
 }
 .login-brand .wordmark .worthy {
-  color: var(--accent-bright);
+  color: var(--signal);
 }
 .login-eyebrow {
   font: 700 12px var(--mono);
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent-bright);
+  color: var(--signal);
   margin-bottom: 16px;
 }
 .login-brand h2 {
@@ -722,13 +700,13 @@ a:hover {
 }
 .login-brand p {
   font: 400 15px/1.6 var(--sans);
-  color: var(--navy-ink-2);
+  color: var(--on-dark-3);
   margin: 0;
   max-width: 340px;
 }
 .login-proof {
   background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--navy-border);
+  border: 1px solid var(--border-dark);
   border-radius: 12px;
   padding: 16px;
   display: flex;
@@ -765,7 +743,7 @@ a:hover {
   color: var(--ink);
 }
 .role-toggle button.selected {
-  background: var(--navy);
+  background: var(--ink-900);
   color: #fff;
 }
 .field {
@@ -834,14 +812,14 @@ a:hover {
 .navy-strip {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  background: var(--navy);
+  background: var(--ink-900);
   border-radius: 14px;
   padding: 22px 26px;
   margin-bottom: 34px;
 }
 .navy-strip > div {
   padding: 0 22px;
-  border-right: 1px solid var(--navy-border);
+  border-right: 1px solid var(--border-dark);
 }
 .navy-strip > div:first-child {
   padding-left: 0;
@@ -852,12 +830,12 @@ a:hover {
 }
 .navy-strip .k {
   font: 700 12px var(--mono);
-  color: var(--accent-bright);
+  color: var(--signal);
   margin-bottom: 7px;
 }
 .navy-strip .v {
   font: 400 12.5px/1.45 var(--sans);
-  color: var(--navy-ink-2);
+  color: var(--on-dark-3);
 }
 
 .track {
@@ -912,7 +890,7 @@ a:hover {
 
 /* ---------- exam detail ---------- */
 .ticket-band {
-  background: linear-gradient(120deg, #082f3c, #0b3140);
+  background: linear-gradient(120deg, #0d1b2a, #101f2c);
   color: #fff;
   border-radius: 16px;
   padding: 30px 36px;
@@ -925,7 +903,7 @@ a:hover {
 }
 .ticket-band .sub {
   font: 400 15px/1.55 var(--sans);
-  color: var(--navy-ink-2);
+  color: var(--on-dark-3);
   margin: 0;
   max-width: 620px;
 }
@@ -939,14 +917,14 @@ a:hover {
   font: 600 11px var(--mono);
   color: #cfe0e4;
   background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--navy-border);
+  border: 1px solid var(--border-dark);
   padding: 4px 10px;
   border-radius: 999px;
 }
 .band-chip.green {
-  color: #082f3c;
-  background: var(--accent);
-  border-color: var(--accent);
+  color: #0d1b2a;
+  background: var(--signal-deep);
+  border-color: var(--signal-deep);
 }
 .band-foot {
   display: flex;
@@ -1010,14 +988,14 @@ a:hover {
   padding: 18px;
 }
 .stat-tile.glow {
-  background: linear-gradient(160deg, #0d3b2b, #0b3140);
-  border-color: #1c5a3f;
+  background: linear-gradient(160deg, #0d3b2b, #101f2c);
+  border-color: #22384c;
 }
 .stat-tile.glow .stat-label {
-  color: #a7f3d0;
+  color: #b9e6e1;
 }
 .stat-tile.glow .stat-value {
-  color: var(--accent-bright);
+  color: var(--signal);
 }
 .stat-label {
   font: 600 12px var(--sans);
@@ -1092,7 +1070,7 @@ td.num {
   flex: 1;
 }
 .shell-dark .progress-track {
-  background: var(--navy-border);
+  background: var(--border-dark);
 }
 .progress-fill {
   height: 100%;
@@ -1157,14 +1135,14 @@ td.num {
 }
 .rating-cell.on-1,
 .rating-cell.on-2 {
-  background: var(--rating-needs);
+  background: var(--risk);
 }
 .rating-cell.on-3 {
-  background: var(--rating-develop);
+  background: var(--watch);
 }
 .rating-cell.on-4,
 .rating-cell.on-5 {
-  background: var(--rating-strong);
+  background: var(--signal);
 }
 .rating-num {
   font: 600 11px var(--mono);
@@ -1190,11 +1168,11 @@ td.num {
 }
 .check-line .ok {
   font-weight: 700;
-  color: var(--accent-strong);
+  color: var(--signal-deep);
 }
 .check-line .bad {
   font-weight: 700;
-  color: var(--rating-needs);
+  color: var(--risk);
 }
 
 /* ---------- settings / team / billing / compare (1g-1k) ---------- */
@@ -1225,15 +1203,15 @@ td.num {
 }
 .side-item.active {
   color: var(--ink);
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+  background: var(--signal-wash);
+  border-color: var(--signal-line);
 }
 .side-item.active::before {
   content: "";
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--signal-deep);
 }
 
 .toggle {
@@ -1249,7 +1227,7 @@ td.num {
   transition: background 0.18s;
 }
 .toggle.on {
-  background: var(--accent);
+  background: var(--signal-deep);
 }
 .toggle::after {
   content: "";
@@ -1285,8 +1263,8 @@ td.num {
 }
 .seg button.selected {
   color: var(--ink);
-  background: var(--accent-soft);
-  border-color: var(--accent);
+  background: var(--signal-wash);
+  border-color: var(--signal-deep);
 }
 
 .pending-banner {
@@ -1317,7 +1295,7 @@ td.num {
   border-color: var(--ink);
 }
 .pick-card.selected {
-  border: 2px solid var(--accent);
+  border: 2px solid var(--signal-deep);
   background: #f6fdf9;
   padding: 14px;
 }
@@ -1334,7 +1312,7 @@ td.num {
 }
 .pick-card.selected .pick-radio {
   border: none;
-  background: var(--accent);
+  background: var(--signal-deep);
   color: #fff;
   font-weight: 700;
   font-size: 12px;
@@ -1632,8 +1610,8 @@ code {
   background: var(--surface-2);
 }
 .repo-item.selected {
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  background: var(--signal-wash);
+  color: var(--signal-deep);
   font-weight: 700;
 }
 .repo-item-name {
@@ -1660,7 +1638,7 @@ code {
 .repo-empty-rail .repo-link {
   display: block;
   margin-top: 6px;
-  color: var(--accent-strong);
+  color: var(--signal-deep);
   font-weight: 600;
 }
 
@@ -1692,9 +1670,9 @@ code {
 .repo-doctrine {
   flex: none;
   font: 600 11px var(--mono);
-  color: var(--accent-strong);
-  background: var(--accent-soft);
-  border: 1px solid var(--accent-line);
+  color: var(--signal-deep);
+  background: var(--signal-wash);
+  border: 1px solid var(--signal-line);
   border-radius: 999px;
   padding: 5px 12px;
   white-space: nowrap;
@@ -1721,10 +1699,10 @@ code {
   background: var(--ink-faint);
 }
 .tone-ok .activity-dot {
-  background: var(--accent);
+  background: var(--signal-deep);
 }
 .tone-watch .activity-dot {
-  background: var(--rating-needs);
+  background: var(--risk);
 }
 .tone-note .activity-dot {
   background: var(--ink-faint);
@@ -1784,7 +1762,7 @@ code {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--signal-deep);
   animation: repo-pulse 1.4s ease-in-out infinite;
 }
 @keyframes repo-pulse {
@@ -1898,8 +1876,8 @@ code {
   border: 1px solid var(--border);
 }
 .integrity-badge.ok {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+  background: var(--signal-wash);
+  border-color: var(--signal-line);
 }
 .integrity-badge.warn {
   background: #fef6ec;
@@ -1994,9 +1972,9 @@ code {
   text-decoration: none;
 }
 .repo-add:hover {
-  border-color: var(--accent);
-  color: var(--accent-strong);
-  background: var(--accent-soft);
+  border-color: var(--signal-deep);
+  color: var(--signal-deep);
+  background: var(--signal-wash);
 }
 .repo-add span {
   font-size: 15px;
@@ -2037,7 +2015,7 @@ code {
   border-color: var(--ink);
 }
 .health-alert-count {
-  background: var(--rating-needs);
+  background: var(--risk);
   color: #fff;
   font: 700 10px var(--mono);
   border-radius: 999px;
@@ -2083,7 +2061,7 @@ code {
 }
 .fix-rx {
   font: 600 12.5px/1.45 var(--sans);
-  color: var(--accent-strong);
+  color: var(--signal-deep);
 }
 .flagged {
   list-style: none;
@@ -2092,7 +2070,7 @@ code {
 }
 .flagged-item {
   padding: 10px 12px;
-  border-left: 3px solid var(--rating-needs);
+  border-left: 3px solid var(--risk);
   background: var(--page);
   border-radius: 0 8px 8px 0;
   margin-bottom: 10px;
@@ -2127,7 +2105,7 @@ code {
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: var(--rating-needs);
+  background: var(--risk);
   color: #fff;
   font: 700 11px var(--mono);
   display: inline-flex;
@@ -2135,7 +2113,7 @@ code {
   justify-content: center;
 }
 .repo-item.selected .repo-flag {
-  box-shadow: 0 0 0 2px var(--accent-soft);
+  box-shadow: 0 0 0 2px var(--signal-wash);
 }
 .health-ring {
   position: relative;
@@ -2148,7 +2126,7 @@ code {
   height: 20px;
   padding: 0 6px;
   border-radius: 999px;
-  background: var(--rating-needs);
+  background: var(--risk);
   color: #fff;
   font: 700 11px var(--mono);
   display: inline-flex;
@@ -2238,7 +2216,7 @@ code {
   padding: 0 0 4px;
 }
 .repo-back:hover {
-  color: var(--accent-strong);
+  color: var(--signal-deep);
 }
 
 .stat-tiles {
@@ -2259,10 +2237,10 @@ code {
   color: var(--ink);
 }
 .stat-tile.tone-at-risk .stat-value {
-  color: var(--rating-needs);
+  color: var(--risk);
 }
 .stat-tile.tone-watch .stat-value {
-  color: var(--rating-develop);
+  color: var(--watch);
 }
 .stat-label {
   font: 600 12px var(--sans);
@@ -2282,8 +2260,8 @@ code {
   color: var(--ink-2);
 }
 .overview-integrity.ok {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
+  background: var(--signal-wash);
+  border-color: var(--signal-line);
 }
 .overview-integrity.warn {
   background: #fef6ec;

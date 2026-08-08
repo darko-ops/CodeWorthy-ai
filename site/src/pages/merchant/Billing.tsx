@@ -25,7 +25,7 @@ export function Billing() {
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <div
             style={{
-              background: "linear-gradient(135deg,#082f3c,#0b3140)",
+              background: "linear-gradient(135deg,#0d1b2a,#101f2c)",
               borderRadius: 16,
               padding: 26,
               color: "#fff",
@@ -41,15 +41,15 @@ export function Billing() {
                 </div>
                 <div style={{ font: "800 40px var(--mono)", lineHeight: 1 }}>
                   ${b.priceMonthly}
-                  <span style={{ font: "500 15px var(--sans)", color: "var(--navy-muted)" }}>/mo</span>
+                  <span style={{ font: "500 15px var(--sans)", color: "var(--on-dark-5)" }}>/mo</span>
                 </div>
-                <div style={{ font: "500 12px var(--sans)", color: "var(--navy-ink-2)", marginTop: 10 }}>
+                <div style={{ font: "500 12px var(--sans)", color: "var(--on-dark-3)", marginTop: 10 }}>
                   Renews {b.renews} · billed monthly
                 </div>
               </div>
               <button
                 className="btn"
-                style={{ background: "#fff", color: "#082f3c", borderColor: "#fff" }}
+                style={{ background: "#fff", color: "#0d1b2a", borderColor: "#fff" }}
               >
                 Change plan
               </button>
@@ -60,7 +60,7 @@ export function Billing() {
                 gap: 26,
                 marginTop: 22,
                 paddingTop: 20,
-                borderTop: "1px solid var(--navy-border)",
+                borderTop: "1px solid var(--border-dark)",
                 flexWrap: "wrap",
               }}
             >
@@ -70,7 +70,7 @@ export function Billing() {
                 { k: "Overage", v: b.included.overage },
               ].map((s) => (
                 <div key={s.k}>
-                  <div style={{ font: "400 11px var(--sans)", color: "var(--navy-muted)" }}>{s.k}</div>
+                  <div style={{ font: "400 11px var(--sans)", color: "var(--on-dark-5)" }}>{s.k}</div>
                   <div style={{ font: "700 15px var(--mono)", marginTop: 3 }}>{s.v}</div>
                 </div>
               ))}
@@ -83,8 +83,8 @@ export function Billing() {
               <span style={{ font: "500 12px var(--mono)", color: "var(--ink-faint)" }}>{b.usage.cycle}</span>
             </div>
             {[
-              { label: "Assessments", used: b.usage.assessments, cap: b.included.assessments, pct: assessPct, color: "var(--accent)" },
-              { label: "Reviewer seats", used: b.usage.seats, cap: b.included.seats, pct: seatPct, color: "var(--navy)" },
+              { label: "Assessments", used: b.usage.assessments, cap: b.included.assessments, pct: assessPct, color: "var(--signal-deep)" },
+              { label: "Reviewer seats", used: b.usage.seats, cap: b.included.seats, pct: seatPct, color: "var(--ink-900)" },
             ].map((u, i) => (
               <div key={u.label} style={{ marginBottom: i === 0 ? 20 : 0 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 7 }}>
@@ -151,12 +151,12 @@ export function Billing() {
                   width: 44,
                   height: 30,
                   borderRadius: 6,
-                  background: "linear-gradient(135deg,#082f3c,#16404e)",
+                  background: "linear-gradient(135deg,#0d1b2a,#22384c)",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                   font: "700 9px var(--mono)",
-                  color: "var(--accent-bright)",
+                  color: "var(--signal)",
                 }}
               >
                 {b.card.brand}
@@ -176,7 +176,7 @@ export function Billing() {
           <div
             style={{
               background: "#f6fdf9",
-              border: "1px solid var(--accent-line)",
+              border: "1px solid var(--signal-line)",
               borderRadius: 14,
               padding: 20,
             }}
@@ -196,7 +196,7 @@ export function Billing() {
 
           <div style={{ font: "500 11px/1.5 var(--sans)", color: "var(--ink-faint)", textAlign: "center" }}>
             Billing questions?{" "}
-            <span style={{ color: "var(--accent-strong)", fontWeight: 600 }}>Contact support</span>
+            <span style={{ color: "var(--signal-deep)", fontWeight: 600 }}>Contact support</span>
           </div>
         </div>
       </div>

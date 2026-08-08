@@ -4,9 +4,9 @@ import { averageRating, CANDIDATES, examById, STATUS_PROGRESS } from "../../data
 
 function avgColor(avg: number | null): string {
   if (avg === null) return "var(--ink-faint)";
-  if (avg >= 4) return "var(--accent-bright)";
-  if (avg >= 3) return "var(--amber-bright)";
-  return "var(--rating-needs)";
+  if (avg >= 4) return "var(--signal)";
+  if (avg >= 3) return "var(--watch)";
+  return "var(--risk)";
 }
 
 export function Dashboard() {
@@ -47,7 +47,7 @@ export function Dashboard() {
         <div className="stat-tile">
           <p className="stat-label">Total candidates</p>
           <p className="stat-value">{total}</p>
-          <p className="stat-sub" style={{ color: "var(--accent-bright)" }}>
+          <p className="stat-sub" style={{ color: "var(--signal)" }}>
             ▲ 2 this week
           </p>
         </div>
@@ -130,7 +130,7 @@ export function Dashboard() {
                           className="progress-fill"
                           style={{
                             width: `${pct}%`,
-                            background: pct === 100 ? "var(--accent)" : undefined,
+                            background: pct === 100 ? "var(--signal-deep)" : undefined,
                           }}
                         />
                       </div>

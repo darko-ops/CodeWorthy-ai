@@ -12,13 +12,13 @@ import {
 // Light-surface cell colors from the mockup's cell() helper.
 function cellStyle(v: number | null) {
   if (v === null) return { txt: "—", bg: "#f7f9fa", color: "#9aa9ae", border: "#eef2f4", word: "not assessed" };
-  if (v >= 4) return { txt: `${v}/5`, bg: "#ecfdf3", color: "#16a34a", border: "#a7f3d0", word: "Strong" };
+  if (v >= 4) return { txt: `${v}/5`, bg: "#e6f6f4", color: "#0f8b82", border: "#b9e6e1", word: "Strong" };
   if (v === 3) return { txt: `${v}/5`, bg: "#fdf6e3", color: "#b58600", border: "#f0d894", word: "Developing" };
   return { txt: `${v}/5`, bg: "#fdeceb", color: "#c0392b", border: "#f4c4bf", word: "Needs work" };
 }
 
 const REC_STYLE: Record<Recommendation, { color: string; bg: string; border: string }> = {
-  Advance: { color: "#16a34a", bg: "#ecfdf3", border: "#a7f3d0" },
+  Advance: { color: "#0f8b82", bg: "#e6f6f4", border: "#b9e6e1" },
   "In review": { color: "#7a4fd0", bg: "#f6f1ff", border: "#d8c7f5" },
   Hold: { color: "#c0392b", bg: "#fdeceb", border: "#f4c4bf" },
 };
@@ -75,7 +75,7 @@ export function Compare() {
                     style={{
                       width: 60,
                       height: 60,
-                      background: `conic-gradient(#22c55e ${avg !== null ? (avg / 5) * 100 : 0}%, #eef2f4 0)`,
+                      background: `conic-gradient(#4cc9c0 ${avg !== null ? (avg / 5) * 100 : 0}%, #eef2f4 0)`,
                     }}
                     aria-label={avg !== null ? `average ${avg.toFixed(1)} of 5` : "no average yet"}
                   >
@@ -99,7 +99,7 @@ export function Compare() {
                       style={{
                         fontWeight: 700,
                         color:
-                          v && passed === v.checks.length ? "var(--accent-strong)" : "#c0392b",
+                          v && passed === v.checks.length ? "var(--signal-deep)" : "#c0392b",
                       }}
                     >
                       {v ? `${passed} / ${v.checks.length}` : "—"}
@@ -130,12 +130,12 @@ export function Compare() {
           ))}
 
           {/* recommendation */}
-          <div className="compare-grid" style={{ background: "var(--navy)" }}>
+          <div className="compare-grid" style={{ background: "var(--ink-900)" }}>
             <div
               className="lbl"
               style={{
-                background: "var(--navy)",
-                borderRight: "1px solid var(--navy-border)",
+                background: "var(--ink-900)",
+                borderRight: "1px solid var(--border-dark)",
                 color: "#cfe0e4",
                 font: "700 12px var(--mono)",
                 textTransform: "uppercase",
@@ -148,7 +148,7 @@ export function Compare() {
             {entries.map(({ c, recommendation }) => {
               const s = REC_STYLE[recommendation];
               return (
-                <div key={c.id} className="cell" style={{ borderRight: "1px solid var(--navy-border)", padding: "16px 18px" }}>
+                <div key={c.id} className="cell" style={{ borderRight: "1px solid var(--border-dark)", padding: "16px 18px" }}>
                   <span
                     style={{
                       font: "700 13px var(--sans)",

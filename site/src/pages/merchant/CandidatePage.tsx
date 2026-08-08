@@ -35,9 +35,9 @@ function failedGateChecks(
 }
 
 function ratingWordColor(rating: number): string {
-  if (rating >= 4) return "var(--accent-strong)";
-  if (rating === 3) return "var(--rating-develop)";
-  return "var(--rating-needs)";
+  if (rating >= 4) return "var(--signal-deep)";
+  if (rating === 3) return "var(--watch)";
+  return "var(--risk)";
 }
 
 export function CandidatePage() {
@@ -112,7 +112,7 @@ export function CandidatePage() {
                 font: "600 12px var(--mono)",
                 letterSpacing: "0.1em",
                 textTransform: "uppercase",
-                color: "var(--navy-muted)",
+                color: "var(--on-dark-5)",
                 marginBottom: 18,
               }}
             >
@@ -121,7 +121,7 @@ export function CandidatePage() {
             <div style={{ display: "flex", justifyContent: "center" }}>
               <Ring value={avg} size={150} sub="out of 5.0" />
             </div>
-            <div style={{ font: "500 12px/1.5 var(--sans)", color: "var(--navy-ink-2)", marginTop: 18 }}>
+            <div style={{ font: "500 12px/1.5 var(--sans)", color: "var(--on-dark-3)", marginTop: 18 }}>
               {avg === null
                 ? "Appears after submission, hidden-condition runs, and the defense."
                 : lowest
@@ -165,8 +165,8 @@ export function CandidatePage() {
                     font: "600 12px var(--mono)",
                     color:
                       checksPassed === verification.checks.length
-                        ? "var(--accent-strong)"
-                        : "var(--rating-develop)",
+                        ? "var(--signal-deep)"
+                        : "var(--watch)",
                   }}
                 >
                   {checksPassed} / {verification.checks.length} checks passed
@@ -192,7 +192,7 @@ export function CandidatePage() {
               >
                 <div
                   className="progress-fill"
-                  style={{ width: `${pct}%`, background: pct === 100 ? "var(--accent)" : undefined }}
+                  style={{ width: `${pct}%`, background: pct === 100 ? "var(--signal-deep)" : undefined }}
                 />
               </div>
               <span className="progress-pct">{pct}%</span>
@@ -214,15 +214,15 @@ export function CandidatePage() {
             <h3 style={{ font: "700 17px var(--sans)", margin: 0 }}>Competency profile</h3>
             <div className="legend">
               <span>
-                <span className="sw" style={{ background: "var(--rating-strong)" }} />
+                <span className="sw" style={{ background: "var(--signal)" }} />
                 strong
               </span>
               <span>
-                <span className="sw" style={{ background: "var(--rating-develop)" }} />
+                <span className="sw" style={{ background: "var(--watch)" }} />
                 developing
               </span>
               <span>
-                <span className="sw" style={{ background: "var(--rating-needs)" }} />
+                <span className="sw" style={{ background: "var(--risk)" }} />
                 needs work
               </span>
             </div>

@@ -20,7 +20,7 @@ export function Ring({
       style={{
         width: size,
         height: size,
-        background: `conic-gradient(#22c55e ${pct}%, #16404e 0)`,
+        background: `conic-gradient(#4cc9c0 ${pct}%, #22384c 0)`,
       }}
     >
       <div className="ring-inner" style={{ width: inner, height: inner }}>

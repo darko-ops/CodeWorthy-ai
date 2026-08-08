@@ -143,7 +143,7 @@ export function Invite() {
                 font: "600 11px var(--mono)",
                 letterSpacing: "0.1em",
                 textTransform: "uppercase",
-                color: "var(--navy-muted)",
+                color: "var(--on-dark-5)",
                 marginBottom: 16,
               }}
             >
@@ -160,10 +160,10 @@ export function Invite() {
                 <>Hidden-suite checks run against their branch</>,
               ].map((line, i) => (
                 <div key={i} style={{ display: "flex", gap: 11, alignItems: "flex-start" }}>
-                  <span style={{ font: "700 12px var(--mono)", color: "var(--accent-bright)", marginTop: 1 }}>
+                  <span style={{ font: "700 12px var(--mono)", color: "var(--signal)", marginTop: 1 }}>
                     ›
                   </span>
-                  <span style={{ font: "400 13px/1.4 var(--sans)", color: "var(--navy-ink-2)" }}>
+                  <span style={{ font: "400 13px/1.4 var(--sans)", color: "var(--on-dark-3)" }}>
                     {line}
                   </span>
                 </div>
@@ -179,7 +179,7 @@ export function Invite() {
               </div>
               <div style={{ font: "400 11.5px/1.5 var(--sans)", color: "var(--ink-muted)" }}>
                 Acme Wholesale invited you to{" "}
-                <span style={{ color: "var(--accent-strong)", fontWeight: 600 }} className="artifact">
+                <span style={{ color: "var(--signal-deep)", fontWeight: 600 }} className="artifact">
                   {exam.ticket}
                 </span>
                 . Open the repo, read the ticket, and ship a fix you can defend.

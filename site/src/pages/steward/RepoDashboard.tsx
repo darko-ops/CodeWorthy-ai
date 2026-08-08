@@ -335,10 +335,10 @@ export function RepoDashboard() {
 
 // Status → the site's rating tokens. Honest: a REPO health status, not a score.
 const STATUS_COLOR: Record<VitalStatus, string> = {
-  healthy: "var(--rating-strong)",
-  watch: "var(--rating-develop)",
-  "at risk": "var(--rating-needs)",
-  unknown: "var(--rating-none)",
+  healthy: "var(--signal)",
+  watch: "var(--watch)",
+  "at risk": "var(--risk)",
+  unknown: "var(--unknown)",
 };
 const OVERALL_STATUS: Record<HealthReport["overall"], VitalStatus> = {
   Healthy: "healthy",
@@ -347,10 +347,10 @@ const OVERALL_STATUS: Record<HealthReport["overall"], VitalStatus> = {
 };
 // The 4-value portfolio status → a dot color (adds "Quiet" for no-data repos).
 const OVERALL_DOT: Record<Overall, string> = {
-  "At risk": "var(--rating-needs)",
-  "Needs attention": "var(--rating-develop)",
-  Healthy: "var(--rating-strong)",
-  Quiet: "var(--rating-none)",
+  "At risk": "var(--risk)",
+  "Needs attention": "var(--watch)",
+  Healthy: "var(--signal)",
+  Quiet: "var(--unknown)",
 };
 
 // The portfolio overview — every repo at a high level, most-attention first.

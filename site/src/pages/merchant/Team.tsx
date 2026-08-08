@@ -65,7 +65,7 @@ export function Team() {
                           ? {
                               width: 36,
                               height: 36,
-                              background: "linear-gradient(140deg,#16a34a,#0d3b2b)",
+                              background: "linear-gradient(140deg,#0f8b82,#101f2c)",
                               color: "#fff",
                             }
                           : { width: 36, height: 36 }
@@ -112,7 +112,7 @@ export function Team() {
               width: 36,
               height: 36,
               borderRadius: "50%",
-              border: "1px dashed #d9a200",
+              border: "1px dashed #e8b04b",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

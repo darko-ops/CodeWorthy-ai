@@ -12,7 +12,7 @@ const PROGRESS_LABEL: Record<ExamProgress, string> = {
 // Rail color follows activity (mockup 1f): green for the track you're in,
 // navy for the rest.
 function railFor(states: ExamProgress[]): string {
-  return states.some((s) => s === "in_progress" || s === "submitted") ? "#16a34a" : "#3a5a63";
+  return states.some((s) => s === "in_progress" || s === "submitted") ? "#0f8b82" : "#46607a";
 }
 
 const STRIP = [
@@ -44,7 +44,7 @@ export function Learn() {
         </div>
         <div className="learn-stats">
           <div>
-            <div className="learn-stat-n" style={{ color: "var(--accent-strong)" }}>{inProgress}</div>
+            <div className="learn-stat-n" style={{ color: "var(--signal-deep)" }}>{inProgress}</div>
             <div className="learn-stat-l">in progress</div>
           </div>
           <div className="sep" />

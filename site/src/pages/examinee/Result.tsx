@@ -16,9 +16,9 @@ function ratingWord(rating: number): string {
 }
 
 function ratingWordColor(rating: number): string {
-  if (rating >= 4) return "var(--accent-strong)";
-  if (rating === 3) return "var(--rating-develop)";
-  return "var(--rating-needs)";
+  if (rating >= 4) return "var(--signal-deep)";
+  if (rating === 3) return "var(--watch)";
+  return "var(--risk)";
 }
 
 export function Result() {
@@ -85,7 +85,7 @@ export function Result() {
           <div className="card-soft">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
               <span style={{ font: "700 13px var(--sans)" }}>Hidden-suite result</span>
-              <span style={{ font: "600 12px var(--mono)", color: "var(--accent-strong)" }}>
+              <span style={{ font: "600 12px var(--mono)", color: "var(--signal-deep)" }}>
                 {passed} / {verification?.checks.length} ✓
               </span>
             </div>
@@ -103,11 +103,11 @@ export function Result() {
 
           <div className="card-navy" style={{ borderRadius: 14, padding: 20 }}>
             <div style={{ font: "700 13px var(--sans)", marginBottom: 12 }}>Share your profile</div>
-            <p style={{ font: "400 12px/1.5 var(--sans)", color: "var(--navy-ink-2)", margin: "0 0 14px" }}>
+            <p style={{ font: "400 12px/1.5 var(--sans)", color: "var(--on-dark-3)", margin: "0 0 14px" }}>
               You decide who sees this. Generate a private link or share directly with a hiring
               team.
             </p>
-            <button className="btn btn-primary" style={{ width: "100%", padding: 10, fontSize: 13, color: "#082f3c" }}>
+            <button className="btn btn-primary" style={{ width: "100%", padding: 10, fontSize: 13, color: "#0d1b2a" }}>
               Share with employers
             </button>
             <button
@@ -134,11 +134,11 @@ export function Result() {
             <h3 style={{ font: "700 17px var(--sans)", margin: 0 }}>Your competency profile</h3>
             <div className="legend">
               <span>
-                <span className="sw" style={{ background: "var(--rating-strong)" }} />
+                <span className="sw" style={{ background: "var(--signal)" }} />
                 strong
               </span>
               <span>
-                <span className="sw" style={{ background: "var(--rating-develop)" }} />
+                <span className="sw" style={{ background: "var(--watch)" }} />
                 developing
               </span>
             </div>
