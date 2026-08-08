@@ -56,6 +56,7 @@ export function RepoDashboard() {
   const [health, setHealth] = useState<HealthReport | null>(null);
   const [windowDays, setWindowDays] = useState<number>(30);
   const [filter, setFilter] = useState("");
+  const [flags, setFlags] = useState<Record<string, number>>({});
 
   // Load installations once authed.
   useEffect(() => {
@@ -72,6 +73,19 @@ export function RepoDashboard() {
       live = false;
     };
   }, [status]);
+
+  // Flagged-event counts for every repo in one call — powers the rail badges,
+  // so a problem repo is visible without opening it. Refreshes with the window.
+  useEffect(() => {
+    if (status !== "authed") return;
+    let live = true;
+    apiGet<Record<string, number>>(`/api/me/repo-flags?days=${windowDays}`)
+      .then((f) => live && setFlags(f))
+      .catch(() => live && setFlags({}));
+    return () => {
+      live = false;
+    };
+  }, [status, windowDays]);
 
   // Load repos for each installation as installs arrive.
   useEffect(() => {
@@ -181,16 +195,25 @@ export function RepoDashboard() {
                   {inst.avatar && <img src={inst.avatar} alt="" width={16} height={16} />}
                   <span>{inst.account}</span>
                 </div>
-                {list.map((r) => (
-                  <button
-                    key={r.full_name}
-                    className={"repo-item" + (r.full_name === selectedRepo ? " selected" : "")}
-                    onClick={() => setSelectedRepo(r.full_name)}
-                  >
-                    <span className="repo-item-name">{r.name}</span>
-                    {r.private && <span className="repo-badge">private</span>}
-                  </button>
-                ))}
+                {list.map((r) => {
+                  const flagged = flags[r.full_name] ?? 0;
+                  return (
+                    <button
+                      key={r.full_name}
+                      className={"repo-item" + (r.full_name === selectedRepo ? " selected" : "")}
+                      onClick={() => setSelectedRepo(r.full_name)}
+                    >
+                      <span className="repo-item-name">{r.name}</span>
+                      {flagged > 0 ? (
+                        <span className="repo-flag" title={`${flagged} flagged in the last ${windowDays} days`}>
+                          {flagged}
+                        </span>
+                      ) : (
+                        r.private && <span className="repo-badge">private</span>
+                      )}
+                    </button>
+                  );
+                })}
                 {!repos[inst.id] && <div className="repo-item-loading">loading…</div>}
               </div>
             );
@@ -305,7 +328,7 @@ function HealthCard({ report, windowDays }: { report: HealthReport; windowDays: 
   return (
     <section className="health-card-wrap">
       <div className="health-card">
-        <HealthRing pct={pct} color={STATUS_COLOR[overallStatus]} overall={report.overall} />
+        <HealthRing pct={pct} color={STATUS_COLOR[overallStatus]} overall={report.overall} alerts={alertCount} />
         <div className="health-body">
           <div className="health-vitals">
             {report.vitals.map((v) => (
@@ -380,18 +403,31 @@ function HealthDetails({ report, windowDays }: { report: HealthReport; windowDay
   );
 }
 
-function HealthRing({ pct, color, overall }: { pct: number; color: string; overall: string }) {
+function HealthRing({
+  pct,
+  color,
+  overall,
+  alerts,
+}: {
+  pct: number;
+  color: string;
+  overall: string;
+  alerts: number;
+}) {
   return (
     <div className="health-ring-wrap">
       <div
         className="health-ring"
         role="img"
-        aria-label={`Repository health: ${overall}`}
+        aria-label={`Repository health: ${overall}${alerts > 0 ? `, ${alerts} flagged` : ""}`}
         style={{ background: `conic-gradient(${color} ${pct}%, var(--surface-2) 0)` }}
       >
         <div className="health-ring-inner">
           <span className="health-ring-label" style={{ color }}>{overall}</span>
         </div>
+        {alerts > 0 && (
+          <span className="health-ring-flag" title={`${alerts} flagged in this window`}>{alerts}</span>
+        )}
       </div>
       <div className="health-ring-cap">repo health</div>
     </div>

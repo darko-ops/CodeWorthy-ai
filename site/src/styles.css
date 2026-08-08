@@ -2046,3 +2046,40 @@ code {
     align-items: stretch;
   }
 }
+
+/* Flagged-count badges: rail (spot a problem repo) + ring */
+.repo-flag {
+  flex: none;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--rating-needs);
+  color: #fff;
+  font: 700 11px var(--mono);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.repo-item.selected .repo-flag {
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+.health-ring {
+  position: relative;
+}
+.health-ring-flag {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--rating-needs);
+  color: #fff;
+  font: 700 11px var(--mono);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid var(--page);
+}

@@ -45,6 +45,36 @@ const CATEGORY: Record<string, { key: string; label: string; tone: Tone }> = {
 };
 const categorize = (t: string) => CATEGORY[t] ?? { key: "other", label: "Other activity", tone: "neutral" as Tone };
 
+// The event types that count as "flagged" (a look-at-this) — derived from the
+// same CATEGORY the digest/details use, so the rail badge, the ring, and the
+// details view never disagree.
+export function alertEventTypes(): string[] {
+  return Object.entries(CATEGORY)
+    .filter(([, m]) => m.tone === "alert" || m.tone === "attention")
+    .map(([t]) => t);
+}
+
+// Flagged-event counts per repo over a window, in one query. Powers the rail's
+// "spot a problem repo" badges without running a full health report per repo.
+export async function flaggedCountsByRepo(
+  pool: Pool,
+  repos: string[],
+  sinceDays: number
+): Promise<Record<string, number>> {
+  if (!repos.length) return {};
+  const days = Math.min(Math.max(sinceDays, 1), 365);
+  const res = await pool.query(
+    `SELECT repo, count(*)::int AS n FROM audit_events
+      WHERE repo = ANY($1) AND event_type = ANY($2)
+        AND ts >= now() - make_interval(days => $3)
+      GROUP BY repo`,
+    [repos, alertEventTypes(), days]
+  );
+  const out: Record<string, number> = {};
+  for (const r of res.rows) out[r.repo] = r.n;
+  return out;
+}
+
 export async function buildDigest(
   pool: Pool,
   opts: { repo?: string; periodDays?: number } = {}

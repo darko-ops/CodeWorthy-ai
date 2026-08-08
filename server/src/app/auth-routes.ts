@@ -10,6 +10,7 @@ import type { Pool } from "pg";
 import { config } from "../config.js";
 import { recentChangelog } from "../audit/audit.js";
 import { buildHealthReport } from "../health/health.js";
+import { flaggedCountsByRepo } from "../digest/digest.js";
 import {
   authorizeUrl,
   exchangeCode,
@@ -111,6 +112,22 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       avatar: i.account?.avatar_url ?? "",
       selection: i.repository_selection,
     }));
+  });
+
+  // Flagged-event counts for every repo the user can see, in one call — so the
+  // rail can badge problem repos without a health report per repo.
+  app.get("/api/me/repo-flags", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const q = req.query as { days?: string };
+    const days = q.days ? parseInt(q.days, 10) : 30;
+    const insts = await listInstallations(s.token);
+    const repos: string[] = [];
+    for (const inst of insts) {
+      const rs = await listRepositories(s.token, inst.id);
+      for (const r of rs) repos.push(r.full_name);
+    }
+    return flaggedCountsByRepo(pool, repos, days);
   });
 
   app.get("/api/installations/:id/repositories", async (req, reply) => {
