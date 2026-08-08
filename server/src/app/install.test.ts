@@ -14,6 +14,8 @@ class FakeClient implements GitHubClient {
   repos: { full_name: string; default_branch: string }[] = [];
   protection: unknown = null;
   getPullRequestFiles(..._a: any[]) { this.calls.push("getPullRequestFiles"); return Promise.resolve([]); }
+  listIssueComments(..._a: any[]) { this.calls.push("listIssueComments"); return Promise.resolve([]); }
+  updateIssueComment(..._a: any[]) { this.calls.push("updateIssueComment"); return Promise.resolve({}); }
   getBranch(..._a: any[]) { this.calls.push("getBranch"); return Promise.resolve({}); }
   getBranchProtection(..._a: any[]) { this.calls.push("getBranchProtection"); return Promise.resolve(this.protection); }
   listCommits(..._a: any[]) { this.calls.push("listCommits"); return Promise.resolve([]); }

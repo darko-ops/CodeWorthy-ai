@@ -29,6 +29,7 @@ async function gh(token: string, method: string, path: string, body?: unknown): 
 export interface GitHubClient {
   // ── read (metadata + diffs only; never executes customer code) ──
   getPullRequestFiles(repo: string, number: number): Promise<unknown>;
+  listIssueComments(repo: string, number: number): Promise<unknown>;
   getBranch(repo: string, branch: string): Promise<unknown>;
   getBranchProtection(repo: string, branch: string): Promise<unknown>;
   listCommits(repo: string, params?: Record<string, string>): Promise<unknown>;
@@ -37,6 +38,9 @@ export interface GitHubClient {
   createBranch(repo: string, newBranch: string, fromSha: string): Promise<unknown>;
   openDraftPullRequest(repo: string, opts: { head: string; base: string; title: string; body: string }): Promise<unknown>;
   createReviewComment(repo: string, number: number, body: string): Promise<unknown>;
+  // Edits a comment the App itself posted (update-in-place instead of a new
+  // comment per push — noise discipline). Never used on a human's comment.
+  updateIssueComment(repo: string, commentId: number, body: string): Promise<unknown>;
   createCommitComment(repo: string, sha: string, body: string): Promise<unknown>;
   createCheckRun(repo: string, opts: { name: string; headSha: string; conclusion: string; summary: string }): Promise<unknown>;
   // ── admin: branch protection (the one privileged, consented capability) ──
@@ -48,6 +52,7 @@ export interface GitHubClient {
 export function createGitHubClient(token: string): GitHubClient {
   return {
     getPullRequestFiles: (repo, number) => gh(token, "GET", `/repos/${repo}/pulls/${number}/files`),
+    listIssueComments: (repo, number) => gh(token, "GET", `/repos/${repo}/issues/${number}/comments?per_page=100`),
     getBranch: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}`),
     getBranchProtection: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}/protection`),
     listCommits: (repo, params = {}) => gh(token, "GET", `/repos/${repo}/commits?${new URLSearchParams(params)}`),
@@ -62,6 +67,8 @@ export function createGitHubClient(token: string): GitHubClient {
       gh(token, "POST", `/repos/${repo}/pulls`, { head: o.head, base: o.base, title: o.title, body: o.body, draft: true }),
     createReviewComment: (repo, number, body) =>
       gh(token, "POST", `/repos/${repo}/issues/${number}/comments`, { body }),
+    updateIssueComment: (repo, commentId, body) =>
+      gh(token, "PATCH", `/repos/${repo}/issues/comments/${commentId}`, { body }),
     createCommitComment: (repo, sha, body) =>
       gh(token, "POST", `/repos/${repo}/commits/${sha}/comments`, { body }),
     createCheckRun: (repo, o) =>

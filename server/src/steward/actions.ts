@@ -76,6 +76,7 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
       headSha: pr.head?.sha ?? null,
       author: pr.user?.login ?? null,
       installationId,
+      maxReviewsPerPr: repoConfig.llm.maxReviewsPerPr,
     });
   }
 }

@@ -17,6 +17,8 @@ class FakeClient implements GitHubClient {
   protection: unknown = null;
   private rec<T>(m: string, args: unknown[], ret: T): Promise<T> { this.calls.push({ m, args }); return Promise.resolve(ret); }
   getPullRequestFiles(...a: any[]) { return this.rec("getPullRequestFiles", a, []); }
+  listIssueComments(...a: any[]) { return this.rec("listIssueComments", a, []); }
+  updateIssueComment(...a: any[]) { return this.rec("updateIssueComment", a, {}); }
   getBranch(...a: any[]) { return this.rec("getBranch", a, {}); }
   getBranchProtection(...a: any[]) { this.calls.push({ m: "getBranchProtection", args: a }); return Promise.resolve(this.protection); }
   listCommits(...a: any[]) { return this.rec("listCommits", a, []); }

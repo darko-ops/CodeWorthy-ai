@@ -11,14 +11,17 @@ export interface StewardConfig {
   };
   mergeCooldownMinutes: number;
   protectedPaths: string[];
-  llm: { enabled: boolean };
+  llm: { enabled: boolean; maxReviewsPerPr: number };
 }
 
 export const DEFAULT_CONFIG: StewardConfig = {
   gates: { secrets: "gate", destructiveMigration: "gate", committedDependencies: "gate" },
   mergeCooldownMinutes: 0,
   protectedPaths: [],
-  llm: { enabled: false }, // opt-in; the LLM tier never runs unless a repo turns it on
+  // opt-in; the LLM tier never runs unless a repo turns it on. maxReviewsPerPr
+  // bounds noise AND spend on a long-running PR (the category's documented
+  // failure mode); after the cap, the deterministic gate still runs on every push.
+  llm: { enabled: false, maxReviewsPerPr: 5 },
 };
 
 export function parseStewardConfig(raw: string | null | undefined): StewardConfig {
@@ -37,7 +40,12 @@ export function parseStewardConfig(raw: string | null | undefined): StewardConfi
     },
     mergeCooldownMinutes: Number.isFinite(doc?.merge_cooldown_minutes) ? Math.max(0, doc.merge_cooldown_minutes) : 0,
     protectedPaths: Array.isArray(doc?.protected_paths) ? doc.protected_paths.map(String) : [],
-    llm: { enabled: doc?.llm?.enabled === true },
+    llm: {
+      enabled: doc?.llm?.enabled === true,
+      maxReviewsPerPr: Number.isFinite(doc?.llm?.max_reviews_per_pr)
+        ? Math.min(20, Math.max(1, Math.trunc(doc.llm.max_reviews_per_pr)))
+        : DEFAULT_CONFIG.llm.maxReviewsPerPr,
+    },
   };
 }
 
