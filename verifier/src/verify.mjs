@@ -25,6 +25,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { verifyAttestation } from "./attestation.mjs";
 import { isoToEpochMicros, rowHashV2 } from "./canonical.mjs";
 import { untarGz } from "./untar.mjs";
 
@@ -49,8 +50,10 @@ export function loadPackage(path) {
 /**
  * Verify a package. Pure: Map in, report out.
  * @param {Map<string, Buffer>} files
+ * @param {{publicKeyPem?: string|null}} [opts] - the exporter's PUBLISHED key,
+ *   obtained independently of the package (never from inside it).
  */
-export function verifyPackage(files) {
+export function verifyPackage(files, opts = {}) {
   const checks = [];
   const add = (name, status, detail, findings = []) => {
     const c = { name, status, detail, findings };
@@ -79,7 +82,9 @@ export function verifyPackage(files) {
           else if (sha256(buf) !== expected) findings.push(`sha256 mismatch: ${name}`);
         }
         for (const name of files.keys()) {
-          if (name !== "manifest.json" && !(manifest.files ?? {})[name]) findings.push(`file present but not listed in manifest: ${name}`);
+          // attestation.json signs the manifest, so the manifest cannot list it.
+          if (name === "manifest.json" || name === "attestation.json") continue;
+          if (!(manifest.files ?? {})[name]) findings.push(`file present but not listed in manifest: ${name}`);
         }
         add("package-integrity", findings.length ? "fail" : "pass",
           findings.length ? `${findings.length} integrity problem(s)` : `all ${Object.keys(manifest.files ?? {}).length} files match their manifest hashes`,
@@ -267,6 +272,12 @@ export function verifyPackage(files) {
         ? "no merges in this package"
         : `${merges.length} merge(s): ${merges.length - noApproval} with independent-or-any approval, ${noApproval} unapproved, ${selfApproved} self-approved, ${gaps} with evidence gaps`,
       findings);
+  }
+
+  // ── 6. attestation (exporter identity + time; never truth) ──────────────
+  {
+    const a = verifyAttestation(files, opts.publicKeyPem ?? null);
+    add("attestation", a.status, a.detail, a.findings);
   }
 
   // ── verdict ──────────────────────────────────────────────────────────────

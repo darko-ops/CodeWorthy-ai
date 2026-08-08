@@ -15,4 +15,7 @@ export interface VerifierReport {
 }
 export declare const SUPPORTED_FORMATS: string[];
 export declare function loadPackage(path: string): Map<string, Buffer>;
-export declare function verifyPackage(files: Map<string, Buffer>): VerifierReport;
+export declare function verifyPackage(
+  files: Map<string, Buffer>,
+  opts?: { publicKeyPem?: string | null }
+): VerifierReport;

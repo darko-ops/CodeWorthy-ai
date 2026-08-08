@@ -8,11 +8,12 @@
 // --repo scopes the DERIVED views (reconciliation, exceptions) only; the
 // chain segment always carries every row in the period (see package.ts for
 // why a filtered chain cannot verify).
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Pool } from "pg";
 import { config } from "../config.js";
 import { makeAnchor } from "../audit/tamper.js";
+import { buildStatement, signStatement } from "./attest.js";
 import { buildEvidencePackage, packageEntries } from "./package.js";
 import { tarGz } from "./tar.js";
 
@@ -63,7 +64,24 @@ async function main() {
     const dirName = args.out ?? `evidence-${slug}-${from.slice(0, 10)}-${to.slice(0, 10)}`;
     await mkdir(dirName, { recursive: true });
     for (const [name, content] of pkg.files) await writeFile(join(dirName, name), content);
-    await writeFile(`${dirName}.tar.gz`, tarGz(packageEntries(pkg)));
+
+    // V4: sign when the operator holds an attestation key. attestation.json
+    // travels beside the package (it signs the manifest, so it is not listed
+    // in it) and rides inside the tarball for the single-file hand-off.
+    const entries = packageEntries(pkg);
+    const keyPem = process.env.STEWARD_ATTEST_KEY
+      ?? (process.env.STEWARD_ATTEST_KEY_FILE ? await readFile(process.env.STEWARD_ATTEST_KEY_FILE, "utf8") : null);
+    if (keyPem) {
+      const envelope = signStatement(buildStatement(pkg), keyPem);
+      const attBuf = Buffer.from(JSON.stringify(envelope, null, 2) + "\n", "utf8");
+      await writeFile(join(dirName, "attestation.json"), attBuf);
+      entries.push({ name: "attestation.json", content: attBuf });
+      entries.sort((a, b) => (a.name < b.name ? -1 : 1));
+      console.log(`[export] signed: attestation.json (keyid ${envelope.signatures[0]!.keyid})`);
+    } else {
+      console.log("[export] unsigned (set STEWARD_ATTEST_KEY or STEWARD_ATTEST_KEY_FILE to sign; npm run attest:keygen)");
+    }
+    await writeFile(`${dirName}.tar.gz`, tarGz(entries));
 
     console.log(`[export] ${pkg.rowCount} event(s) → ${dirName}/ and ${dirName}.tar.gz`);
     console.log(`[export] manifest sha256 of events.jsonl: ${(pkg.manifest as any).files["events.jsonl"]}`);

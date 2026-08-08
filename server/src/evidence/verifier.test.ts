@@ -81,6 +81,7 @@ describe("V3 — codeworthy-verify on genuine packages", () => {
       ["anchors", "skip"], // none configured in this scenario
       ["completeness", "pass"],
       ["control-operation", "pass"],
+      ["attestation", "skip"], // unsigned in this scenario (V4)
     ]);
     expect(report.verdict).toBe("pass");
     expect(report.exitCode).toBe(0);
