@@ -7,7 +7,19 @@ switched off — that is the point.
 codeworthy-verify report ./evidence-acme-app-2026H1          # a directory…
 codeworthy-verify report ./evidence-acme-app-2026H1.tar.gz   # …or the tarball
 codeworthy-verify report ./pkg --json                        # machine-readable
+codeworthy-verify report ./pkg --oscal                       # OSCAL assessment-results
+codeworthy-verify report ./pkg --pubkey key.pem              # + attestation signature
+
+codeworthy-verify population ./pkg                           # the sampling frame (CSV)
+codeworthy-verify sample ./pkg --merge cafe12                # one change, end to end
+codeworthy-verify sample ./pkg --pr 14                       # …or by PR number
 ```
+
+`population` and `sample` run the full verification first and **refuse to
+emit from a package that fails it** — a sampling frame built on unverified
+evidence is how bad audits start. The conformance checklist mapping each
+requirement to its demonstrating command lives at
+`docs/spec/evidence-conformance.md`.
 
 Exit codes: `0` verified clean · `2` verification **failed** (the evidence is
 inconsistent with itself — tampering, corruption, or self-contradiction) ·
