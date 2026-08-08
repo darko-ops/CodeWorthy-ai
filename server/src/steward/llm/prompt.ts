@@ -12,6 +12,7 @@
 //      settings. Structurally it also can't: the reviewer only ever comments.
 //   2. EVERY finding cites evidence — a policy area and the file/lines in the
 //      diff. A finding with no cite is not a finding.
+import { createHash } from "node:crypto";
 
 // The model-judgment tier of the stewardship policy (the ADVISE rows — the ones
 // that genuinely need a reasoning model, not a pattern check).
@@ -101,27 +102,36 @@ export interface AssembledPrompt {
 const MAX_TOTAL_DIFF_CHARS = 60_000;
 const MAX_FILE_DIFF_CHARS = 12_000;
 
-export function buildReviewPrompt(input: ReviewPromptInput): AssembledPrompt {
-  const policy = POLICY_ROWS.map((r) => `- [${r.area}] ${r.rule}`).join("\n");
-  const anchors = RUBRIC_ANCHORS.map((a) => `- ${a}`).join("\n");
+// The system prompt is input-independent — it IS the review policy. Assembled
+// once so it can be content-addressed: POLICY_VERSION identifies exactly which
+// policy text produced a given review. Change a rule, the version changes.
+// Recorded in every llm.reviewed audit event and shown in the posted comment,
+// so a review is never an unattributed judgment (the governance requirement:
+// every review decision traceable to the standard it applied).
+export const SYSTEM_PROMPT: string = [
+  "You are CodeWorthy's senior-engineer reviewer for a builder who does not know git deeply.",
+  "You ADVISE. You never gate, never block, never merge, never change repository settings — your entire output is advice a human reads and decides on. Deterministic checks do the gating; you do not.",
+  "",
+  "Review the pull request against this policy (these are the judgment calls a senior engineer would raise — not style nits):",
+  POLICY_ROWS.map((r) => `- [${r.area}] ${r.rule}`).join("\n"),
+  "",
+  "Hold changes to this bar:",
+  RUBRIC_ANCHORS.map((a) => `- ${a}`).join("\n"),
+  "",
+  "Rules for your output:",
+  "- Every finding MUST cite the file and line range in the diff it refers to. A finding with no cite is not allowed.",
+  "- Map every finding to one of the policy areas above.",
+  "- Write for a non-engineer: plain language, no jargon, say why it matters in terms of what could break.",
+  "- Be honest about confidence. If the change looks fine, return an empty findings list and say so in the summary. Do not manufacture concerns.",
+  "- You see only the diff, not the whole repo — if a concern depends on code you can't see, say that instead of asserting it.",
+].join("\n");
 
-  const system = [
-    "You are CodeWorthy's senior-engineer reviewer for a builder who does not know git deeply.",
-    "You ADVISE. You never gate, never block, never merge, never change repository settings — your entire output is advice a human reads and decides on. Deterministic checks do the gating; you do not.",
-    "",
-    "Review the pull request against this policy (these are the judgment calls a senior engineer would raise — not style nits):",
-    policy,
-    "",
-    "Hold changes to this bar:",
-    anchors,
-    "",
-    "Rules for your output:",
-    "- Every finding MUST cite the file and line range in the diff it refers to. A finding with no cite is not allowed.",
-    "- Map every finding to one of the policy areas above.",
-    "- Write for a non-engineer: plain language, no jargon, say why it matters in terms of what could break.",
-    "- Be honest about confidence. If the change looks fine, return an empty findings list and say so in the summary. Do not manufacture concerns.",
-    "- You see only the diff, not the whole repo — if a concern depends on code you can't see, say that instead of asserting it.",
-  ].join("\n");
+// Short content hash of the policy text above. "policy 3f2a9c1b04d7" in a
+// comment or audit event pins the exact rules that review applied.
+export const POLICY_VERSION: string = createHash("sha256").update(SYSTEM_PROMPT, "utf8").digest("hex").slice(0, 12);
+
+export function buildReviewPrompt(input: ReviewPromptInput): AssembledPrompt {
+  const system = SYSTEM_PROMPT;
 
   // Assemble the user turn: PR context + capped diff.
   let total = 0;

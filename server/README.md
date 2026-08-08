@@ -114,14 +114,30 @@ both). No `ANTHROPIC_API_KEY` → the tier is a silent no-op (deterministic-only
   offline against a fake; the real client is built only when the tier is on and
   a key is present.
 - **`reviewer.ts`** — `reviewPullRequest()` **advises, never gates**, and it's
-  structural: it only ever calls `getPullRequestFiles` (read) and
-  `createReviewComment` (post one comment). It never touches
-  `setBranchProtection` and never posts the `CodeWorthy PR review` check branch
-  protection requires — so it *cannot* block a merge, even by accident. The
-  deterministic gate does the gating; a model finding is advice a human reads.
-  Every run posts one comment (advisory framing + evidence-cited findings +
-  micro-defense + **data-flow disclosure**) and logs an `llm.reviewed` audit
-  event.
+  structural: it only ever reads the PR (files, comments) and posts/updates
+  **one sticky comment**. It never touches `setBranchProtection` and never posts
+  the `CodeWorthy PR review` check branch protection requires — so it *cannot*
+  block a merge, even by accident. The deterministic gate does the gating; a
+  model finding is advice a human reads. Every run posts/updates the one comment
+  (advisory framing + evidence-cited findings + micro-defense + **data-flow
+  disclosure**) and logs an `llm.reviewed` audit event.
+- **Noise & spend discipline** (the failure mode that sinks AI reviewers —
+  a new comment per push until the developer stops reading): the comment is
+  **updated in place** on each push, never stacked; the **same head SHA is never
+  reviewed twice** (webhook redeliveries are free — the audit spine is the
+  idempotency store, no extra table); and a **per-PR cap**
+  (`llm.max_reviews_per_pr` in `.steward.yml`, default 5, clamp 1–20) pauses the
+  commentary on a long-running PR — logged once as `llm.review_capped`, and the
+  deterministic gate still runs on every push, so safety never degrades, only
+  commentary.
+- **Review provenance** (generated advice is never unattributed): every
+  `llm.reviewed` event records `policyVersion` (a content hash of the system
+  prompt — change a rule, the version changes), the `model`, a `promptSha256`
+  of the exact prompt, and the finding *facts* (area/file/lines). The event's
+  plain-language sentence stays deterministic template text, so model output
+  lands in the payload clearly labeled as model output — never sealed into the
+  spine as if it were a control fact. The comment footer pins the same
+  provenance for the human (`Review 2 of 5 · policy 3f2a9c1b04d7 · model …`).
 - **`microdefense.ts`** — a **presence** check, never auto-graded. Green when the
   PR author replies to the one question in their own words; the answer is
   surfaced verbatim, never scored (auto-judging it would betray the assessment

@@ -8,6 +8,7 @@
 // scheduler on before email or an anchor is set up does nothing harmful.
 import type { Pool } from "pg";
 import { runAnchorJob } from "./audit/anchor-job.js";
+import { runReconcileJob } from "./audit/reconcile-job.js";
 import { runDigestJob } from "./digest/digest-job.js";
 import type { Anchor } from "./audit/tamper.js";
 import type { Mailer } from "./mail/mailer.js";
@@ -23,6 +24,7 @@ export interface SchedulerDeps {
 export interface SchedulerOptions {
   anchorMs?: number; // default: daily
   digestMs?: number; // default: weekly
+  reconcileMs?: number; // default: daily
   log?: (line: string) => void;
 }
 
@@ -45,6 +47,12 @@ export async function runScheduledJobs(pool: Pool, deps: SchedulerDeps = {}, log
   } catch (err) {
     log(`[scheduler] digest failed: ${err instanceof Error ? err.message : err}`);
   }
+  try {
+    const r = await runReconcileJob(pool);
+    log(`[scheduler] reconcile: ${r.status} — ${r.repos} repo(s), ${r.discrepancies} discrepancies${r.detail ? ` (${r.detail})` : ""}`);
+  } catch (err) {
+    log(`[scheduler] reconcile failed: ${err instanceof Error ? err.message : err}`);
+  }
 }
 
 export function startScheduler(pool: Pool, deps: SchedulerDeps = {}, opts: SchedulerOptions = {}): SchedulerHandle {
@@ -60,12 +68,19 @@ export function startScheduler(pool: Pool, deps: SchedulerDeps = {}, opts: Sched
     runDigestJob(pool, deps.mailer)
       .then((r) => log(`[scheduler] digest: ${r.status}`))
       .catch((err) => log(`[scheduler] digest failed: ${err instanceof Error ? err.message : err}`));
+  const runReconcile = () =>
+    runReconcileJob(pool)
+      .then((r) => log(`[scheduler] reconcile: ${r.status} — ${r.repos} repo(s), ${r.discrepancies} discrepancies${r.detail ? ` (${r.detail})` : ""}`))
+      .catch((err) => log(`[scheduler] reconcile failed: ${err instanceof Error ? err.message : err}`));
 
+  const reconcileMs = opts.reconcileMs ?? DAY;
   const t1 = setInterval(runAnchor, anchorMs);
   const t2 = setInterval(runDigest, digestMs);
+  const t3 = setInterval(runReconcile, reconcileMs);
   // Don't hold the event loop open for the timers alone.
   t1.unref?.();
   t2.unref?.();
-  log(`[scheduler] started — anchor every ${Math.round(anchorMs / 3600000)}h, digest every ${Math.round(digestMs / 3600000)}h`);
-  return { stop() { clearInterval(t1); clearInterval(t2); } };
+  t3.unref?.();
+  log(`[scheduler] started — anchor every ${Math.round(anchorMs / 3600000)}h, digest every ${Math.round(digestMs / 3600000)}h, reconcile every ${Math.round(reconcileMs / 3600000)}h`);
+  return { stop() { clearInterval(t1); clearInterval(t2); clearInterval(t3); } };
 }

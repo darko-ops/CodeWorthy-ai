@@ -30,8 +30,11 @@ export interface ChainVerification {
 }
 
 // Recompute every row's hash from its content + the ACTUAL previous row's hash,
-// and flag the first divergence. One SQL pass; audit_canonical() is the shared
-// source of truth so the recompute matches the trigger exactly.
+// and flag the first divergence. One SQL pass; each row is recomputed under the
+// canonical version it was WRITTEN with (audit_canonical for v1 rows,
+// audit_canonical_v2 for v2) — the DB's own functions are the shared source of
+// truth so the recompute matches the trigger exactly, and a canonical upgrade
+// never orphans existing history.
 export async function verifyAuditChain(pool: Pool): Promise<ChainVerification> {
   const { rows } = await pool.query(
     `WITH chain AS (
@@ -39,7 +42,10 @@ export async function verifyAuditChain(pool: Pool): Promise<ChainVerification> {
               lag(row_hash) OVER (ORDER BY id) AS actual_prev,
               digest(
                 coalesce(lag(row_hash) OVER (ORDER BY id), '\\x'::bytea) ||
-                audit_canonical(id, ts, installation_id, repo, event_type, actor, payload, plain_english),
+                CASE canon_version
+                  WHEN 2 THEN audit_canonical_v2(id, ts, installation_id, repo, event_type, actor, payload, plain_english)
+                  ELSE audit_canonical(id, ts, installation_id, repo, event_type, actor, payload, plain_english)
+                END,
                 'sha256'
               ) AS recomputed
        FROM audit_events
@@ -85,11 +91,15 @@ export interface AnchorRecord extends ChainHead {
 }
 
 // Write-once storage. append() must never overwrite; latest() returns the most
-// recent anchor (or null). Implementations: InMemoryAnchor (tests), FileAnchor
-// (dev/self-host, append-only file), S3ObjectLockAnchor (prod — documented).
+// recent anchor (or null); list() returns every anchor oldest-first (V2 — the
+// evidence package ships the anchors covering its segment so a verifier can
+// check them against an independently fetched copy). Implementations:
+// InMemoryAnchor (tests), FileAnchor (dev/self-host, append-only file),
+// S3ObjectLockAnchor (prod — documented).
 export interface Anchor {
   append(rec: AnchorRecord): Promise<void>;
   latest(): Promise<AnchorRecord | null>;
+  list(): Promise<AnchorRecord[]>;
 }
 
 // Snapshot the current chain head and commit it to the anchor. Returns the
@@ -155,6 +165,7 @@ export class InMemoryAnchor implements Anchor {
   private recs: AnchorRecord[] = [];
   append(rec: AnchorRecord): Promise<void> { this.recs.push(rec); return Promise.resolve(); }
   latest(): Promise<AnchorRecord | null> { return Promise.resolve(this.recs.at(-1) ?? null); }
+  list(): Promise<AnchorRecord[]> { return Promise.resolve([...this.recs]); }
   all(): AnchorRecord[] { return [...this.recs]; }
 }
 
@@ -168,16 +179,19 @@ export class FileAnchor implements Anchor {
     await appendFile(this.path, JSON.stringify(rec) + "\n", "utf8");
   }
   async latest(): Promise<AnchorRecord | null> {
+    const all = await this.list();
+    return all.at(-1) ?? null;
+  }
+  async list(): Promise<AnchorRecord[]> {
     const { readFile } = await import("node:fs/promises");
     let text: string;
     try {
       text = await readFile(this.path, "utf8");
     } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw err;
     }
-    const lines = text.trim().split("\n").filter(Boolean);
-    return lines.length ? (JSON.parse(lines.at(-1)!) as AnchorRecord) : null;
+    return text.trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as AnchorRecord);
   }
 }
 
@@ -258,24 +272,39 @@ export class S3ObjectLockAnchor implements Anchor {
     );
   }
 
-  async latest(): Promise<AnchorRecord | null> {
-    const { ListObjectsV2Command, GetObjectCommand } = await import("@aws-sdk/client-s3");
+  private async listKeys(): Promise<string[]> {
+    const { ListObjectsV2Command } = await import("@aws-sdk/client-s3");
     const client = await this.s3();
     const listPrefix = `${this.prefix}anchors/`;
-    let maxKey: string | null = null;
+    const keys: string[] = [];
     let token: string | undefined;
     do {
       const res = await client.send(
         new ListObjectsV2Command({ Bucket: this.bucket, Prefix: listPrefix, ContinuationToken: token })
       );
-      for (const o of res.Contents ?? []) {
-        if (o.Key && (maxKey === null || o.Key > maxKey)) maxKey = o.Key;
-      }
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (token);
-    if (!maxKey) return null;
-    const got = await client.send(new GetObjectCommand({ Bucket: this.bucket, Key: maxKey }));
-    const body = await got.Body.transformToString();
-    return JSON.parse(body) as AnchorRecord;
+    return keys.sort(); // zero-padded keys: lexical order == chain order
+  }
+
+  private async fetch(key: string): Promise<AnchorRecord> {
+    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const client = await this.s3();
+    const got = await client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    return JSON.parse(await got.Body.transformToString()) as AnchorRecord;
+  }
+
+  async latest(): Promise<AnchorRecord | null> {
+    const keys = await this.listKeys();
+    const maxKey = keys.at(-1);
+    return maxKey ? this.fetch(maxKey) : null;
+  }
+
+  async list(): Promise<AnchorRecord[]> {
+    const keys = await this.listKeys();
+    const out: AnchorRecord[] = [];
+    for (const k of keys) out.push(await this.fetch(k));
+    return out;
   }
 }

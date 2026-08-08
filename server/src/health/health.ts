@@ -89,12 +89,12 @@ async function protectionVital(pool: Pool, repo: string | null): Promise<HealthV
   }
   const { rows } = await pool.query(
     `SELECT event_type FROM audit_events
-     WHERE repo = $1 AND event_type IN ('protection.configured','protection.weakened')
+     WHERE repo = $1 AND event_type IN ('protection.configured','protection.weakened','exception.protection_weakened')
      ORDER BY ts DESC, id DESC LIMIT 1`,
     [repo]
   );
   const latest = rows[0]?.event_type as string | undefined;
-  if (latest === "protection.weakened") {
+  if (latest === "protection.weakened" || latest === "exception.protection_weakened") {
     return { ...base, status: "at risk",
       finding: `Branch protection on the default branch was weakened — force-pushes or deletions may now be allowed, and changes can bypass review.`,
       prescription: "Re-enable protection so the default branch requires a reviewed pull request and blocks force-pushes and deletions." };

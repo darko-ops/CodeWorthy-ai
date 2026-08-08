@@ -10,9 +10,9 @@ const TONE_COLOR: Record<Tone, string> = { alert: "#dc2626", attention: "#d97706
 const TONE_DOT: Record<Tone, string> = { alert: "🔴", attention: "🟡", good: "🟢", neutral: "⚪" };
 
 function toneOf(eventType: string): Tone {
-  if (eventType === "protection.weakened") return "alert";
+  if (eventType === "protection.weakened" || eventType.startsWith("exception.")) return "alert";
   if (eventType.startsWith("push.direct") || eventType.startsWith("mechanic.")) return "attention";
-  if (eventType.startsWith("pull_request") || eventType === "protection.configured") return "good";
+  if (eventType.startsWith("pull_request") || eventType === "change.merged" || eventType === "protection.configured") return "good";
   return "neutral";
 }
 

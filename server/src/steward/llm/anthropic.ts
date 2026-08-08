@@ -15,8 +15,11 @@ export interface LlmReviewRequest {
 }
 
 // Returns the parsed JSON object the model produced (validated against `schema`
-// by the API's structured-output). Kept deliberately narrow.
+// by the API's structured-output). Kept deliberately narrow. `model` names the
+// model that will answer — recorded as provenance on every review's audit event
+// so generated advice is never unattributed.
 export interface LlmClient {
+  readonly model?: string;
   review(req: LlmReviewRequest): Promise<unknown>;
 }
 
@@ -31,6 +34,7 @@ export function getAnthropicClient(): LlmClient | null {
   const anthropic = new Anthropic({ apiKey });
 
   return {
+    model: DEFAULT_MODEL,
     async review(req: LlmReviewRequest): Promise<unknown> {
       // Stream + finalMessage: an LLM review can run long; streaming avoids
       // request timeouts. Structured output constrains the shape; adaptive

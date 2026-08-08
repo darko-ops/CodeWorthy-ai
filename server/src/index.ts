@@ -5,6 +5,7 @@ import Fastify from "fastify";
 import { Pool } from "pg";
 import { config } from "./config.js";
 import { registerApi } from "./api/health.js";
+import { registerAnchors } from "./api/anchors.js";
 import { registerSteward } from "./steward/routes.js";
 import { recentChangelog } from "./audit/audit.js";
 import { verifyAuditChain, verifyAgainstAnchor, makeAnchor } from "./audit/tamper.js";
@@ -71,6 +72,16 @@ export function buildServer(pool: Pool) {
   registerAuthRoutes(app, pool);
   registerSteward(app, pool);
   registerApi(app, pool);
+  // V4: the public read surface of the write-once anchor store.
+  registerAnchors(
+    app,
+    makeAnchor(config.anchor),
+    config.anchor.s3Bucket
+      ? `s3://${config.anchor.s3Bucket}/${config.anchor.s3Prefix ?? ""}anchors/ (Object Lock, compliance mode)`
+      : config.anchor.file
+        ? `append-only file: ${config.anchor.file}`
+        : null
+  );
   return app;
 }
 
