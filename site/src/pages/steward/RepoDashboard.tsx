@@ -13,6 +13,9 @@ import {
   type HealthReport,
   type HealthVital,
   type InstallationSummary,
+  type Overall,
+  type OverviewReport,
+  type RepoOverview,
   type RepoSummary,
   type VitalStatus,
 } from "../../api";
@@ -57,7 +60,7 @@ export function RepoDashboard() {
   const [health, setHealth] = useState<HealthReport | null>(null);
   const [windowDays, setWindowDays] = useState<number>(30);
   const [filter, setFilter] = useState("");
-  const [flags, setFlags] = useState<Record<string, number>>({});
+  const [overview, setOverview] = useState<OverviewReport | null>(null);
 
   // Load installations once authed.
   useEffect(() => {
@@ -75,18 +78,26 @@ export function RepoDashboard() {
     };
   }, [status]);
 
-  // Flagged-event counts for every repo in one call — powers the rail badges,
-  // so a problem repo is visible without opening it. Refreshes with the window.
+  // The portfolio overview — one call powers the main dashboard AND the rail's
+  // per-repo status dots + flag badges, so a problem repo is visible without
+  // opening it. Refreshes with the window.
   useEffect(() => {
     if (status !== "authed") return;
     let live = true;
-    apiGet<Record<string, number>>(`/api/me/repo-flags?days=${windowDays}`)
-      .then((f) => live && setFlags(f))
-      .catch(() => live && setFlags({}));
+    apiGet<OverviewReport>(`/api/me/overview?days=${windowDays}`)
+      .then((o) => live && setOverview(o))
+      .catch(() => live && setOverview(null));
     return () => {
       live = false;
     };
   }, [status, windowDays]);
+
+  // Per-repo overview keyed by full name (rail badges + status dots).
+  const byRepo = useMemo(() => {
+    const m: Record<string, RepoOverview> = {};
+    for (const r of overview?.repos ?? []) m[r.full_name] = r;
+    return m;
+  }, [overview]);
 
   // Load repos for each installation as installs arrive.
   useEffect(() => {
@@ -102,17 +113,8 @@ export function RepoDashboard() {
     };
   }, [installs]);
 
-  // Auto-select the first repo we learn about.
-  const firstRepo = useMemo(() => {
-    for (const inst of installs ?? []) {
-      const rs = repos[inst.id];
-      if (rs && rs.length) return rs[0]!.full_name;
-    }
-    return null;
-  }, [installs, repos]);
-  useEffect(() => {
-    if (!selectedRepo && firstRepo) setSelectedRepo(firstRepo);
-  }, [firstRepo, selectedRepo]);
+  // Default view is the Overview (selectedRepo == null); repos are drilled into
+  // from the rail or the overview cards.
 
   // Load the selected repo's health checkup (vitals + integrity) over the chosen
   // window. Best-effort: a failure just hides the card, never blocks activity.
@@ -167,6 +169,16 @@ export function RepoDashboard() {
     <DashShell user={user?.login ?? undefined} onSignOut={signOut}>
       <div className="repo-dash">
         <aside className="repo-rail">
+          <button
+            className={"repo-overview-nav" + (selectedRepo === null ? " selected" : "")}
+            onClick={() => setSelectedRepo(null)}
+          >
+            <span className="repo-overview-icon" aria-hidden>▦</span>
+            Overview
+            {overview && overview.totals.atRisk + overview.totals.needsAttention > 0 && (
+              <span className="repo-flag">{overview.totals.atRisk + overview.totals.needsAttention}</span>
+            )}
+          </button>
           <div className="repo-rail-head">Your repositories</div>
           {allRepos.length > 6 && (
             <input
@@ -197,13 +209,22 @@ export function RepoDashboard() {
                   <span>{inst.account}</span>
                 </div>
                 {list.map((r) => {
-                  const flagged = flags[r.full_name] ?? 0;
+                  const o = byRepo[r.full_name];
+                  const flagged = o?.flagged ?? 0;
                   return (
                     <button
                       key={r.full_name}
                       className={"repo-item" + (r.full_name === selectedRepo ? " selected" : "")}
                       onClick={() => setSelectedRepo(r.full_name)}
                     >
+                      {o && (
+                        <span
+                          className="repo-status-dot"
+                          style={{ background: OVERALL_DOT[o.overall] }}
+                          title={o.overall}
+                          aria-hidden
+                        />
+                      )}
                       <span className="repo-item-name">{r.name}</span>
                       {flagged > 0 ? (
                         <span className="repo-flag" title={`${flagged} flagged in the last ${windowDays} days`}>
@@ -231,16 +252,28 @@ export function RepoDashboard() {
             allRepos.length === 0 && installs ? (
               <div className="repo-blank">
                 <h2>Nothing to watch yet</h2>
-                <p className="hint">Once CodeWorthy is installed on a repository, its activity shows up here.</p>
+                <p className="hint">
+                  Once CodeWorthy is installed on a repository, it shows up here.{" "}
+                  <a className="repo-link" href={installUrl} target="_blank" rel="noreferrer">Add a repository →</a>
+                </p>
               </div>
+            ) : overview ? (
+              <OverviewPanel
+                report={overview}
+                windowDays={windowDays}
+                onWindow={setWindowDays}
+                onSelect={setSelectedRepo}
+              />
             ) : (
-              <Waking label="Loading repositories…" />
+              <Waking label="Building your overview…" />
             )
           ) : (
             <>
               <header className="repo-header">
                 <div>
-                  <div className="repo-eyebrow">Repository</div>
+                  <button className="repo-back" onClick={() => setSelectedRepo(null)}>
+                    ← Overview
+                  </button>
                   <h1 className="repo-title">{selectedRepo}</h1>
                 </div>
                 <div className="repo-header-right">
@@ -314,6 +347,117 @@ const OVERALL_STATUS: Record<HealthReport["overall"], VitalStatus> = {
   "Needs attention": "watch",
   "At risk": "at risk",
 };
+// The 4-value portfolio status → a dot color (adds "Quiet" for no-data repos).
+const OVERALL_DOT: Record<Overall, string> = {
+  "At risk": "var(--rating-needs)",
+  "Needs attention": "var(--rating-develop)",
+  Healthy: "var(--rating-strong)",
+  Quiet: "var(--rating-none)",
+};
+
+// The portfolio overview — every repo at a high level, most-attention first.
+function OverviewPanel({
+  report,
+  windowDays,
+  onWindow,
+  onSelect,
+}: {
+  report: OverviewReport;
+  windowDays: number;
+  onWindow: (d: number) => void;
+  onSelect: (repo: string) => void;
+}) {
+  const t = report.totals;
+  return (
+    <div className="overview">
+      <header className="repo-header">
+        <div>
+          <div className="repo-eyebrow">All repositories</div>
+          <h1 className="repo-title" style={{ fontFamily: "var(--sans)" }}>Overview</h1>
+        </div>
+        <div className="repo-header-right">
+          <div className="window-control" role="tablist" aria-label="Time window">
+            {WINDOWS.map((d) => (
+              <button
+                key={d}
+                role="tab"
+                aria-selected={windowDays === d}
+                className={windowDays === d ? "selected" : ""}
+                onClick={() => onWindow(d)}
+              >
+                {d}d
+              </button>
+            ))}
+          </div>
+        </div>
+      </header>
+
+      <div className="stat-tiles">
+        <StatTile label="Repositories" value={t.repos} tone="neutral" />
+        <StatTile label="At risk" value={t.atRisk} tone={t.atRisk > 0 ? "at risk" : "ok"} />
+        <StatTile label="Needs attention" value={t.needsAttention} tone={t.needsAttention > 0 ? "watch" : "ok"} />
+        <StatTile label={`Flagged · ${windowDays}d`} value={t.flagged} tone={t.flagged > 0 ? "at risk" : "ok"} />
+      </div>
+
+      <div className={"overview-integrity" + (report.integrity.ok ? " ok" : " warn")}>
+        <span aria-hidden>{report.integrity.ok ? "🛡️" : "⚠️"}</span>
+        <span>{report.integrity.headline}</span>
+      </div>
+
+      {report.repos.length === 0 ? (
+        <div className="repo-blank">
+          <h2>No repositories yet</h2>
+          <p className="hint">Add CodeWorthy to a repository to see it here.</p>
+        </div>
+      ) : (
+        <div className="repo-cards">
+          {report.repos.map((r) => (
+            <RepoCard key={r.full_name} repo={r} windowDays={windowDays} onSelect={onSelect} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatTile({ label, value, tone }: { label: string; value: number; tone: "neutral" | "ok" | "watch" | "at risk" }) {
+  return (
+    <div className={"stat-tile tone-" + tone.replace(" ", "-")}>
+      <div className="stat-value">{value}</div>
+      <div className="stat-label">{label}</div>
+    </div>
+  );
+}
+
+function RepoCard({
+  repo,
+  windowDays,
+  onSelect,
+}: {
+  repo: RepoOverview;
+  windowDays: number;
+  onSelect: (repo: string) => void;
+}) {
+  return (
+    <button className="repo-card" onClick={() => onSelect(repo.full_name)}>
+      <div className="repo-card-top">
+        <span className="repo-card-status" style={{ background: OVERALL_DOT[repo.overall] }} aria-hidden />
+        <span className="repo-card-name">{repo.full_name}</span>
+        {repo.flagged > 0 && <span className="repo-flag">{repo.flagged}</span>}
+      </div>
+      <div className="repo-card-overall" style={{ color: OVERALL_DOT[repo.overall] }}>
+        {repo.overall}
+      </div>
+      <div className="repo-card-meta">
+        <span title="Branch protection">
+          {repo.protection === "healthy" ? "🔒 protected" : repo.protection === "at risk" ? "🔓 weakened" : "🔓 open"}
+        </span>
+        <span>{repo.events} event{repo.events === 1 ? "" : "s"} · {windowDays}d</span>
+        <span>{repo.lastActivity ? `active ${ago(repo.lastActivity)}` : "no activity yet"}</span>
+      </div>
+    </button>
+  );
+}
 
 // The health card: a status ring (filled by how many vitals are healthy,
 // colored by the overall status), the vitals with their findings, and the

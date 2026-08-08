@@ -139,3 +139,22 @@ export interface HealthReport {
   integrity: { ok: boolean; headline: string; chain: string; anchor: string };
   note: string;
 }
+
+// The portfolio overview (main dashboard).
+export type Overall = "Healthy" | "Needs attention" | "At risk" | "Quiet";
+export interface RepoOverview {
+  full_name: string;
+  overall: Overall;
+  protection: "healthy" | "watch" | "at risk";
+  review: VitalStatus;
+  flagged: number;
+  events: number;
+  lastActivity: string | null;
+}
+export interface OverviewReport {
+  generatedAt: string;
+  windowDays: number;
+  repos: RepoOverview[];
+  totals: { repos: number; needsAttention: number; atRisk: number; flagged: number };
+  integrity: { ok: boolean; headline: string };
+}

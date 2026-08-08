@@ -10,6 +10,7 @@ import type { Pool } from "pg";
 import { config } from "../config.js";
 import { recentChangelog } from "../audit/audit.js";
 import { buildHealthReport } from "../health/health.js";
+import { buildOverview } from "../health/overview.js";
 import { flaggedCountsByRepo } from "../digest/digest.js";
 import {
   authorizeUrl,
@@ -114,6 +115,17 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     }));
   });
 
+  // Every repo full-name this user can see through their installations.
+  async function accessibleRepos(token: string): Promise<string[]> {
+    const insts = await listInstallations(token);
+    const out: string[] = [];
+    for (const inst of insts) {
+      const rs = await listRepositories(token, inst.id);
+      for (const r of rs) out.push(r.full_name);
+    }
+    return out;
+  }
+
   // Flagged-event counts for every repo the user can see, in one call — so the
   // rail can badge problem repos without a health report per repo.
   app.get("/api/me/repo-flags", async (req, reply) => {
@@ -121,13 +133,17 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     if (!s) return;
     const q = req.query as { days?: string };
     const days = q.days ? parseInt(q.days, 10) : 30;
-    const insts = await listInstallations(s.token);
-    const repos: string[] = [];
-    for (const inst of insts) {
-      const rs = await listRepositories(s.token, inst.id);
-      for (const r of rs) repos.push(r.full_name);
-    }
-    return flaggedCountsByRepo(pool, repos, days);
+    return flaggedCountsByRepo(pool, await accessibleRepos(s.token), days);
+  });
+
+  // The portfolio overview — all repos at a high level (per-repo status, flagged
+  // count, activity) plus global integrity, for the main dashboard.
+  app.get("/api/me/overview", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const q = req.query as { days?: string };
+    const days = q.days ? parseInt(q.days, 10) : 30;
+    return buildOverview(pool, await accessibleRepos(s.token), days);
   });
 
   app.get("/api/installations/:id/repositories", async (req, reply) => {
