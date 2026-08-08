@@ -1,6 +1,4 @@
-import { useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { homeForRole, useAuth, type Role } from "../auth";
+import { Link, useSearchParams } from "react-router-dom";
 import { useGitHubAuth } from "../github-auth";
 import { Wordmark } from "../components/Wordmark";
 import { VitalsMeter } from "../components/VitalsMeter";
@@ -8,14 +6,14 @@ import type { VitalStatus } from "../api";
 
 // OAuth failures come back as ?error=<code>; turn them into a plain sentence.
 const OAUTH_ERRORS: Record<string, string> = {
-  not_configured: "GitHub sign-in isn't finished being set up yet. Try the demo login below for now.",
+  not_configured: "GitHub sign-in isn't finished being set up yet. Please try again shortly.",
   bad_state: "That sign-in link expired. Please try connecting GitHub again.",
   oauth_failed: "GitHub sign-in didn't complete. Please try again.",
   no_session: "Something went wrong finishing sign-in. Please try again.",
   access_denied: "GitHub sign-in was cancelled.",
 };
 
-// Proof card on the dark panel: repo health, not a candidate score.
+// Proof card on the dark panel: repo health.
 const PROOF_VITALS: { id: string; label: string; status: VitalStatus }[] = [
   { id: "branch", label: "Branch protection", status: "healthy" },
   { id: "secrets", label: "Secret scanning", status: "watch" },
@@ -24,33 +22,11 @@ const PROOF_VITALS: { id: string; label: string; status: VitalStatus }[] = [
 ];
 
 export function Login() {
-  const { login } = useAuth();
   const { signIn } = useGitHubAuth();
-  const navigate = useNavigate();
-  const location = useLocation();
   const [params] = useSearchParams();
-  const initialRole: Role = params.get("role") === "merchant" ? "merchant" : "examinee";
-  const oauthError = params.get("error") ? (OAUTH_ERRORS[params.get("error")!] ?? "GitHub sign-in didn't complete.") : null;
-
-  const [role, setRole] = useState<Role>(initialRole);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-
-  const submit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!email.includes("@")) {
-      setError("Enter a valid email address.");
-      return;
-    }
-    if (password.length === 0) {
-      setError("Enter a password.");
-      return;
-    }
-    const session = login(email, role);
-    const from = (location.state as { from?: string } | null)?.from;
-    navigate(from ?? homeForRole(session.role), { replace: true });
-  };
+  const oauthError = params.get("error")
+    ? OAUTH_ERRORS[params.get("error")!] ?? "GitHub sign-in didn't complete."
+    : null;
 
   return (
     <div className="signin">
@@ -83,7 +59,7 @@ export function Login() {
           </div>
         </div>
 
-        <form className="signin-form" onSubmit={submit}>
+        <div className="signin-form">
           <h1 className="signin-h1">Sign in</h1>
           <p className="signin-deck">
             GitHub is how Codeworthy connects to your repositories — there's nothing else to set up.
@@ -99,57 +75,10 @@ export function Login() {
           </button>
           <p className="signin-scopes">read + comment scopes only · no write access</p>
 
-          <div className="signin-or"><span>or explore the demo</span></div>
-
-          <div className="signin-roles" role="tablist" aria-label="Account type">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={role === "examinee"}
-              className={"signin-role-card" + (role === "examinee" ? " selected" : "")}
-              onClick={() => setRole("examinee")}
-            >
-              <span className="signin-role-title">Taking an assessment</span>
-              <span className="signin-role-sub">See the candidate view</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={role === "merchant"}
-              className={"signin-role-card" + (role === "merchant" ? " selected" : "")}
-              onClick={() => setRole("merchant")}
-            >
-              <span className="signin-role-title">Hiring</span>
-              <span className="signin-role-sub">See the reviewer view</span>
-            </button>
-          </div>
-
-          <div className="signin-field">
-            <label htmlFor="email">Email</label>
-            <input
-              id="email"
-              type="email"
-              placeholder={role === "merchant" ? "you@company.com" : "you@example.com"}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="signin-field signin-field-last">
-            <label htmlFor="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-
-          {error && <p className="signin-error">{error}</p>}
-
-          <button type="submit" className="signin-submit">Enter the demo</button>
-        </form>
+          <p className="signin-newhere">
+            New to Codeworthy? Signing in lets you pick which repositories to add.
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -2259,27 +2259,12 @@ code {
 .signin-deck { font: 400 14px/1.6 var(--sans); color: var(--ink-muted); margin: 0 0 28px; }
 .signin-github { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 15px; background: var(--ink); color: #fff; border: none; border-radius: 10px; font: 600 15px var(--sans); cursor: pointer; transition: background 0.18s, transform 0.18s; }
 .signin-github:hover { background: #16283a; }
-.signin-scopes { font: 500 12px/1.5 var(--mono); color: var(--ink-faint); margin: 14px 0 0; text-align: center; }
-.signin-or { display: flex; align-items: center; gap: 14px; margin: 32px 0; color: var(--ink-faint); font: 500 12px var(--sans); }
-.signin-or::before, .signin-or::after { content: ""; flex: 1; height: 1px; background: var(--hairline); }
-.signin-roles { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
-.signin-role-card { display: flex; flex-direction: column; text-align: left; padding: 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--page); cursor: pointer; font-family: var(--sans); transition: border-color 0.18s, background 0.18s, color 0.18s; }
-.signin-role-card:hover { border-color: var(--ink); }
-.signin-role-title { font: 600 14px var(--sans); color: var(--ink); margin-bottom: 3px; }
-.signin-role-sub { font: 400 12px var(--sans); color: var(--ink-muted); }
-.signin-role-card.selected { background: var(--ink); border-color: var(--ink); }
+.signin-scopes { font: 500 12px/1.5 var(--mono); color: var(--ink-faint); margin: 14px 0 0; text-align: center; }.signin-role-card.selected { background: var(--ink); border-color: var(--ink); }
 .signin-role-card.selected .signin-role-title { color: #fff; }
-.signin-role-card.selected .signin-role-sub { color: var(--on-dark-4); }
-.signin-field { margin-bottom: 14px; }
-.signin-field-last { margin-bottom: 22px; }
-.signin-field label { display: block; font: 600 12px var(--sans); color: var(--ink-2); margin-bottom: 7px; }
-.signin-field input { width: 100%; padding: 13px 14px; font: 400 15px var(--sans); color: var(--ink); background: var(--page); border: 1px solid var(--border); border-radius: 9px; transition: border-color 0.18s; }
-.signin-field input::placeholder { color: var(--ink-faint); }
-.signin-field input:focus { outline: 2px solid var(--focus); outline-offset: 0; border-color: transparent; }
-.signin-submit { width: 100%; padding: 14px; border: none; border-radius: 10px; background: var(--surface-2); color: var(--ink-2); font: 600 15px var(--sans); cursor: pointer; transition: background 0.18s, transform 0.18s; }
-.signin-submit:hover { background: #dfe4e8; }
-.signin-error { background: var(--risk-wash); border: 1px solid var(--risk-line); color: var(--risk-ink); border-radius: 9px; padding: 10px 12px; font: 500 13px var(--sans); margin: 0 0 16px; }
+.signin-role-card.selected .signin-role-sub { color: var(--on-dark-4); }.signin-error { background: var(--risk-wash); border: 1px solid var(--risk-line); color: var(--risk-ink); border-radius: 9px; padding: 10px 12px; font: 500 13px var(--sans); margin: 0 0 16px; }
 @media (max-width: 900px) {
   .signin-split { grid-template-columns: 1fr; min-height: 0; }
   .signin-brand, .signin-form { padding: 40px 28px; }
 }
+
+.signin-newhere { font: 400 13px/1.6 var(--sans); color: var(--ink-faint); text-align: center; margin: 18px 0 0; }

@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireRole } from "./auth";
-import { getSessionId } from "./api";
 import { Shell } from "./components/Shell";
 import { Landing } from "./pages/Landing";
 import { Login } from "./pages/Login";
@@ -9,7 +8,6 @@ import { RepoDashboard } from "./pages/steward/RepoDashboard";
 import { Learn } from "./pages/examinee/Learn";
 import { ExamPage } from "./pages/examinee/ExamPage";
 import { Result } from "./pages/examinee/Result";
-import { Dashboard } from "./pages/merchant/Dashboard";
 import { CandidatePage } from "./pages/merchant/CandidatePage";
 import { Settings } from "./pages/merchant/Settings";
 import { Team } from "./pages/merchant/Team";
@@ -24,13 +22,6 @@ function merchant(page: React.ReactNode) {
   return <RequireRole role="merchant">{page}</RequireRole>;
 }
 
-// /dashboard serves two audiences without colliding: a GitHub-signed-in user
-// (a stored Steward session) gets the live repo dashboard; anyone else falls
-// through to the legacy demo hiring dashboard behind the mock role login.
-function DashboardHome() {
-  return getSessionId() ? <RepoDashboard /> : merchant(<Dashboard />);
-}
-
 export default function App() {
   return (
     <Routes>
@@ -38,7 +29,8 @@ export default function App() {
       <Route path="/" element={<Landing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/auth/complete" element={<AuthComplete />} />
-      <Route path="/dashboard" element={<DashboardHome />} />
+      {/* GitHub-only: RepoDashboard sends anon visitors to /login. */}
+      <Route path="/dashboard" element={<RepoDashboard />} />
 
       {/* Legacy examinee/merchant screens keep the Shell chrome. */}
       <Route element={<Shell />}>
