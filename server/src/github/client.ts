@@ -33,6 +33,8 @@ export interface GitHubClient {
   // Merge evidence reads (V0.2): who approved, and what the checks said.
   listPullRequestReviews(repo: string, number: number): Promise<unknown>;
   listCheckRunsForRef(repo: string, ref: string): Promise<unknown>;
+  // Reconciliation read (V1): the ground-truth population of merged PRs.
+  listPullRequests(repo: string, params?: Record<string, string>): Promise<unknown>;
   getBranch(repo: string, branch: string): Promise<unknown>;
   getBranchProtection(repo: string, branch: string): Promise<unknown>;
   listCommits(repo: string, params?: Record<string, string>): Promise<unknown>;
@@ -58,6 +60,7 @@ export function createGitHubClient(token: string): GitHubClient {
     listIssueComments: (repo, number) => gh(token, "GET", `/repos/${repo}/issues/${number}/comments?per_page=100`),
     listPullRequestReviews: (repo, number) => gh(token, "GET", `/repos/${repo}/pulls/${number}/reviews?per_page=100`),
     listCheckRunsForRef: (repo, ref) => gh(token, "GET", `/repos/${repo}/commits/${ref}/check-runs?per_page=100`),
+    listPullRequests: (repo, params = {}) => gh(token, "GET", `/repos/${repo}/pulls?${new URLSearchParams(params)}`),
     getBranch: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}`),
     getBranchProtection: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}/protection`),
     listCommits: (repo, params = {}) => gh(token, "GET", `/repos/${repo}/commits?${new URLSearchParams(params)}`),

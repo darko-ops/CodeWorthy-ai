@@ -24,6 +24,7 @@ class FakeClient implements GitHubClient {
   listIssueComments(...a: any[]) { this.calls.push({ m: "listIssueComments", args: a }); return Promise.resolve(this.comments); }
   updateIssueComment(...a: any[]) { return this.rec("updateIssueComment", a, {}); }
   listPullRequestReviews(...a: any[]) { return this.rec("listPullRequestReviews", a, []); }
+  listPullRequests(...a: any[]) { return this.rec("listPullRequests", a, []); }
   listCheckRunsForRef(...a: any[]) { return this.rec("listCheckRunsForRef", a, { check_runs: [] }); }
   getBranch(...a: any[]) { return this.rec("getBranch", a, {}); }
   getBranchProtection(...a: any[]) { return this.rec("getBranchProtection", a, null); }

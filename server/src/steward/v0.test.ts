@@ -27,6 +27,7 @@ class FakeClient implements GitHubClient {
     this.calls.push({ m: "listPullRequestReviews", args: a });
     return this.failReviews ? Promise.reject(new Error("boom")) : Promise.resolve(this.reviews);
   }
+  listPullRequests(...a: any[]) { return this.rec("listPullRequests", a, []); }
   listCheckRunsForRef(...a: any[]) { this.calls.push({ m: "listCheckRunsForRef", args: a }); return Promise.resolve(this.checkRuns); }
   getBranch(...a: any[]) { return this.rec("getBranch", a, {}); }
   getBranchProtection(...a: any[]) { this.calls.push({ m: "getBranchProtection", args: a }); return Promise.resolve(this.protection); }
