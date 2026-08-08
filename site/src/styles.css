@@ -1264,10 +1264,7 @@ tbody tr:hover {
 .lp-btn-primary { background: var(--signal); color: var(--signal-ink); }
 .lp-btn-primary:hover { background: #5fd6cd; }
 .lp-btn-ghost { border-color: rgba(255,255,255,0.18); color: var(--on-dark-2); background: transparent; }
-.lp-btn-ghost:hover { border-color: rgba(255,255,255,0.38); }
-.lp-btn-outline { border-color: var(--border); color: var(--ink); padding: 13px 24px; border-radius: 9px; font: 600 15px var(--sans); }
-.lp-btn-outline:hover { border-color: var(--ink); }
-.lp-btn-lg { padding: 15px 28px; border-radius: 10px; font: 600 16px var(--sans); }
+.lp-btn-ghost:hover { border-color: rgba(255,255,255,0.38); }.lp-btn-lg { padding: 15px 28px; border-radius: 10px; font: 600 16px var(--sans); }
 .lp-nav { background: var(--ink-900); border-bottom: 1px solid rgba(255,255,255,0.07); }
 .lp-nav-inner { display: flex; align-items: center; gap: 28px; min-height: 68px; }
 .lp-nav-brand { display: inline-flex; align-items: center; }
@@ -1336,16 +1333,7 @@ tbody tr:hover {
 .lp-rule-text { font: 400 17px/1.65 var(--sans); color: var(--on-dark-3); margin: 0; }
 .lp-rule-text strong { color: #fff; font-weight: 600; }
 .lp-chip-row { display: flex; gap: 10px; flex-wrap: wrap; }
-.lp-chip { font: 600 11px var(--mono); color: var(--on-dark-2); background: rgba(255,255,255,0.06); border: 1px solid var(--border-dark); padding: 7px 13px; border-radius: 7px; }
-.lp-hiring { background: var(--surface); }
-.lp-hiring .lp-inner { padding-block: 72px; }
-.lp-hiring-card { display: flex; align-items: center; gap: 40px; background: var(--page); border: 1px solid var(--hairline); border-radius: 14px; padding: 32px 36px; }
-.lp-hiring-copy { flex: 1; }
-.lp-hiring .lp-eyebrow { margin-bottom: 10px; }
-.lp-hiring-h3 { font: 700 24px var(--sans); letter-spacing: -0.025em; color: var(--ink); margin: 0 0 8px; }
-.lp-hiring-body { font: 400 15px/1.6 var(--sans); color: var(--ink-2); margin: 0; max-width: 640px; }
-.lp-hiring-card .lp-btn-outline { flex: none; }
-.lp-final { background: var(--ink-900); }
+.lp-chip { font: 600 11px var(--mono); color: var(--on-dark-2); background: rgba(255,255,255,0.06); border: 1px solid var(--border-dark); padding: 7px 13px; border-radius: 7px; }.lp-hiring .lp-inner { padding-block: 72px; }.lp-hiring .lp-eyebrow { margin-bottom: 10px; }.lp-final { background: var(--ink-900); }
 .lp-final-inner { text-align: center; padding-block: 84px 40px; }
 .lp-final-h2 { font: 800 44px var(--sans); letter-spacing: -0.035em; color: #fff; margin: 0 0 14px; }
 .lp-final-main { color: var(--signal); font-size: 0.82em; }

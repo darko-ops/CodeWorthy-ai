@@ -48,9 +48,6 @@ export function Landing() {
           <a className="lp-nav-link" href="#catches">
             What it catches
           </a>
-          <a className="lp-nav-link" href="#hiring">
-            For hiring teams
-          </a>
           <div className="lp-nav-right">
             <Link to="/login" className="lp-nav-link">
               Sign in
@@ -228,27 +225,6 @@ export function Landing() {
               <span className="lp-chip">opt-in AI review</span>
               <span className="lp-chip">every action reversible</span>
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---- hiring band (surface) ---- */}
-      <section className="lp-band lp-hiring" id="hiring">
-        <div className="lp-inner">
-          <div className="lp-hiring-card">
-            <div className="lp-hiring-copy">
-              <p className="lp-eyebrow">Also — for hiring teams</p>
-              <h3 className="lp-hiring-h3">
-                The same engine that guards repos measures engineers
-              </h3>
-              <p className="lp-hiring-body">
-                Root cause, testing, systems thinking, git discipline — the rules Codeworthy enforces
-                are the competencies our assessment scores, with evidence instead of a number.
-              </p>
-            </div>
-            <Link to="/login?role=merchant" className="lp-btn lp-btn-outline">
-              See the assessment →
-            </Link>
           </div>
         </div>
       </section>
