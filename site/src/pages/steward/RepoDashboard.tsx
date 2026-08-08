@@ -24,6 +24,7 @@ import {
 const WINDOWS = [7, 30, 90] as const;
 import { useGitHubAuth } from "../../github-auth";
 import { Wordmark } from "../../components/Wordmark";
+import { VitalsMeter } from "../../components/VitalsMeter";
 
 // A short, human relative time ("3h ago") from an ISO timestamp.
 function ago(iso: string): string {
@@ -277,7 +278,6 @@ export function RepoDashboard() {
                   <h1 className="repo-title">{selectedRepo}</h1>
                 </div>
                 <div className="repo-header-right">
-                  <SummaryLink repo={selectedRepo} days={windowDays} />
                   <div className="window-control" role="tablist" aria-label="Time window">
                     {WINDOWS.map((d) => (
                       <button
@@ -291,13 +291,11 @@ export function RepoDashboard() {
                       </button>
                     ))}
                   </div>
-                  <div className="repo-doctrine" title="CodeWorthy advises; it never merges, force-pushes, or rewrites history.">
-                    advisory · you own every merge
-                  </div>
+                  <SummaryLink repo={selectedRepo} days={windowDays} />
                 </div>
               </header>
 
-              {health && <HealthCard report={health} windowDays={windowDays} />}
+              {health && <HealthCard report={health} windowDays={windowDays} activity={activity} />}
 
               {activityLoading && !activity && <Waking label="Reading the change log…" />}
               {activityErr && <ActivityError err={activityErr} />}
@@ -489,30 +487,44 @@ function RepoCard({
   );
 }
 
-// The health card: a status ring (filled by how many vitals are healthy,
-// colored by the overall status), the vitals with their findings, and the
-// tamper-evidence badge. No single opaque number — the word + the evidence.
-// "Details" expands the exact findings, the recommended fixes, and every change
-// that got flagged in the window — so a user can see what was a mistake.
-function HealthCard({ report, windowDays }: { report: HealthReport; windowDays: number }) {
+// The health card + the two cards stacked beside it. No ring: a verdict WORD
+// over a segmented vitals meter, then the vitals with findings and inline fixes.
+// Right column: a "this window" counters card and the tamper-evidence card.
+function HealthCard({
+  report,
+  windowDays,
+  activity,
+}: {
+  report: HealthReport;
+  windowDays: number;
+  activity: ActivityEvent[] | null;
+}) {
   const [open, setOpen] = useState(false);
   const overallStatus = OVERALL_STATUS[report.overall];
+  const verdictColor = STATUS_COLOR[overallStatus];
   const known = report.vitals.filter((v) => v.status !== "unknown");
-  const healthy = known.filter((v) => v.status === "healthy").length;
-  const pct = known.length ? (healthy / known.length) * 100 : 0;
+  const needLook = known.filter((v) => v.status !== "healthy").length;
   const alertCount = report.activity?.alerts?.length ?? 0;
+  const subline = `${needLook} of ${report.vitals.length} vitals ${needLook === 1 ? "needs" : "need"} a look · ${alertCount} change${alertCount === 1 ? "" : "s"} flagged`;
+
+  // Counters, from the windowed change log.
+  const ev = activity ?? [];
+  const merges = ev.filter(
+    (e) => e.event_type === "pull_request.merged" || e.event_type === "push.direct_to_default"
+  ).length;
+  const blocked = alertCount;
+  const secrets = ev.filter((e) => /secret|leak/i.test(e.event_type) && !/blocked/i.test(e.event_type)).length;
+
   return (
-    <section className="health-card-wrap">
-      <div className="health-card">
-        <HealthRing pct={pct} color={STATUS_COLOR[overallStatus]} overall={report.overall} alerts={alertCount} />
-        <div className="health-body">
-          <div className="health-vitals">
-            {report.vitals.map((v) => (
-              <VitalRow key={v.id} vital={v} />
-            ))}
-          </div>
-          <div className="health-foot">
-            <IntegrityBadge ok={report.integrity.ok} headline={report.integrity.headline} />
+    <>
+      <div className="health-row">
+        <section className="health-card">
+          <div className="health-card-head">
+            <div>
+              <div className="health-card-label">REPO HEALTH · {windowDays} DAYS</div>
+              <div className="health-verdict" style={{ color: verdictColor }}>{report.overall}</div>
+              <div className="health-subline">{subline}</div>
+            </div>
             <button
               className="health-details-btn"
               onClick={() => setOpen((o) => !o)}
@@ -522,90 +534,70 @@ function HealthCard({ report, windowDays }: { report: HealthReport; windowDays: 
               {alertCount > 0 && <span className="health-alert-count">{alertCount}</span>}
             </button>
           </div>
+          <VitalsMeter vitals={report.vitals} />
+          <div className="health-vitals">
+            {report.vitals.map((v) => (
+              <VitalRow key={v.id} vital={v} />
+            ))}
+          </div>
+        </section>
+
+        <div className="health-side">
+          <div className="counters-card">
+            <div className="counters-label">THIS WINDOW</div>
+            <div className="counter">
+              <div className="counter-value">{merges}</div>
+              <div className="counter-caption">merges to main</div>
+            </div>
+            <div className="counter">
+              <div className="counter-value" style={blocked > 0 ? { color: "var(--risk)" } : undefined}>{blocked}</div>
+              <div className="counter-caption">changes flagged</div>
+            </div>
+            <div className="counter">
+              <div className="counter-value" style={{ color: secrets > 0 ? "var(--risk)" : "var(--signal)" }}>{secrets}</div>
+              <div className="counter-caption">secrets reached main</div>
+            </div>
+          </div>
+          <div className="tamper-card">
+            <div className="tamper-title">{report.integrity.ok ? "Tamper-evident record" : "Integrity check needed"}</div>
+            <div className="tamper-body">{report.integrity.headline}</div>
+            {report.repoFilter && (
+              <a className="tamper-export" href={digestUrl(report.repoFilter, windowDays)} target="_blank" rel="noreferrer">
+                Export log ↓
+              </a>
+            )}
+          </div>
         </div>
       </div>
       {open && <HealthDetails report={report} windowDays={windowDays} />}
-    </section>
+    </>
   );
 }
 
-// The expanded checkup: recommended fixes (non-healthy vitals) and every change
-// flagged in the window — weakened protection, skipped review, and the like.
+// The expanded checkup: every change flagged in the window (the recommended
+// fixes now live inline on each vital row, so this is the flagged list only).
 function HealthDetails({ report, windowDays }: { report: HealthReport; windowDays: number }) {
   const alerts: DigestEntry[] = report.activity?.alerts ?? [];
-  const fixes = report.vitals.filter((v) => v.prescription && v.status !== "healthy");
   return (
     <div className="health-details">
-      <div className="health-details-grid">
-        <div>
-          <h3 className="health-details-head">What to look at</h3>
-          {fixes.length === 0 ? (
-            <p className="hint">No open recommendations — every vital is healthy in this window.</p>
-          ) : (
-            fixes.map((v) => (
-              <div key={v.id} className="fix-row">
-                <span className="vital-dot" style={{ background: STATUS_COLOR[v.status] }} aria-hidden />
-                <div>
-                  <div className="fix-label">{v.label}</div>
-                  <div className="fix-finding">{v.finding}</div>
-                  <div className="fix-rx">→ {v.prescription}</div>
-                </div>
+      <h3 className="health-details-head">Flagged changes · last {windowDays} days</h3>
+      {alerts.length === 0 ? (
+        <p className="hint">Nothing flagged — no weakened protection or skipped review in this window.</p>
+      ) : (
+        <ol className="flagged">
+          {alerts.map((a, i) => (
+            <li key={i} className="flagged-item">
+              <p className="flagged-text">{a.plainEnglish}</p>
+              <div className="activity-meta">
+                <code className="activity-type">{a.eventType}</code>
+                {a.actor && <span className="activity-actor">{a.actor}</span>}
+                <span className="activity-time">{ago(a.ts)}</span>
               </div>
-            ))
-          )}
-        </div>
-        <div>
-          <h3 className="health-details-head">Flagged in the last {windowDays} days</h3>
-          {alerts.length === 0 ? (
-            <p className="hint">Nothing flagged — no weakened protection or skipped review in this window.</p>
-          ) : (
-            <ol className="flagged">
-              {alerts.map((a, i) => (
-                <li key={i} className="flagged-item">
-                  <p className="flagged-text">{a.plainEnglish}</p>
-                  <div className="activity-meta">
-                    <code className="activity-type">{a.eventType}</code>
-                    {a.actor && <span className="activity-actor">{a.actor}</span>}
-                    <span className="activity-time">{ago(a.ts)}</span>
-                  </div>
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-      </div>
+            </li>
+          ))}
+        </ol>
+      )}
       <p className="health-note">{report.note}</p>
-    </div>
-  );
-}
-
-function HealthRing({
-  pct,
-  color,
-  overall,
-  alerts,
-}: {
-  pct: number;
-  color: string;
-  overall: string;
-  alerts: number;
-}) {
-  return (
-    <div className="health-ring-wrap">
-      <div
-        className="health-ring"
-        role="img"
-        aria-label={`Repository health: ${overall}${alerts > 0 ? `, ${alerts} flagged` : ""}`}
-        style={{ background: `conic-gradient(${color} ${pct}%, var(--surface-2) 0)` }}
-      >
-        <div className="health-ring-inner">
-          <span className="health-ring-label" style={{ color }}>{overall}</span>
-        </div>
-        {alerts > 0 && (
-          <span className="health-ring-flag" title={`${alerts} flagged in this window`}>{alerts}</span>
-        )}
-      </div>
-      <div className="health-ring-cap">repo health</div>
     </div>
   );
 }
@@ -615,14 +607,15 @@ function VitalRow({ vital }: { vital: HealthVital }) {
     <div className="vital-row">
       <span className="vital-dot" style={{ background: STATUS_COLOR[vital.status] }} aria-hidden />
       <div className="vital-text">
-        <div className="vital-label">
-          {vital.label}
-          <span className="vital-status" style={{ color: STATUS_COLOR[vital.status] }}>
-            {vital.status}
-          </span>
-        </div>
+        <div className="vital-label">{vital.label}</div>
         <div className="vital-finding">{vital.finding}</div>
+        {vital.status !== "healthy" && vital.prescription && (
+          <div className="vital-rx">→ {vital.prescription}</div>
+        )}
       </div>
+      <span className="vital-status status-word" style={{ color: STATUS_COLOR[vital.status] }}>
+        {vital.status}
+      </span>
     </div>
   );
 }
@@ -655,18 +648,6 @@ function SummaryLink({ repo, days }: { repo: string; days: number }) {
   );
 }
 
-function IntegrityBadge({ ok, headline }: { ok: boolean; headline: string }) {
-  return (
-    <div className={"integrity-badge" + (ok ? " ok" : " warn")} title={headline}>
-      <span className="integrity-icon" aria-hidden>{ok ? "🛡️" : "⚠️"}</span>
-      <div>
-        <div className="integrity-title">{ok ? "Tamper-evident" : "Integrity check needed"}</div>
-        <div className="integrity-sub">{headline}</div>
-      </div>
-    </div>
-  );
-}
-
 function DashShell({
   children,
   user,
@@ -676,12 +657,19 @@ function DashShell({
   user?: string;
   onSignOut?: () => void;
 }) {
+  const initials = user ? user.replace(/[^a-zA-Z0-9]/g, "").slice(0, 2).toUpperCase() : "";
   return (
     <div className="dash-wrap">
       <div className="dash-topbar">
-        <Wordmark size={18} />
+        <div className="dash-topbar-left">
+          <Wordmark size={18} onDark />
+          <span className="dash-doctrine" title="Codeworthy advises; it never merges, force-pushes, or rewrites history.">
+            advisory · you own every merge
+          </span>
+        </div>
         <div className="dash-topbar-right">
           {user && <span className="dash-user">@{user}</span>}
+          {user && <span className="dash-avatar" aria-hidden>{initials}</span>}
           {onSignOut && (
             <button className="dash-signout" onClick={onSignOut}>
               Sign out

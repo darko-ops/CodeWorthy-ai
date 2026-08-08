@@ -34,22 +34,26 @@ function DashboardHome() {
 export default function App() {
   return (
     <Routes>
+      {/* Redesigned screens bring their own chrome — no Shell wrapper. */}
+      <Route path="/" element={<Landing />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/auth/complete" element={<AuthComplete />} />
+      <Route path="/dashboard" element={<DashboardHome />} />
+
+      {/* Legacy examinee/merchant screens keep the Shell chrome. */}
       <Route element={<Shell />}>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/auth/complete" element={<AuthComplete />} />
         <Route path="/learn" element={examinee(<Learn />)} />
         <Route path="/learn/exams/:examId" element={examinee(<ExamPage />)} />
         <Route path="/learn/results/:examId" element={examinee(<Result />)} />
-        <Route path="/dashboard" element={<DashboardHome />} />
         <Route path="/dashboard/candidates/:candidateId" element={merchant(<CandidatePage />)} />
         <Route path="/dashboard/compare" element={merchant(<Compare />)} />
         <Route path="/dashboard/invite" element={merchant(<Invite />)} />
         <Route path="/dashboard/team" element={merchant(<Team />)} />
         <Route path="/dashboard/settings" element={merchant(<Settings />)} />
         <Route path="/dashboard/billing" element={merchant(<Billing />)} />
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
+
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

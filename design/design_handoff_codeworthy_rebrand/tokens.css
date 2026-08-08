@@ -1,0 +1,155 @@
+/* Codeworthy rebrand — drop-in replacement for the :root block
+   at the top of site/src/styles.css.
+
+   Names are kept from the existing file where possible. New names
+   are marked NEW. See README.md for the old -> new mapping table
+   and the color rules (notably: --signal never appears as text or
+   a border on white; use --signal-deep). */
+
+:root {
+  color-scheme: light;
+
+  /* ---- surfaces: light ---- */
+  --page:         #ffffff;
+  --surface:      #f2f4f6;   /* was #f7f9fa */
+  --surface-2:    #e8ecef;   /* was #eef2f4 */
+  --sand:         #efe9df;   /* NEW  warm editorial band */
+  --sand-ink:     #1f1a14;   /* NEW  headings on sand */
+  --sand-ink-2:   #6b6053;   /* NEW  body on sand */
+  --sand-eyebrow: #96826a;   /* NEW  eyebrow on sand */
+
+  /* ---- surfaces: dark ---- */
+  --ink-900:      #0b1621;   /* NEW  dark page */
+  --ink-800:      #101f2c;   /* NEW  dark card */
+  --ink-700:      #16283a;   /* NEW  elevated / dark button hover */
+  --line-dark:    #1b3040;   /* NEW  hairline on dark */
+  --border-dark:  #22384c;   /* NEW  border on dark */
+
+  /* ---- text ---- */
+  --ink:          #0d1b2a;
+  --ink-2:        #46607a;
+  --ink-muted:    #6b839a;
+  --ink-faint:    #94a7b8;
+  --on-dark:      #ffffff;   /* NEW */
+  --on-dark-2:    #cfe0e8;   /* NEW  primary body on dark */
+  --on-dark-3:    #a3b8c8;   /* NEW  secondary body on dark */
+  --on-dark-4:    #8fa8bb;   /* NEW  labels on dark */
+  --on-dark-5:    #6f8798;   /* NEW  meta on dark */
+  --on-dark-6:    #5d7488;   /* NEW  faintest on dark */
+
+  /* ---- brand ---- */
+  --signal:       #4cc9c0;   /* teal, ON DARK ONLY */
+  --signal-deep:  #0f8b82;   /* teal text/links on light (AA on white) */
+  --signal-press: #0b6f68;   /* NEW  hover/active on light */
+  --signal-ink:   #06232a;   /* NEW  text on a --signal fill */
+  --signal-wash:  #e6f6f4;   /* NEW */
+  --signal-line:  #b9e6e1;   /* NEW */
+
+  /* ---- status ---- */
+  --watch:        #e8b04b;
+  --watch-ink:    #9a6d10;
+  --watch-wash:   #fdf4e2;
+  --watch-line:   #f0dcb0;
+
+  --risk:         #e07a5f;
+  --risk-ink:     #b04e33;
+  --risk-wash:    #fdefea;
+  --risk-line:    #f3cec2;
+
+  --unknown:      #94a7b8;
+
+  /* ---- lines & shape ---- */
+  --hairline:     #e3e8ec;
+  --border:       #d3dbe2;
+  --focus:        #0f8b82;
+  --radius:       14px;
+  --radius-sm:    9px;
+  --radius-xs:    6px;
+
+  /* ---- type ---- */
+  --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ---------------------------------------------------------------------------
+   TEMPORARY migration aliases. Keep these while you convert screens so the
+   un-redesigned merchant/examinee pages keep rendering, then delete this
+   whole block (step 8 in the README migration order).
+--------------------------------------------------------------------------- */
+:root {
+  --accent:          var(--signal-deep);
+  --accent-strong:   var(--signal-deep);
+  --accent-bright:   var(--signal);
+  --accent-soft:     var(--signal-wash);
+  --accent-wash:     var(--signal-wash);
+  --accent-line:     var(--signal-line);
+  --navy:            var(--ink-900);
+  --navy-2:          var(--ink-800);
+  --navy-border:     var(--border-dark);
+  --navy-ink-2:      var(--on-dark-3);
+  --navy-muted:      var(--on-dark-5);
+  --brand-blue:      var(--ink);
+  --rating-strong:   var(--signal);
+  --rating-develop:  var(--watch);
+  --rating-needs:    var(--risk);
+  --rating-none:     var(--unknown);
+  --amber-bright:    var(--watch);
+  --highlight:       transparent; /* hero marker underline is deleted */
+}
+
+/* ---------------------------------------------------------------------------
+   The vitals meter — replaces components/Ring.tsx and all .health-ring* CSS.
+   One bar per vital, colored by that vital's status, under a large verdict
+   word. Scales honestly, reads at a glance, survives being small.
+--------------------------------------------------------------------------- */
+.vitals-meter {
+  display: flex;
+  gap: 5px;
+}
+.vitals-meter > span {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+}
+.vitals-meter.sm { gap: 4px; }
+.vitals-meter.sm > span { height: 5px; }
+
+.health-verdict {
+  font: 800 32px var(--sans);
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  /* color is set inline from STATUS_COLOR[overall] */
+}
+
+/* Status word that always accompanies a status dot. Never ship dot-only. */
+.status-word {
+  font: 600 11px var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* ---------------------------------------------------------------------------
+   Motion. Nothing longer than 200ms; no colored glows.
+--------------------------------------------------------------------------- */
+.btn, .card, .repo-item, .activity-item {
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+.btn { transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.18s; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+.dark :focus-visible,
+.repo-dash :focus-visible {
+  outline-color: var(--signal);
+}

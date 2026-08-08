@@ -1,8 +1,9 @@
-// The wordmark: one token, "Code" in ink navy, "Worthy" in green.
-export function Wordmark({ size = 18 }: { size?: number }) {
+// The wordmark: "Codeworthy." — lowercase w, trailing period. "worthy" and the
+// dot carry the teal accent (signal-deep on light, signal on dark).
+export function Wordmark({ size = 20, onDark = false }: { size?: number; onDark?: boolean }) {
   return (
-    <span className="wordmark" style={{ fontSize: size }}>
-      Code<span className="worthy">Worthy</span>
+    <span className={"wordmark" + (onDark ? " on-dark" : "")} style={{ fontSize: size }}>
+      Code<span className="worthy">worthy</span><span className="dot">.</span>
     </span>
   );
 }
