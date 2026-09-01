@@ -9,6 +9,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { config } from "../config.js";
 import { mapGitHubError } from "./apiErrors.js";
+import { allowedWebOrigins } from "./webOrigins.js";
 import { recentChangelog } from "../audit/audit.js";
 import { buildHealthReport } from "../health/health.js";
 import { buildOverview } from "../health/overview.js";
@@ -27,10 +28,13 @@ import {
 import { createSession, deleteSession, getSession, type UserSession } from "./session.js";
 
 export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
-  // --- CORS: allow the dashboard SPA origin to call /api/* with a bearer. ---
+  // --- CORS: allow the dashboard SPA origins to call /api/* with a bearer. ---
+  // Computed once at registration; an allowlist, never a wildcard, because
+  // these endpoints carry a bearer session.
+  const allowedOrigins = allowedWebOrigins(config.webBaseUrl, config.webOriginsExtra);
   app.addHook("onRequest", async (req, reply) => {
     const origin = req.headers.origin;
-    if (origin && origin === config.webBaseUrl) {
+    if (origin && allowedOrigins.has(origin)) {
       reply.header("access-control-allow-origin", origin);
       reply.header("vary", "origin");
       reply.header("access-control-allow-methods", "GET,POST,OPTIONS");
