@@ -53,6 +53,10 @@ export const config = {
   // The dashboard SPA origin (codeworthy.ai) — the OAuth callback redirects the
   // browser back here, and CORS allows it to call the /api/* endpoints.
   webBaseUrl: (process.env.STEWARD_WEB_BASE_URL ?? "https://codeworthy.ai").replace(/\/+$/, ""),
+  // Extra browser origins allowed to call /api/* (comma-separated). The apex and
+  // www forms of webBaseUrl are always allowed — see app/webOrigins.ts for why
+  // that mattered. Use this for a preview deployment or a second domain.
+  webOriginsExtra: process.env.STEWARD_WEB_ORIGINS ?? "",
   // Secret used to (a) HMAC-sign the OAuth `state` (CSRF) and (b) derive session
   // ids. Any long random string. Unset -> a boot-time random, which is fine for
   // a single instance but means sessions don't survive a restart.
