@@ -57,6 +57,26 @@ export function toStewardEvent(eventName: string, payload: Json): StewardEvent |
       }
       return null;
     }
+    case "repository_ruleset":
+    case "branch_protection_rule": {
+      // The raw fact that a protection rule changed, recorded independently of
+      // whatever CodeWorthy does about it. The enforcement action (weakening
+      // detected / protection restored) lands as its own event, so the spine
+      // holds both "someone changed the rule" and "here is what we did", and an
+      // auditor can line the two up by timestamp.
+      const action = payload.action ?? "changed";
+      const name = payload.repository_ruleset?.name ?? payload.rule?.name ?? "a protection rule";
+      const who = payload.sender?.login ?? "someone";
+      const isLoosening = action === "deleted" || action === "edited";
+      return event(
+        installationId,
+        repo,
+        isLoosening ? `exception.protection_rule_${action}` : `protection.rule_${action}`,
+        payload.sender?.login,
+        { rule: name, kind: eventName, action },
+        `${who} ${action} the protection rule "${name}" on ${repo}.`
+      );
+    }
     case "pull_request": {
       const num = payload.pull_request?.number;
       if (payload.action === "opened")

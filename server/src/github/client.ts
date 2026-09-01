@@ -22,8 +22,28 @@ async function gh(token: string, method: string, path: string, body?: unknown): 
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`GitHub ${method} ${path} -> ${res.status}`);
+  if (!res.ok) throw new GitHubHttpError(res.status, method, path);
   return res.status === 204 ? null : res.json();
+}
+
+/**
+ * A failed GitHub call, carrying the status.
+ *
+ * The status matters: "404, there is no protection here" and "403, we are not
+ * allowed to look" are the same string but opposite facts. Treating the second
+ * as the first would have the reconciler write repo settings on the strength of
+ * a permissions error, so callers branch on `status`, never on the message.
+ */
+export class GitHubHttpError extends Error {
+  constructor(readonly status: number, readonly method: string, readonly path: string) {
+    super(`GitHub ${method} ${path} -> ${status}`);
+    this.name = "GitHubHttpError";
+  }
+}
+
+/** True when GitHub said "there is nothing here" — absence, not inaccessibility. */
+export function isNotFound(err: unknown): boolean {
+  return err instanceof GitHubHttpError && err.status === 404;
 }
 
 export interface GitHubClient {
@@ -32,11 +52,19 @@ export interface GitHubClient {
   listIssueComments(repo: string, number: number): Promise<unknown>;
   // Merge evidence reads (V0.2): who approved, and what the checks said.
   listPullRequestReviews(repo: string, number: number): Promise<unknown>;
+  // The gate reads the PR's own commits (subjects) and the checks the repo's
+  // OWN CI reported on the head commit — that second read is what lets the
+  // gate refuse to pass a change whose tests are red.
+  listPullRequestCommits(repo: string, number: number): Promise<unknown>;
   listCheckRunsForRef(repo: string, ref: string): Promise<unknown>;
+  getPullRequest(repo: string, number: number): Promise<unknown>;
   // Reconciliation read (V1): the ground-truth population of merged PRs.
   listPullRequests(repo: string, params?: Record<string, string>): Promise<unknown>;
   getBranch(repo: string, branch: string): Promise<unknown>;
   getBranchProtection(repo: string, branch: string): Promise<unknown>;
+  // Repository rulesets — the modern protection primitive (see rulesets.ts).
+  listRepoRulesets(repo: string): Promise<unknown>;
+  getRepoRuleset(repo: string, rulesetId: number): Promise<unknown>;
   listCommits(repo: string, params?: Record<string, string>): Promise<unknown>;
   listInstallationRepositories(): Promise<{ full_name: string; default_branch: string }[]>;
   // ── write: additive + reversible only ──
@@ -47,9 +75,30 @@ export interface GitHubClient {
   // comment per push — noise discipline). Never used on a human's comment.
   updateIssueComment(repo: string, commentId: number, body: string): Promise<unknown>;
   createCommitComment(repo: string, sha: string, body: string): Promise<unknown>;
-  createCheckRun(repo: string, opts: { name: string; headSha: string; conclusion: string; summary: string }): Promise<unknown>;
+  // The gate's verdict. This is the ONLY thing that ever posts the check that
+  // branch protection requires — so it is also the only thing that can block a
+  // merge. It blocks by reporting a conclusion; it never merges anything.
+  createCheckRun(repo: string, opts: CheckRunInput): Promise<unknown>;
+  updateCheckRun(repo: string, checkRunId: number, opts: CheckRunInput): Promise<unknown>;
   // ── admin: branch protection (the one privileged, consented capability) ──
+  // Rulesets are the preferred mechanism; setBranchProtection is the fallback
+  // for repos/plans where the rulesets API isn't available. Note there is
+  // deliberately no way to REMOVE a ruleset from this surface: CodeWorthy can
+  // turn protection on and restore it, and the human turns it off in GitHub.
+  createRepoRuleset(repo: string, ruleset: unknown): Promise<unknown>;
+  updateRepoRuleset(repo: string, rulesetId: number, ruleset: unknown): Promise<unknown>;
   setBranchProtection(repo: string, branch: string, rules: unknown): Promise<unknown>;
+}
+
+/** What a check run carries. `text` is the long-form markdown body. */
+export interface CheckRunInput {
+  name: string;
+  headSha: string;
+  conclusion: string;
+  summary: string;
+  title?: string;
+  text?: string;
+  detailsUrl?: string | null;
 }
 
 // NOTE: the keys of this object are exactly the public surface the doctrine test
@@ -59,10 +108,14 @@ export function createGitHubClient(token: string): GitHubClient {
     getPullRequestFiles: (repo, number) => gh(token, "GET", `/repos/${repo}/pulls/${number}/files`),
     listIssueComments: (repo, number) => gh(token, "GET", `/repos/${repo}/issues/${number}/comments?per_page=100`),
     listPullRequestReviews: (repo, number) => gh(token, "GET", `/repos/${repo}/pulls/${number}/reviews?per_page=100`),
+    listPullRequestCommits: (repo, number) => gh(token, "GET", `/repos/${repo}/pulls/${number}/commits?per_page=100`),
     listCheckRunsForRef: (repo, ref) => gh(token, "GET", `/repos/${repo}/commits/${ref}/check-runs?per_page=100`),
+    getPullRequest: (repo, number) => gh(token, "GET", `/repos/${repo}/pulls/${number}`),
     listPullRequests: (repo, params = {}) => gh(token, "GET", `/repos/${repo}/pulls?${new URLSearchParams(params)}`),
     getBranch: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}`),
     getBranchProtection: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}/protection`),
+    listRepoRulesets: (repo) => gh(token, "GET", `/repos/${repo}/rulesets?includes_parents=false&per_page=100`),
+    getRepoRuleset: (repo, rulesetId) => gh(token, "GET", `/repos/${repo}/rulesets/${rulesetId}`),
     listCommits: (repo, params = {}) => gh(token, "GET", `/repos/${repo}/commits?${new URLSearchParams(params)}`),
     listInstallationRepositories: async () => {
       const res = (await gh(token, "GET", `/installation/repositories?per_page=100`)) as { repositories?: Array<{ full_name: string; default_branch: string }> };
@@ -79,14 +132,26 @@ export function createGitHubClient(token: string): GitHubClient {
       gh(token, "PATCH", `/repos/${repo}/issues/comments/${commentId}`, { body }),
     createCommitComment: (repo, sha, body) =>
       gh(token, "POST", `/repos/${repo}/commits/${sha}/comments`, { body }),
-    createCheckRun: (repo, o) =>
-      gh(token, "POST", `/repos/${repo}/check-runs`, {
-        name: o.name, head_sha: o.headSha, status: "completed", conclusion: o.conclusion,
-        output: { title: o.name, summary: o.summary },
-      }),
+    createCheckRun: (repo, o) => gh(token, "POST", `/repos/${repo}/check-runs`, checkRunBody(o)),
+    updateCheckRun: (repo, checkRunId, o) => gh(token, "PATCH", `/repos/${repo}/check-runs/${checkRunId}`, checkRunBody(o)),
 
+    createRepoRuleset: (repo, ruleset) => gh(token, "POST", `/repos/${repo}/rulesets`, ruleset),
+    updateRepoRuleset: (repo, rulesetId, ruleset) => gh(token, "PUT", `/repos/${repo}/rulesets/${rulesetId}`, ruleset),
     setBranchProtection: (repo, branch, rules) =>
       gh(token, "PUT", `/repos/${repo}/branches/${branch}/protection`, rules),
+  };
+}
+
+// One body shape for create and update, so a check run says the same thing
+// whichever path posted it.
+function checkRunBody(o: CheckRunInput) {
+  return {
+    name: o.name,
+    head_sha: o.headSha,
+    status: "completed",
+    conclusion: o.conclusion,
+    ...(o.detailsUrl ? { details_url: o.detailsUrl } : {}),
+    output: { title: o.title ?? o.name, summary: o.summary, ...(o.text ? { text: o.text } : {}) },
   };
 }
 

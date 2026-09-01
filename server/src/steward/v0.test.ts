@@ -5,7 +5,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { migrate } from "../../db/migrate.js";
 import { applyCoverageEvent, coverageFor } from "../audit/coverage.js";
-import type { GitHubClient } from "../github/client.js";
+import { FakeGitHub } from "../testing/fakeGitHub.js";
 import { runActions } from "./actions.js";
 import { toStewardEvent } from "./events.js";
 import { computeApprovers, recordMergeEvidence } from "./mergeEvidence.js";
@@ -14,32 +14,12 @@ import { runDriftCheck } from "./protection.js";
 const url = process.env.DATABASE_URL ?? "postgres://acme@localhost:55432/steward_test";
 const pool = new Pool({ connectionString: url });
 
-class FakeClient implements GitHubClient {
-  calls: Array<{ m: string; args: unknown[] }> = [];
-  reviews: unknown = [];
-  checkRuns: unknown = { check_runs: [] };
-  protection: unknown = null;
+class FakeClient extends FakeGitHub {
   failReviews = false;
-  private rec<T>(m: string, args: unknown[], ret: T): Promise<T> { this.calls.push({ m, args }); return Promise.resolve(ret); }
-  getPullRequestFiles(...a: any[]) { return this.rec("getPullRequestFiles", a, []); }
-  listIssueComments(...a: any[]) { return this.rec("listIssueComments", a, []); }
-  listPullRequestReviews(...a: any[]) {
+  override listPullRequestReviews(...a: any[]) {
     this.calls.push({ m: "listPullRequestReviews", args: a });
     return this.failReviews ? Promise.reject(new Error("boom")) : Promise.resolve(this.reviews);
   }
-  listPullRequests(...a: any[]) { return this.rec("listPullRequests", a, []); }
-  listCheckRunsForRef(...a: any[]) { this.calls.push({ m: "listCheckRunsForRef", args: a }); return Promise.resolve(this.checkRuns); }
-  getBranch(...a: any[]) { return this.rec("getBranch", a, {}); }
-  getBranchProtection(...a: any[]) { this.calls.push({ m: "getBranchProtection", args: a }); return Promise.resolve(this.protection); }
-  listCommits(...a: any[]) { return this.rec("listCommits", a, []); }
-  listInstallationRepositories(...a: any[]) { return this.rec("listInstallationRepositories", a, [] as any); }
-  createBranch(...a: any[]) { return this.rec("createBranch", a, {}); }
-  openDraftPullRequest(...a: any[]) { return this.rec("openDraftPullRequest", a, {}); }
-  createReviewComment(...a: any[]) { return this.rec("createReviewComment", a, {}); }
-  updateIssueComment(...a: any[]) { return this.rec("updateIssueComment", a, {}); }
-  createCommitComment(...a: any[]) { return this.rec("createCommitComment", a, {}); }
-  createCheckRun(...a: any[]) { return this.rec("createCheckRun", a, {}); }
-  setBranchProtection(...a: any[]) { return this.rec("setBranchProtection", a, {}); }
 }
 
 const events = async (type?: string) =>

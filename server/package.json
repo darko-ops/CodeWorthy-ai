@@ -12,6 +12,7 @@
     "migrate": "tsx db/migrate.ts",
     "anchor": "tsx src/audit/anchor-job.ts",
     "reconcile": "tsx src/audit/reconcile-job.ts",
+    "protect": "tsx src/steward/protection-job.ts",
     "export": "tsx src/evidence/export-job.ts",
     "attest:keygen": "tsx src/evidence/attest.ts",
     "digest": "tsx src/digest/digest-job.ts",

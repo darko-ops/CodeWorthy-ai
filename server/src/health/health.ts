@@ -60,6 +60,7 @@ export async function buildHealthReport(
   const integrityResult = await integrityVitalAndSection(pool, deps);
   const vitals: HealthVital[] = [
     await protectionVital(pool, repo),
+    await mergeGateVital(pool, repo, windowDays),
     await reviewDisciplineVital(pool, repo, windowDays),
     integrityResult.vital,
   ];
@@ -87,26 +88,85 @@ async function protectionVital(pool: Pool, repo: string | null): Promise<HealthV
   if (!repo) {
     return { ...base, status: "unknown", finding: "This chart is clearest for a single repository — add ?repo=owner/name.", prescription: "" };
   }
+  // The latest protection event wins — including `protection.restored`, which
+  // is the healthy end state after CodeWorthy corrected drift. Reading only
+  // configured/weakened would leave a self-healed repo showing "at risk"
+  // forever, which is precisely the enforcement story told backwards.
   const { rows } = await pool.query(
     `SELECT event_type FROM audit_events
-     WHERE repo = $1 AND event_type IN ('protection.configured','protection.weakened','exception.protection_weakened')
+     WHERE repo = $1 AND event_type IN (
+       'protection.configured','protection.restored',
+       'protection.weakened','exception.protection_weakened','exception.protection_unavailable'
+     )
      ORDER BY ts DESC, id DESC LIMIT 1`,
     [repo]
   );
   const latest = rows[0]?.event_type as string | undefined;
-  if (latest === "protection.weakened" || latest === "exception.protection_weakened") {
+  if (latest === "protection.weakened" || latest === "exception.protection_weakened" || latest === "exception.protection_unavailable") {
     return { ...base, status: "at risk",
-      finding: `Branch protection on the default branch was weakened — force-pushes or deletions may now be allowed, and changes can bypass review.`,
+      finding: `Branch protection on the default branch was weakened and is not back in place — force-pushes or deletions may now be allowed, and changes can bypass review.`,
       prescription: "Re-enable protection so the default branch requires a reviewed pull request and blocks force-pushes and deletions." };
+  }
+  if (latest === "protection.restored") {
+    // Bypasses are a windowed behavior, not a state — they belong in the
+    // finding because "protection is on" and "someone went around it twice
+    // last week" are both true and both worth saying.
+    const { rows: byp } = await pool.query(
+      `SELECT count(*)::int AS n FROM audit_events
+        WHERE repo = $1 AND event_type = 'exception.protection_bypassed' AND ts >= now() - interval '30 days'`,
+      [repo]
+    );
+    const n = byp[0]?.n ?? 0;
+    return { ...base, status: n > 0 ? "watch" : "healthy",
+      finding: `The default branch is protected. CodeWorthy put the protection back after it was weakened${n > 0 ? `, and ${n} change(s) were pushed straight to it by an admin override in the last 30 days` : ""}.`,
+      prescription: n > 0 ? "Admin overrides are allowed but recorded — check that each one was deliberate." : "Nothing to do — protection is in force and self-correcting." };
   }
   if (latest === "protection.configured") {
     return { ...base, status: "healthy",
-      finding: "The default branch is protected — changes go through a reviewable pull request, and force-pushes and deletions are blocked.",
+      finding: "The default branch is protected — changes go through a reviewable pull request, the CodeWorthy check must pass, and force-pushes and deletions are blocked.",
       prescription: "Keep protection on; every change stays reviewable." };
   }
   return { ...base, status: "watch",
     finding: "The default branch isn't protected yet — work can land on it directly, with nothing reviewing it first.",
     prescription: "Turn on branch protection so changes to the default branch go through a pull request." };
+}
+
+// ── vital: the merge gate (windowed behavior) ──────────────────────────────
+// What the enforcement spine actually DID. A blocked merge is the good outcome
+// here — it is the control working — so it reads as healthy, with the count
+// shown rather than hidden. What reads as a problem is the gate not answering:
+// a change that merged without a verdict is an untested control.
+async function mergeGateVital(pool: Pool, repo: string | null, windowDays: number): Promise<HealthVital> {
+  const base = { id: "merge_gate", label: "Merge gate" };
+  if (!repo) {
+    return { ...base, status: "unknown", finding: "Add ?repo=owner/name to see what the gate decided.", prescription: "" };
+  }
+  const { rows } = await pool.query(
+    `SELECT
+       count(*) FILTER (WHERE event_type = 'gate.evaluated')                                  AS evaluated,
+       count(*) FILTER (WHERE event_type = 'gate.evaluated' AND payload->>'decision' = 'blocked') AS blocked,
+       count(*) FILTER (WHERE event_type = 'exception.gate_unavailable')                       AS unavailable
+     FROM audit_events
+     WHERE repo = $1 AND ts >= now() - make_interval(days => $2)`,
+    [repo, windowDays]
+  );
+  const evaluated = Number(rows[0]?.evaluated ?? 0);
+  const blocked = Number(rows[0]?.blocked ?? 0);
+  const unavailable = Number(rows[0]?.unavailable ?? 0);
+
+  if (evaluated === 0 && unavailable === 0) {
+    return { ...base, status: "unknown", finding: `No pull requests were reviewed in the last ${windowDays} days.`, prescription: "" };
+  }
+  if (unavailable > 0) {
+    return { ...base, status: "watch",
+      finding: `The gate reviewed ${evaluated} change(s) and blocked ${blocked}, but ${unavailable} time(s) it couldn't read the change at all and reported "couldn't review" rather than passing it.`,
+      prescription: "Check that CodeWorthy still has access to this repository — a change that merges without a verdict was never actually gated." };
+  }
+  return { ...base, status: "healthy",
+    finding: blocked > 0
+      ? `The gate reviewed ${evaluated} change(s) and blocked ${blocked} from merging until they were fixed — that's the control doing its job.`
+      : `The gate reviewed ${evaluated} change(s) and found nothing blocking. Every one got a recorded verdict before it could merge.`,
+    prescription: "Nothing to do — every change is getting a verdict before it can merge." };
 }
 
 // ── vital: review discipline (windowed behavior) ───────────────────────────

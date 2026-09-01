@@ -4,10 +4,10 @@ Turns the checkup engine from "a report you run" into **a senior engineer that's
 always watching and blocks bad merges.** This is tier 3 of the Steward product
 (see [`../docs/ai-senior-engineer-policy.md`](../docs/ai-senior-engineer-policy.md)).
 
-## The key decision: no hosted app needed for the MVP
+## Two ways to run the same policy
 
-Real enforcement — gate the merge, advise on the diff, keep an audit trail —
-ships today as **GitHub Actions + branch protection**, no server to run:
+**This directory** is the zero-infrastructure path: GitHub Actions + branch
+protection, no server to run.
 
 - `pr-review.mjs` reviews the PR diff and **exits non-zero on a blocking finding**.
 - `pr-checkup.yml` runs it on every PR, posts a plain-language review comment,
@@ -15,11 +15,18 @@ ships today as **GitHub Actions + branch protection**, no server to run:
 - Make the check **required** in branch protection → a blocking finding blocks
   the merge. That's the enforcement.
 
-A **hosted GitHub App** is the tier above this — it adds what Actions can't do
-well: auto-configuring branch protection for a non-engineer, the *safe-mechanics*
-(auto-create a branch when someone edits main, draft the PR), cross-repo
-dashboards, and durable audit storage. Build it when the Actions MVP has proven
-demand — not before.
+**The hosted App** (`../server/`) now runs the same policy from webhooks and
+adds what Actions can't: it configures protection for a non-engineer *and keeps
+it configured*, blocks a merge when the repo's own CI is red, records bypasses
+and drift as auditable exceptions, and stores the audit trail durably. See
+[`../docs/enforcement-spine.md`](../docs/enforcement-spine.md).
+
+> **The check name is load-bearing.** Both paths report a check called
+> **`CodeWorthy PR review`**, and branch protection requires that exact context.
+> For a workflow the context is the **job** name — not the workflow name — which
+> is why `pr-checkup.yml` sets `jobs.review.name` explicitly. Change it in one
+> place without the other and protection waits forever on a context nothing ever
+> reports: the repo can never merge.
 
 ## Install (per repo)
 
@@ -39,6 +46,7 @@ comments, human decides.
 
 | Finding | Severity | Why |
 |---|---|---|
+| Repo's own CI is red on this commit | **GATE** *(hosted App only — needs the checks API)* | Merging on red puts a known-broken commit on main |
 | Secret introduced (AWS/GitHub/Stripe/API keys, private keys, JWTs, hard-coded creds) | **GATE** | A leaked secret is the highest-cost, hardest-to-undo mistake |
 | `.env` committed | **GATE** | Secrets don't belong in git |
 | `node_modules` committed | **GATE** | Bloats history, should be gitignored |
@@ -67,13 +75,14 @@ for. In the Actions MVP it's uploaded as a build artifact; the **compliance
 tier** persists it to durable append-only storage and renders it as a
 plain-language change log.
 
-## What's deterministic (here) vs. the judgment tier (next)
+## What's deterministic (here) vs. the judgment tier (shipped)
 
 Everything above is deterministic — no LLM, fully inspectable, runs in a plain
-CI job. The **judgment tier** adds an LLM reviewer using the competency rubric
-as its prompt: duplication, contract-breaking changes, backwards-compat
-reasoning, "is this test meaningful," and the pre-merge micro-defense. It layers
-on top; the deterministic gates always run first and for free.
+CI job. The **judgment tier** (`../server/src/steward/llm/`) adds an LLM reviewer
+using the competency rubric as its prompt. It layers on top; the deterministic
+gates always run first and for free, and the LLM tier **structurally cannot
+gate** — it has no path to the check run that blocks a merge, and a CI test
+asserts that.
 
 ## The invariant (non-negotiable)
 
