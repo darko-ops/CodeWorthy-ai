@@ -55,7 +55,20 @@ export function buildAppManifest(baseUrl: string): AppManifest {
     // installation / installation_repositories are NOT listed here: GitHub
     // delivers installation webhooks to every App automatically, and the
     // manifest API rejects them as subscribable events.
-    default_events: ["push", "pull_request", "issue_comment"],
+    //
+    // check_suite: the repo's OWN CI finishing changes whether its tests are
+    //   green, which the gate treats as blocking — without it, "don't merge on
+    //   red" would only catch CI that finished before the PR event.
+    // repository_ruleset / branch_protection_rule: someone weakening protection
+    //   reaches us in seconds instead of at the next scheduled sweep.
+    default_events: [
+      "push",
+      "pull_request",
+      "issue_comment",
+      "check_suite",
+      "repository_ruleset",
+      "branch_protection_rule",
+    ],
   };
 }
 

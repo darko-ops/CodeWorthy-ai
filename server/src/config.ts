@@ -20,6 +20,16 @@ export const config = {
   // M2. Auto-configuring branch protection changes a customer's repo settings,
   // so it is opt-in (consent) and off by default — never silent.
   autoProtect: process.env.STEWARD_AUTO_PROTECT === "1",
+  // The enforcement spine. Turning protection ON is always a human decision
+  // (autoProtect above, or the consent click on /steward/setup). KEEPING it on
+  // is the product: once consented, drift is corrected rather than merely
+  // reported. Set STEWARD_RESTORE_PROTECTION=0 for report-only stewardship.
+  protection: {
+    restoreDrift: process.env.STEWARD_RESTORE_PROTECTION !== "0",
+    // The backstop sweep. Webhooks are the fast path (seconds); this is what
+    // makes the guarantee independent of any single webhook delivery.
+    sweepMinutes: Math.max(5, parseInt(process.env.STEWARD_PROTECTION_SWEEP_MINUTES ?? "60", 10) || 60),
+  },
   // M1.5. WORM anchor for the audit hash chain's head. Precedence: S3 (prod) >
   // file (dev) > none. When set, the integrity endpoint also checks the chain
   // head against the anchor, and the anchor job (npm run anchor) pins it.

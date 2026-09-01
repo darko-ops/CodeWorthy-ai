@@ -84,17 +84,39 @@ All additive: the M1 table contract and existing rows are untouched, and
   commit is already on the branch, and turning it into a PR after the fact would
   need a force-push we forbid — so it doesn't fake a PR it can't open. The cure
   is protection (below), which stops the *next* one.
-- **Branch-protection configurator** (`steward/protection.ts`) — requires a PR +
-  the `CodeWorthy PR review` check and blocks force-pushes/deletions. Applied
-  **only with consent** (`STEWARD_AUTO_PROTECT=1`; the real product consents on
-  the install screen) — never silently changing repo settings.
-- **Drift detection** — `runDriftCheck` compares live protection to desired and
-  logs a `protection.weakened` audit event (the thing SOC 2 auditors care
-  about). A scheduled job calls it per installation; the schedule is deployment
-  config (Fly cron / a scheduled workflow).
+- **Branch-protection configurator** (`steward/protection.ts`) — the legacy
+  mechanism, now the *fallback* behind rulesets (see below). Applied **only with
+  consent** — never silently changing repo settings.
 - **Actions dispatch** (`steward/actions.ts`) — runs after logging, fully
   guarded: no App creds or no installation → no-op (local stays M1 log-only);
   protection auto-config is consent-gated. Injectable client for tests.
+
+## What the enforcement spine adds (CodeWorthy *is* the protection)
+
+Everything above observes and advises. This tier is the part that actually
+stops a bad merge, and the part that keeps the rule in place. See
+[`docs/enforcement-spine.md`](../docs/enforcement-spine.md) for the full design.
+
+- **The gate** (`steward/gate/`) — `findings.ts` is the deterministic reviewer
+  (pure function: same diff, same verdict), `check.ts` posts that verdict as the
+  `CodeWorthy PR review` **check run**. Branch protection requires that check,
+  so a GATE finding → `conclusion: failure` → the merge button is disabled.
+  This is the only module in the codebase that posts that check — enforced by
+  `client.doctrine.test.ts`.
+- **"Don't merge on red"** — the gate reads the repo's *own* check runs on the
+  head commit and blocks on a real failure, re-running when `check_suite`
+  completes. That's the "tested" half of the promise.
+- **Rulesets** (`steward/rulesets.ts`) — protection as a *named, diffable
+  object* targeting `~DEFAULT_BRANCH` (survives a branch rename), with bypass as
+  an enumerable list rather than one `enforce_admins` boolean.
+- **Restore, not just report** (`steward/enforce.ts`) — a weakened rule is put
+  back, and BOTH the weakening (`exception.protection_weakened`) and the
+  correction (`protection.restored`) are in the chain with timestamps. A direct
+  push to a protected branch is recorded as `exception.protection_bypassed`.
+- **The backstop sweep** (`steward/protection-job.ts`, `npm run protect`) —
+  hourly reconciliation of every repo with an open coverage window that a human
+  already consented to protect. Silence is not consent: a repo that never opted
+  in is never protected by a background job.
 
 ## What M3 adds (the LLM advise tier — advises, never gates)
 
@@ -235,7 +257,7 @@ The anchor is what makes the audit log's integrity provable to an auditor. One-t
 | GET | `/steward/health[.html]?repo=&days=` | the repo health page — one pull-up chart (vitals + activity + integrity), no login |
 | GET | `/steward/install` | consent landing — what it will/won't do, then "Install on GitHub" |
 | GET | `/steward/setup` | post-install page — the one consented action (protect the default branch) |
-| POST | `/steward/setup/protect` | apply branch protection to the installation's repos (on the click) |
+| POST | `/steward/setup/protect` | apply protection (ruleset, legacy fallback) to the installation's repos (on the click) |
 | GET | `/steward/app-manifest[/callback]` | one-click GitHub App registration (manifest create + credential exchange) |
 
 ## The invariant

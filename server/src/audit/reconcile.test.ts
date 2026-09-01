@@ -7,7 +7,7 @@ import { Pool } from "pg";
 import { migrate } from "../../db/migrate.js";
 import { appendAuditEvent } from "./audit.js";
 import { openCoverage } from "./coverage.js";
-import type { GitHubClient } from "../github/client.js";
+import { FakeGitHub as BaseFakeGitHub } from "../testing/fakeGitHub.js";
 import { reconcileRepo } from "./reconcile.js";
 import { runReconcileJob } from "./reconcile-job.js";
 
@@ -16,33 +16,18 @@ const pool = new Pool({ connectionString: url });
 
 // Ground-truth fake: pages of PRs and commits, served per the page param —
 // exercises the same pagination path the real client hits.
-class FakeGitHub implements GitHubClient {
+class FakeGitHub extends BaseFakeGitHub {
   prPages: any[][] = [[]];
   commitPages: any[][] = [[]];
-  calls: Array<{ m: string; args: unknown[] }> = [];
-  private rec<T>(m: string, args: unknown[], ret: T): Promise<T> { this.calls.push({ m, args }); return Promise.resolve(ret); }
-  listPullRequests(repo: string, params: Record<string, string> = {}) {
+  override listPullRequests(repo: string, params: Record<string, string> = {}) {
     this.calls.push({ m: "listPullRequests", args: [repo, params] });
     return Promise.resolve(this.prPages[Number(params.page ?? "1") - 1] ?? []);
   }
-  listCommits(repo: string, params: Record<string, string> = {}) {
+  override listCommits(repo: string, params: Record<string, string> = {}) {
     this.calls.push({ m: "listCommits", args: [repo, params] });
     return Promise.resolve(this.commitPages[Number(params.page ?? "1") - 1] ?? []);
   }
-  listInstallationRepositories(...a: any[]) { return this.rec("listInstallationRepositories", a, [{ full_name: "acme/app", default_branch: "main" }] as any); }
-  getPullRequestFiles(...a: any[]) { return this.rec("getPullRequestFiles", a, []); }
-  listIssueComments(...a: any[]) { return this.rec("listIssueComments", a, []); }
-  updateIssueComment(...a: any[]) { return this.rec("updateIssueComment", a, {}); }
-  listPullRequestReviews(...a: any[]) { return this.rec("listPullRequestReviews", a, []); }
-  listCheckRunsForRef(...a: any[]) { return this.rec("listCheckRunsForRef", a, { check_runs: [] }); }
-  getBranch(...a: any[]) { return this.rec("getBranch", a, {}); }
-  getBranchProtection(...a: any[]) { return this.rec("getBranchProtection", a, null); }
-  createBranch(...a: any[]) { return this.rec("createBranch", a, {}); }
-  openDraftPullRequest(...a: any[]) { return this.rec("openDraftPullRequest", a, {}); }
-  createReviewComment(...a: any[]) { return this.rec("createReviewComment", a, {}); }
-  createCommitComment(...a: any[]) { return this.rec("createCommitComment", a, {}); }
-  createCheckRun(...a: any[]) { return this.rec("createCheckRun", a, {}); }
-  setBranchProtection(...a: any[]) { return this.rec("setBranchProtection", a, {}); }
+  override repos = [{ full_name: "acme/app", default_branch: "main" }];
 }
 
 // The window must contain now(): seeded spine events are stamped by the DB

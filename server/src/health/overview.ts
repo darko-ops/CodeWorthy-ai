@@ -81,12 +81,20 @@ export async function buildOverview(pool: Pool, repos: string[], windowDays = 30
   const prot = new Map<string, ProtStatus>();
   {
     const { rows } = await pool.query(
+      // Must match the event vocabulary in health.ts protectionVital, or the
+      // portfolio row and the repo's own card disagree. `protection.restored`
+      // is a HEALTHY end state; the pre-V0.3 `protection.weakened` name is kept
+      // because history is never renamed.
       `SELECT DISTINCT ON (repo) repo, event_type FROM audit_events
-        WHERE repo = ANY($1) AND event_type IN ('protection.configured','protection.weakened')
+        WHERE repo = ANY($1) AND event_type IN (
+          'protection.configured','protection.restored',
+          'protection.weakened','exception.protection_weakened','exception.protection_unavailable'
+        )
         ORDER BY repo, ts DESC, id DESC`,
       [uniq]
     );
-    for (const r of rows) prot.set(r.repo, r.event_type === "protection.weakened" ? "at risk" : "healthy");
+    const WEAK = new Set(["protection.weakened", "exception.protection_weakened", "exception.protection_unavailable"]);
+    for (const r of rows) prot.set(r.repo, WEAK.has(r.event_type) ? "at risk" : "healthy");
   }
 
   // Review discipline: direct-to-default vs PR counts per repo, in the window.

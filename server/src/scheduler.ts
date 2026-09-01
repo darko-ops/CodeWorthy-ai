@@ -9,10 +9,13 @@
 import type { Pool } from "pg";
 import { runAnchorJob } from "./audit/anchor-job.js";
 import { runReconcileJob } from "./audit/reconcile-job.js";
+import { runProtectionJob } from "./steward/protection-job.js";
 import { runDigestJob } from "./digest/digest-job.js";
 import type { Anchor } from "./audit/tamper.js";
 import type { Mailer } from "./mail/mailer.js";
+import { config } from "./config.js";
 
+const MINUTE = 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
 const WEEK = 7 * DAY;
 
@@ -25,6 +28,7 @@ export interface SchedulerOptions {
   anchorMs?: number; // default: daily
   digestMs?: number; // default: weekly
   reconcileMs?: number; // default: daily
+  protectionMs?: number; // default: hourly (config.protection.sweepMinutes)
   log?: (line: string) => void;
 }
 
@@ -53,6 +57,12 @@ export async function runScheduledJobs(pool: Pool, deps: SchedulerDeps = {}, log
   } catch (err) {
     log(`[scheduler] reconcile failed: ${err instanceof Error ? err.message : err}`);
   }
+  try {
+    const p = await runProtectionJob(pool);
+    log(`[scheduler] protection: ${p.status} — ${p.repos} repo(s), ${p.drifted} drifted, ${p.restored} restored${p.detail ? ` (${p.detail})` : ""}`);
+  } catch (err) {
+    log(`[scheduler] protection failed: ${err instanceof Error ? err.message : err}`);
+  }
 }
 
 export function startScheduler(pool: Pool, deps: SchedulerDeps = {}, opts: SchedulerOptions = {}): SchedulerHandle {
@@ -73,14 +83,25 @@ export function startScheduler(pool: Pool, deps: SchedulerDeps = {}, opts: Sched
       .then((r) => log(`[scheduler] reconcile: ${r.status} — ${r.repos} repo(s), ${r.discrepancies} discrepancies${r.detail ? ` (${r.detail})` : ""}`))
       .catch((err) => log(`[scheduler] reconcile failed: ${err instanceof Error ? err.message : err}`));
 
+  // The protection sweep is the backstop behind the webhooks: it runs far more
+  // often than the other jobs because an unprotected default branch is a live
+  // exposure, not a reporting delay.
+  const runProtection = () =>
+    runProtectionJob(pool)
+      .then((r) => log(`[scheduler] protection: ${r.status} — ${r.repos} repo(s), ${r.drifted} drifted, ${r.restored} restored${r.detail ? ` (${r.detail})` : ""}`))
+      .catch((err) => log(`[scheduler] protection failed: ${err instanceof Error ? err.message : err}`));
+
   const reconcileMs = opts.reconcileMs ?? DAY;
+  const protectionMs = opts.protectionMs ?? config.protection.sweepMinutes * MINUTE;
   const t1 = setInterval(runAnchor, anchorMs);
   const t2 = setInterval(runDigest, digestMs);
   const t3 = setInterval(runReconcile, reconcileMs);
+  const t4 = setInterval(runProtection, protectionMs);
   // Don't hold the event loop open for the timers alone.
   t1.unref?.();
   t2.unref?.();
   t3.unref?.();
-  log(`[scheduler] started — anchor every ${Math.round(anchorMs / 3600000)}h, digest every ${Math.round(digestMs / 3600000)}h, reconcile every ${Math.round(reconcileMs / 3600000)}h`);
-  return { stop() { clearInterval(t1); clearInterval(t2); clearInterval(t3); } };
+  t4.unref?.();
+  log(`[scheduler] started — anchor every ${Math.round(anchorMs / 3600000)}h, digest every ${Math.round(digestMs / 3600000)}h, reconcile every ${Math.round(reconcileMs / 3600000)}h, protection sweep every ${Math.round(protectionMs / 60000)}m`);
+  return { stop() { clearInterval(t1); clearInterval(t2); clearInterval(t3); clearInterval(t4); } };
 }

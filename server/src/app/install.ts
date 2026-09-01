@@ -15,7 +15,7 @@
 import type { Pool } from "pg";
 import { getInstallationClient } from "../github/auth.js";
 import type { GitHubClient } from "../github/client.js";
-import { configureProtection } from "../steward/protection.js";
+import { ensureProtection } from "../steward/enforce.js";
 import { installUrl, type AppManifest } from "./manifest.js";
 
 const esc = (s: unknown) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]!));
@@ -51,7 +51,8 @@ export function renderInstallPage(cfg: { appSlug: string; baseUrl: string }): st
 <div class="card">
   <h2>What it will do</h2>
   <ul>
-    <li class="will">✓ Protect your default branch — changes go through a reviewable pull request</li>
+    <li class="will">✓ Protect your default branch — changes go through a reviewable pull request, and CodeWorthy puts the protection back if it gets weakened</li>
+    <li class="will">✓ Block the merge when its review finds something serious — its check is what your branch protection requires</li>
     <li class="will">✓ Catch secrets, committed <code>.env</code>/<code>node_modules</code>, and risky migrations before they merge</li>
     <li class="will">✓ Leave plain-language notes explaining every call, and a weekly digest</li>
     <li class="will">✓ Keep an append-only, tamper-evident change log (your SOC&nbsp;2 evidence)</li>
@@ -76,7 +77,7 @@ export function renderSetupPage(o: { installationId: number | null; setupAction:
          <input type="hidden" name="installation_id" value="${esc(o.installationId)}">
          <button class="btn" type="submit">Protect my default branch →</button>
        </form>
-       <p class="muted">This requires a pull request for changes to your default branch and blocks force-pushes and deletions. Reversible any time in your GitHub settings.</p>`
+       <p class="muted">This requires a pull request for changes to your default branch, requires CodeWorthy's review check to pass, and blocks force-pushes and deletions. <b>CodeWorthy will also keep it on:</b> if the rule is later weakened, it puts it back and records both the change and the fix. Reversible any time — turn the rule off in your GitHub settings and CodeWorthy records that choice instead of fighting it.</p>`
     : `<p class="muted">Couldn't read the installation id from GitHub — you can still turn on protection later from the digest.</p>`;
   return page("CodeWorthy is set up", `
 <h1>✅ CodeWorthy is ${installed ? "installed" : "updated"}</h1>
@@ -94,7 +95,7 @@ export function renderProtectDonePage(results: Array<{ repo: string; ok: boolean
   const anyOk = results.some((r) => r.ok);
   return page("Protection turned on", `
 <h1>${anyOk ? "🛡️ Your default branch is protected" : "⚠️ Nothing was changed"}</h1>
-<div class="sub">${anyOk ? "Changes now go through a reviewable pull request. Force-pushes and deletions are blocked." : "No repositories were updated."}</div>
+<div class="sub">${anyOk ? "Changes now go through a reviewable pull request that CodeWorthy has to pass. Force-pushes and deletions are blocked, and if the rule is weakened CodeWorthy puts it back." : "No repositories were updated."}</div>
 <div class="card"><h2>Repositories</h2><ul>${rows || "<li class='muted'>No repositories found for this installation.</li>"}</ul></div>
 <div class="foot">Every change from here is logged in plain language. You own every merge.</div>`);
 }
@@ -165,8 +166,11 @@ export async function applyProtectionConsent(
   const results: Array<{ repo: string; ok: boolean; error?: string }> = [];
   for (const r of repos) {
     try {
-      await configureProtection(client, pool, r.full_name, r.default_branch || "main", installationId);
-      results.push({ repo: r.full_name, ok: true });
+      const applied = await ensureProtection(client, pool, r.full_name, installationId, {
+        defaultBranch: r.default_branch || "main",
+      });
+      if (applied.action === "failed") results.push({ repo: r.full_name, ok: false, error: applied.detail });
+      else results.push({ repo: r.full_name, ok: true });
     } catch (err) {
       results.push({ repo: r.full_name, ok: false, error: err instanceof Error ? err.message : String(err) });
     }

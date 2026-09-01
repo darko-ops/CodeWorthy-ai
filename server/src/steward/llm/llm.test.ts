@@ -2,7 +2,7 @@ import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { migrate } from "../../../db/migrate.js";
 import { recentChangelog } from "../../audit/audit.js";
-import type { GitHubClient } from "../../github/client.js";
+import { FakeGitHub } from "../../testing/fakeGitHub.js";
 import { buildReviewPrompt, MICRO_DEFENSE_QUESTION, POLICY_VERSION, REVIEW_SCHEMA } from "./prompt.js";
 import { microDefenseStatus, MICRO_DEFENSE_MARKER } from "./microdefense.js";
 import { reviewPullRequest, LLM_REVIEW_MARKER } from "./reviewer.js";
@@ -15,28 +15,7 @@ const pool = new Pool({ connectionString: url });
 
 // A GitHubClient that records calls. Same shape as the M2 fake — proves the
 // reviewer only ever uses safe, additive operations.
-class FakeClient implements GitHubClient {
-  calls: Array<{ m: string; args: unknown[] }> = [];
-  files: unknown = [];
-  comments: Array<{ id: number; body: string }> = []; // pre-existing PR comments
-  private rec<T>(m: string, args: unknown[], ret: T): Promise<T> { this.calls.push({ m, args }); return Promise.resolve(ret); }
-  getPullRequestFiles(...a: any[]) { this.calls.push({ m: "getPullRequestFiles", args: a }); return Promise.resolve(this.files); }
-  listIssueComments(...a: any[]) { this.calls.push({ m: "listIssueComments", args: a }); return Promise.resolve(this.comments); }
-  updateIssueComment(...a: any[]) { return this.rec("updateIssueComment", a, {}); }
-  listPullRequestReviews(...a: any[]) { return this.rec("listPullRequestReviews", a, []); }
-  listPullRequests(...a: any[]) { return this.rec("listPullRequests", a, []); }
-  listCheckRunsForRef(...a: any[]) { return this.rec("listCheckRunsForRef", a, { check_runs: [] }); }
-  getBranch(...a: any[]) { return this.rec("getBranch", a, {}); }
-  getBranchProtection(...a: any[]) { return this.rec("getBranchProtection", a, null); }
-  listCommits(...a: any[]) { return this.rec("listCommits", a, []); }
-  listInstallationRepositories(...a: any[]) { return this.rec("listInstallationRepositories", a, [] as any); }
-  createBranch(...a: any[]) { return this.rec("createBranch", a, {}); }
-  openDraftPullRequest(...a: any[]) { return this.rec("openDraftPullRequest", a, {}); }
-  createReviewComment(...a: any[]) { return this.rec("createReviewComment", a, {}); }
-  createCommitComment(...a: any[]) { return this.rec("createCommitComment", a, {}); }
-  createCheckRun(...a: any[]) { return this.rec("createCheckRun", a, {}); }
-  setBranchProtection(...a: any[]) { return this.rec("setBranchProtection", a, {}); }
-  names() { return this.calls.map((c) => c.m); }
+class FakeClient extends FakeGitHub {
   lastComment() { return this.calls.find((c) => c.m === "createReviewComment")?.args[2] as string | undefined; }
 }
 

@@ -19,6 +19,11 @@ permissions:
 
 jobs:
   review:
+    # The check CONTEXT that branch protection requires is this JOB's name, not
+    # the workflow's. They must match `STEWARD_CHECK` in
+    # server/src/steward/protection.ts, or protection waits forever on a context
+    # nothing ever reports and the repo can never merge.
+    name: CodeWorthy PR review
     runs-on: ubuntu-latest
     steps:
       - name: Check out the PR
