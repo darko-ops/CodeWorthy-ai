@@ -35,9 +35,18 @@ async function gh(token: string, method: string, path: string, body?: unknown): 
  * a permissions error, so callers branch on `status`, never on the message.
  */
 export class GitHubHttpError extends Error {
-  constructor(readonly status: number, readonly method: string, readonly path: string) {
+  readonly rateLimited: boolean;
+  readonly retryAfter: string | null;
+  constructor(
+    readonly status: number,
+    readonly method: string,
+    readonly path: string,
+    meta: { rateLimited?: boolean; retryAfter?: string | null } = {}
+  ) {
     super(`GitHub ${method} ${path} -> ${status}`);
     this.name = "GitHubHttpError";
+    this.rateLimited = meta.rateLimited === true;
+    this.retryAfter = meta.retryAfter ?? null;
   }
 }
 

@@ -8,6 +8,7 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
 import { config } from "../config.js";
+import { mapGitHubError } from "./apiErrors.js";
 import { recentChangelog } from "../audit/audit.js";
 import { buildHealthReport } from "../health/health.js";
 import { buildOverview } from "../health/overview.js";
@@ -52,6 +53,23 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       return null;
     }
     return session;
+  }
+
+  // Every route below talks to GitHub with the user's token, and any non-2xx
+  // throws. An unhandled throw is a Fastify 500 — which is a lie about almost
+  // all of these: an expired token is the user's to fix in one click, and a
+  // GitHub outage is not our internal error. Anything that is NOT a GitHub
+  // transport failure is re-thrown, so real bugs still 500 loudly.
+  async function withGitHub<T>(reply: FastifyReply, fn: () => Promise<T>): Promise<T | undefined> {
+    try {
+      return await fn();
+    } catch (err) {
+      const mapped = mapGitHubError(err);
+      if (!mapped) throw err;
+      app.log.warn({ err, status: mapped.status }, "github call failed");
+      reply.code(mapped.status).send(mapped.body);
+      return undefined;
+    }
   }
 
   // Step 1: kick off the OAuth dance. If the App isn't configured for user
@@ -106,13 +124,15 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
   app.get("/api/me/installations", async (req, reply) => {
     const s = await requireSession(req, reply);
     if (!s) return;
-    const insts = await listInstallations(s.token);
-    return insts.map((i) => ({
-      id: i.id,
-      account: i.account?.login ?? "",
-      avatar: i.account?.avatar_url ?? "",
-      selection: i.repository_selection,
-    }));
+    return withGitHub(reply, async () => {
+      const insts = await listInstallations(s.token);
+      return insts.map((i) => ({
+        id: i.id,
+        account: i.account?.login ?? "",
+        avatar: i.account?.avatar_url ?? "",
+        selection: i.repository_selection,
+      }));
+    });
   });
 
   // Every repo full-name this user can see through their installations.
@@ -133,7 +153,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     if (!s) return;
     const q = req.query as { days?: string };
     const days = q.days ? parseInt(q.days, 10) : 30;
-    return flaggedCountsByRepo(pool, await accessibleRepos(s.token), days);
+    return withGitHub(reply, async () => flaggedCountsByRepo(pool, await accessibleRepos(s.token), days));
   });
 
   // The portfolio overview — all repos at a high level (per-repo status, flagged
@@ -143,7 +163,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     if (!s) return;
     const q = req.query as { days?: string };
     const days = q.days ? parseInt(q.days, 10) : 30;
-    return buildOverview(pool, await accessibleRepos(s.token), days);
+    return withGitHub(reply, async () => buildOverview(pool, await accessibleRepos(s.token), days));
   });
 
   app.get("/api/installations/:id/repositories", async (req, reply) => {
@@ -154,13 +174,15 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       reply.code(400).send({ error: "bad installation id" });
       return;
     }
-    const repos = await listRepositories(s.token, id);
-    return repos.map((r) => ({
-      full_name: r.full_name,
-      name: r.name,
-      private: r.private,
-      default_branch: r.default_branch,
-    }));
+    return withGitHub(reply, async () => {
+      const repos = await listRepositories(s.token, id);
+      return repos.map((r) => ({
+        full_name: r.full_name,
+        name: r.name,
+        private: r.private,
+        default_branch: r.default_branch,
+      }));
+    });
   });
 
   // A repo's Steward activity — gated: the caller must actually have access to
@@ -170,14 +192,16 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     if (!s) return;
     const p = req.params as { owner: string; repo: string };
     const fullName = `${p.owner}/${p.repo}`;
-    if (!(await userCanAccessRepo(s.token, fullName))) {
-      reply.code(403).send({ error: "no access to repo" });
-      return;
-    }
-    const q = req.query as { limit?: string; days?: string };
-    const limit = q.limit ? parseInt(q.limit, 10) : 100;
-    const sinceDays = q.days ? parseInt(q.days, 10) : undefined;
-    return recentChangelog(pool, { repo: fullName, limit, sinceDays });
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      const q = req.query as { limit?: string; days?: string };
+      const limit = q.limit ? parseInt(q.limit, 10) : 100;
+      const sinceDays = q.days ? parseInt(q.days, 10) : undefined;
+      return recentChangelog(pool, { repo: fullName, limit, sinceDays });
+    });
   });
 
   // A repo's health checkup (vitals + integrity), same access gate. Feeds the
@@ -189,12 +213,14 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     if (!s) return;
     const p = req.params as { owner: string; repo: string };
     const fullName = `${p.owner}/${p.repo}`;
-    if (!(await userCanAccessRepo(s.token, fullName))) {
-      reply.code(403).send({ error: "no access to repo" });
-      return;
-    }
-    const q = req.query as { days?: string };
-    const windowDays = q.days ? parseInt(q.days, 10) : undefined;
-    return buildHealthReport(pool, { repo: fullName, windowDays });
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      const q = req.query as { days?: string };
+      const windowDays = q.days ? parseInt(q.days, 10) : undefined;
+      return buildHealthReport(pool, { repo: fullName, windowDays });
+    });
   });
 }

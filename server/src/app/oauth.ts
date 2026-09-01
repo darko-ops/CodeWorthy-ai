@@ -12,6 +12,7 @@
 //   4. getUser / listInstallations / listRepositories use that token
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { config } from "../config.js";
+import { GitHubHttpError } from "../github/client.js";
 
 const GH = "https://github.com";
 const API = "https://api.github.com";
@@ -91,7 +92,17 @@ async function ghGet<T>(token: string, path: string): Promise<T> {
       "user-agent": "codeworthy-steward",
     },
   });
-  if (!res.ok) throw new Error(`GET ${path} -> ${res.status}`);
+  if (!res.ok) {
+    // Carry the status and the rate-limit hint. A caller that only has a
+    // message string cannot tell "your token expired" (the user should sign in
+    // again) from "GitHub is down" (nothing the user can do) — and answering
+    // both with a 500 is what made the dashboard look broken when the truth was
+    // an expired token.
+    throw new GitHubHttpError(res.status, "GET", path, {
+      rateLimited: res.headers.get("x-ratelimit-remaining") === "0",
+      retryAfter: res.headers.get("retry-after"),
+    });
+  }
   return (await res.json()) as T;
 }
 
