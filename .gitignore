@@ -8,3 +8,4 @@ dist/
 simulations/acme-orders/test/hidden/
 .vercel/
 .vercel
+.env*
