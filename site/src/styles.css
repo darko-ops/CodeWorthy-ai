@@ -1109,3 +1109,16 @@ tbody tr:hover {
 }
 .btn-quiet:hover { opacity: 1; }
 .pick-recheck { margin-top: 12px; }
+
+/* Private repos: branch protection needs a paid GitHub plan. Stated as a
+   condition, not an alarm — a private repo on a paid plan is completely fine,
+   and we can't tell which this is until we try. */
+.private-note {
+  display: flex; gap: 11px; align-items: flex-start;
+  border: 1px solid var(--border-dark); border-left: 3px solid var(--watch);
+  border-radius: 10px; padding: 13px 15px; margin: 0 0 18px;
+  background: rgba(232, 176, 75, 0.05);
+}
+.private-note-mark { font-size: 14px; line-height: 1.5; flex: none; }
+.private-note p { margin: 0; font: 400 12.5px/1.65 var(--sans); color: var(--on-dark-4); max-width: 78ch; }
+.private-note strong { color: var(--on-dark-2); }
