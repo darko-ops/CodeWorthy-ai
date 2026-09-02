@@ -80,7 +80,7 @@ export async function buildHealthReport(
 
   // Fix paths are per-repo: the portfolio view has no single branch to act on.
   const issues = repo
-    ? buildIssues(vitals, await remediationContext(pool, repo, windowDays, opts.defaultBranch))
+    ? buildIssues(vitals, await remediationContext(pool, repo, windowDays, mode, opts.defaultBranch))
     : [];
 
   return {
@@ -98,7 +98,7 @@ export async function buildHealthReport(
 
 // Everything buildIssues needs, in one round trip. Deliberately reads only the
 // audit spine — rendering the dashboard must not cost a GitHub call per repo.
-async function remediationContext(pool: Pool, repo: string, windowDays: number, defaultBranch?: string) {
+async function remediationContext(pool: Pool, repo: string, windowDays: number, mode: RepoMode, defaultBranch?: string) {
   const { rows } = await pool.query(
     `SELECT
        (SELECT event_type FROM audit_events
@@ -118,6 +118,7 @@ async function remediationContext(pool: Pool, repo: string, windowDays: number, 
   return {
     repo,
     defaultBranch: defaultBranch ?? "main",
+    mode,
     latestProtectionEvent: (row.latest_protection as string | null) ?? null,
     restoreDrift: config.protection.restoreDrift,
     directPushes: Number(row.direct_pushes ?? 0),

@@ -78,6 +78,36 @@ export async function apiGet<T>(path: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** POST that returns the parsed body and throws ApiError with the server's own
+ *  message — the fix-path UI shows that message verbatim rather than inventing
+ *  its own, because the server knows why an action failed and the UI doesn't. */
+export async function apiAction<T = unknown>(path: string, body?: unknown): Promise<T> {
+  const id = getSessionId();
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers: {
+        ...(id ? { authorization: `Bearer ${id}` } : {}),
+        ...(body ? { "content-type": "application/json" } : {}),
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+  } catch {
+    throw new ApiError("offline", "Can't reach Steward right now.");
+  }
+  if (res.status === 401) throw new ApiError("unauthenticated", "Session expired.", 401);
+  const parsed = await res.json().catch(() => null);
+  if (!res.ok) {
+    const message =
+      (parsed && typeof parsed === "object" && typeof (parsed as any).message === "string"
+        ? (parsed as any).message
+        : null) ?? `Steward returned ${res.status}.`;
+    throw new ApiError(res.status === 403 ? "forbidden" : "server", message, res.status);
+  }
+  return parsed as T;
+}
+
 export async function apiPost(path: string): Promise<void> {
   const id = getSessionId();
   try {
@@ -130,8 +160,38 @@ export interface DigestEntry {
   eventType: string;
   plainEnglish: string;
 }
+export type RepoMode = "solo" | "shared";
+export type Effort = "one click" | "a few minutes" | "a decision to make";
+export type FixAction =
+  | { kind: "codeworthy"; label: string; method: "POST"; path: string; body?: Record<string, unknown> }
+  | { kind: "github"; label: string; url: string }
+  | { kind: "manual"; label: string; steps: string[]; snippet?: { filename: string; body: string } }
+  | { kind: "accept"; label: string; method: "POST"; path: string };
+export interface FixOption {
+  id: string;
+  title: string;
+  detail: string;
+  /** Null on the recommendation — it's recommended because nothing is given up. */
+  tradeoff: string | null;
+  effort: Effort;
+  action: FixAction;
+}
+export interface RepoIssue {
+  id: string;
+  vitalId: string;
+  severity: "at risk" | "watch";
+  title: string;
+  finding: string;
+  consequence: string;
+  /** Why CodeWorthy can't just fix it. */
+  constraint: string | null;
+  options: FixOption[];
+}
+
 export interface HealthReport {
   repoFilter: string | null;
+  mode: RepoMode;
+  issues: RepoIssue[];
   generatedAt: string;
   overall: "Healthy" | "Needs attention" | "At risk";
   vitals: HealthVital[];

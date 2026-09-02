@@ -2,6 +2,7 @@
 // on a repo it's installed on. Live data from the Fly backend, degrading to calm
 // states when the server is asleep (trial) or a repo has no history yet.
 import { useEffect, useMemo, useState } from "react";
+import { FixPath, ModeSwitch } from "./FixPath";
 import { Navigate } from "react-router-dom";
 import {
   apiGet,
@@ -59,6 +60,10 @@ export function RepoDashboard() {
   const [activityErr, setActivityErr] = useState<ApiError | null>(null);
   const [activityLoading, setActivityLoading] = useState(false);
   const [health, setHealth] = useState<HealthReport | null>(null);
+  // Bumped after a fix action so the checkup re-reads. The action already
+  // changed the world (protection applied, mode set, finding accepted); this is
+  // what makes the page agree with it.
+  const [healthNonce, setHealthNonce] = useState(0);
   const [windowDays, setWindowDays] = useState<number>(30);
   const [filter, setFilter] = useState("");
   const [overview, setOverview] = useState<OverviewReport | null>(null);
@@ -129,7 +134,7 @@ export function RepoDashboard() {
     return () => {
       live = false;
     };
-  }, [selectedRepo, windowDays]);
+  }, [selectedRepo, windowDays, healthNonce]);
 
   // Load the selected repo's activity over the chosen window.
   useEffect(() => {
@@ -295,7 +300,14 @@ export function RepoDashboard() {
                 </div>
               </header>
 
-              {health && <HealthCard report={health} windowDays={windowDays} activity={activity} />}
+              {health && (
+                <HealthCard
+                  report={health}
+                  windowDays={windowDays}
+                  activity={activity}
+                  onChanged={() => setHealthNonce((n) => n + 1)}
+                />
+              )}
 
               {activityLoading && !activity && <Waking label="Reading the change log…" />}
               {activityErr && <ActivityError err={activityErr} />}
@@ -494,10 +506,12 @@ function HealthCard({
   report,
   windowDays,
   activity,
+  onChanged,
 }: {
   report: HealthReport;
   windowDays: number;
   activity: ActivityEvent[] | null;
+  onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const overallStatus = OVERALL_STATUS[report.overall];
@@ -517,11 +531,23 @@ function HealthCard({
 
   return (
     <>
+      <FixPath issues={report.issues ?? []} onChanged={onChanged} />
       <div className="health-row">
         <section className="health-card">
           <div className="health-card-head">
             <div>
-              <div className="health-card-label">REPO HEALTH · {windowDays} DAYS</div>
+              <div className="health-card-label">
+                REPO HEALTH · {windowDays} DAYS
+                {report.mode && (
+                  <span className={`mode-badge mode-${report.mode}`} title={
+                    report.mode === "solo"
+                      ? "One maintainer. You push to the default branch directly; CodeWorthy reviews each change after it lands. Force-pushes and branch deletion are still blocked."
+                      : "Changes go through a pull request that CodeWorthy reviews before it can merge."
+                  }>
+                    {report.mode === "solo" ? "solo" : "shared"}
+                  </span>
+                )}
+              </div>
               <div className="health-verdict" style={{ color: verdictColor }}>{report.overall}</div>
               <div className="health-subline">{subline}</div>
             </div>
@@ -569,7 +595,14 @@ function HealthCard({
           </div>
         </div>
       </div>
-      {open && <HealthDetails report={report} windowDays={windowDays} />}
+      {open && (
+        <>
+          <HealthDetails report={report} windowDays={windowDays} />
+          {report.repoFilter && report.mode && (
+            <ModeSwitch repo={report.repoFilter} mode={report.mode} onChanged={onChanged} />
+          )}
+        </>
+      )}
     </>
   );
 }

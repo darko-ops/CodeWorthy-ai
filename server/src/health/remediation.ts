@@ -22,13 +22,14 @@
 //   2. Say why. Every issue names the constraint that stops CodeWorthy fixing
 //      it alone, in the user's language, because "we can't" without "because"
 //      reads as the tool being broken.
+import type { RepoMode } from "../steward/repoMode.js";
 import type { HealthVital, VitalStatus } from "./health.js";
 
 export type Effort = "one click" | "a few minutes" | "a decision to make";
 
 export type FixAction =
   /** CodeWorthy can do this itself, on the user's click. */
-  | { kind: "codeworthy"; label: string; method: "POST"; path: string }
+  | { kind: "codeworthy"; label: string; method: "POST"; path: string; body?: Record<string, unknown> }
   /** Only a human can do it, in GitHub's own UI. */
   | { kind: "github"; label: string; url: string }
   /** A change the user makes in their repository. */
@@ -65,6 +66,8 @@ export interface RepoIssue {
 export interface RemediationContext {
   repo: string; // "owner/name"
   defaultBranch: string;
+  /** How the repo is worked on — changes what counts as a problem at all. */
+  mode: RepoMode;
   /** Latest protection-family event type in the spine, if any. */
   latestProtectionEvent: string | null;
   /** Is drift restored automatically (operator setting)? */
@@ -225,6 +228,14 @@ export function buildIssues(vitals: HealthVital[], ctx: RemediationContext): Rep
             snippet: ACTIONS_GATE_SNIPPET,
           },
         },
+        {
+          id: "protection_off.solo",
+          title: "I'm the only one working here — switch to solo mode",
+          detail: `You keep pushing straight to ${ctx.defaultBranch}. CodeWorthy reviews each change after it lands and comments on the commit, and force-pushes and branch deletion stay blocked.`,
+          tradeoff: "The review happens after the change is live, not before — so it tells you about a problem rather than stopping it.",
+          effort: "one click",
+          action: { kind: "codeworthy", label: "Switch to solo mode", method: "POST", path: `/api/repos/${ctx.repo}/mode`, body: { mode: "solo" } },
+        },
         acceptOption(
           "protection_off",
           "Keep working without protection",
@@ -271,8 +282,12 @@ export function buildIssues(vitals: HealthVital[], ctx: RemediationContext): Rep
   }
 
   // ── work is bypassing review ──────────────────────────────────────────────
+  // In SOLO mode a direct push is the agreed workflow, so there is nothing to
+  // remediate — the vital already reports on whether each one got reviewed.
+  // Offering "stop pushing to main" to someone who deliberately chose to push
+  // to main is how a tool teaches people to ignore it.
   const review = byId.get("review_discipline");
-  if (review && review.status !== "healthy" && review.status !== "unknown" && !ctx.accepted.has("direct_pushes")) {
+  if (ctx.mode !== "solo" && review && review.status !== "healthy" && review.status !== "unknown" && !ctx.accepted.has("direct_pushes")) {
     const n = ctx.directPushes;
     issues.push({
       id: "direct_pushes",
@@ -299,10 +314,22 @@ export function buildIssues(vitals: HealthVital[], ctx: RemediationContext): Rep
           effort: "a few minutes",
           action: { kind: "github", label: "Open the commits", url: `https://github.com/${ctx.repo}/commits/${ctx.defaultBranch}` },
         },
+        {
+          id: "direct_pushes.solo",
+          title: "This is how I want to work — switch to solo mode",
+          detail: "Says plainly that one person maintains this repo. Pushing directly stops being flagged, and CodeWorthy reviews each change after it lands instead of asking you to open a pull request against yourself.",
+          tradeoff: "The review comes after the change is live. Switch back to shared the moment a second person starts landing changes here.",
+          effort: "one click",
+          action: { kind: "codeworthy", label: "Switch to solo mode", method: "POST", path: `/api/repos/${ctx.repo}/mode`, body: { mode: "solo" } },
+        },
+        // Solo mode settles this by changing the policy; accepting settles it by
+        // owning the risk under the existing policy. Both are terminal, and
+        // someone may want the second without the first — so the issue keeps a
+        // final option that requires agreeing to nothing new.
         acceptOption(
           "direct_pushes",
-          "This is how I want to work",
-          "Fine for a solo project you're moving fast on. CodeWorthy keeps recording what lands; it stops calling it a problem."
+          "Leave it — I know these went in unreviewed",
+          "CodeWorthy keeps recording what lands on the branch. It stops raising this as something to fix."
         ),
       ],
     });
