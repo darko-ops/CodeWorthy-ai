@@ -157,6 +157,14 @@ function DecisionRow({
     }
   }
 
+  // Re-read the repo's state after the user changed something in GitHub. It
+  // clears any stale error first: the previous failure was about the world as
+  // it was before they went and fixed it.
+  function recheck() {
+    setError(null);
+    onChanged();
+  }
+
   async function undo(path: string) {
     setBusy(true);
     setError(null);
@@ -265,7 +273,7 @@ function DecisionRow({
                           ? `Recommended · ${o.tradeoff ?? "nothing given up"}`
                           : (o.tradeoff ?? o.detail)}
                       </p>
-                      {o.action.kind === "manual" && <ManualSteps action={o.action} />}
+                      {o.action.kind === "manual" && <ManualSteps action={o.action} onRecheck={recheck} />}
                     </>
                   )}
                 </div>
@@ -278,7 +286,7 @@ function DecisionRow({
               action, and they're already open in the row above. */}
           {option && option.action.kind !== "manual" && (
             <div className="commit-row">
-              <CommitAction option={option} busy={busy} onRun={() => run(option)} />
+              <CommitAction option={option} busy={busy} onRun={() => run(option)} onRecheck={recheck} />
               <span className="commit-note">whatever you pick is recorded with your name and the reason</span>
             </div>
           )}
@@ -302,14 +310,23 @@ function FixError({ message, plural = true }: { message: string; plural?: boolea
   );
 }
 
-function CommitAction({ option, busy, onRun }: { option: FixOption; busy: boolean; onRun: () => void }) {
+function CommitAction({ option, busy, onRun, onRecheck }: {
+  option: FixOption; busy: boolean; onRun: () => void; onRecheck: () => void;
+}) {
   const a = option.action as Exclude<FixOption["action"], { kind: "manual" }>;
 
   if (a.kind === "github") {
+    // An option that sends you to GitHub cannot know when you're done —
+    // CodeWorthy only finds out at the next webhook or the hourly sweep. Without
+    // a way to say so, the honest fix looks like it failed: you change the
+    // setting, come back, and the same issue is still sitting there.
     return (
-      <a className="btn-filled" href={a.url} target="_blank" rel="noreferrer">
-        {a.label} ↗
-      </a>
+      <>
+        <a className="btn-filled" href={a.url} target="_blank" rel="noreferrer">
+          {a.label} ↗
+        </a>
+        <Recheck onRecheck={onRecheck} />
+      </>
     );
   }
   // Accepting uses the same button as fixing: it's a normal move on the record,
@@ -321,7 +338,28 @@ function CommitAction({ option, busy, onRun }: { option: FixOption; busy: boolea
   );
 }
 
-function ManualSteps({ action }: { action: Extract<FixOption["action"], { kind: "manual" }> }) {
+function Recheck({ onRecheck }: { onRecheck: () => void }) {
+  const [checked, setChecked] = useState(false);
+  return (
+    <button
+      className="btn-quiet"
+      title="Re-read this repository's settings from GitHub"
+      onClick={(e) => {
+        e.stopPropagation(); // rows are radios; re-checking must not re-select
+        setChecked(true);
+        onRecheck();
+        setTimeout(() => setChecked(false), 2500);
+      }}
+    >
+      {checked ? "Re-checked ✓" : "I've done it — re-check"}
+    </button>
+  );
+}
+
+function ManualSteps({ action, onRecheck }: {
+  action: Extract<FixOption["action"], { kind: "manual" }>;
+  onRecheck: () => void;
+}) {
   const [copied, setCopied] = useState(false);
 
   async function copy(e: React.MouseEvent) {
@@ -354,6 +392,9 @@ function ManualSteps({ action }: { action: Extract<FixOption["action"], { kind: 
           <pre>{action.snippet.body}</pre>
         </figure>
       )}
+      {/* A manual option has no commit button — the steps ARE the action — so
+          this is the only place the user can tell CodeWorthy they've done it. */}
+      <div className="pick-recheck"><Recheck onRecheck={onRecheck} /></div>
     </>
   );
 }

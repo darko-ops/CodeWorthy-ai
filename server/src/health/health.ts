@@ -109,6 +109,16 @@ async function remediationContext(pool: Pool, repo: string, windowDays: number, 
        (SELECT count(*)::int FROM audit_events
          WHERE repo = $1 AND event_type = 'push.direct_to_default'
            AND ts >= now() - make_interval(days => $2))                        AS direct_pushes,
+       -- Direct pushes since protection was last put in place. This is the
+       -- number that says whether there is anything left to DO: pushes from
+       -- before protection existed are history, and no button can change them.
+       (SELECT count(*)::int FROM audit_events e
+         WHERE e.repo = $1 AND e.event_type = 'push.direct_to_default'
+           AND e.ts >= now() - make_interval(days => $2)
+           AND e.ts > coalesce((SELECT max(p.ts) FROM audit_events p
+                                 WHERE p.repo = $1
+                                   AND p.event_type IN ('protection.configured','protection.restored')),
+                               'epoch'::timestamptz))                          AS direct_pushes_since,
        -- An acceptance can be withdrawn, and withdrawing it appends rather
        -- than deletes, so "is this accepted?" is the LATEST of the two events
        -- for that issue, not merely whether an acceptance was ever recorded.
@@ -130,6 +140,8 @@ async function remediationContext(pool: Pool, repo: string, windowDays: number, 
     latestProtectionEvent: (row.latest_protection as string | null) ?? null,
     restoreDrift: config.protection.restoreDrift,
     directPushes: Number(row.direct_pushes ?? 0),
+    directPushesSinceProtection: Number(row.direct_pushes_since ?? 0),
+    protectionInPlace: row.latest_protection === "protection.configured" || row.latest_protection === "protection.restored",
     accepted: new Set<string>(((row.accepted as string[] | null) ?? []).filter(Boolean)),
   };
 }
@@ -284,10 +296,36 @@ async function reviewDisciplineVital(
       finding: `Changes went through pull requests — each one was reviewable before it landed on the default branch.`,
       prescription: "Keep opening a pull request for each change." };
   }
+
+  // Split the count at the moment protection went on. Without this the vital
+  // stays red for a month over changes whose cause was fixed on day one, and a
+  // warning that cannot be cleared by fixing the problem is one people learn to
+  // ignore.
+  const { rows: split } = await pool.query(
+    `SELECT count(*)::int AS since FROM audit_events e
+      WHERE e.repo = $1 AND e.event_type = 'push.direct_to_default'
+        AND e.ts >= now() - make_interval(days => $2)
+        AND e.ts > coalesce((SELECT max(p.ts) FROM audit_events p
+                              WHERE p.repo = $1
+                                AND p.event_type IN ('protection.configured','protection.restored')),
+                            'epoch'::timestamptz)`,
+    [repo, windowDays]
+  );
+  const since = Number(split[0]?.since ?? 0);
+  const before = direct - since;
+
+  if (since === 0) {
+    // Protection is in place and nothing has gone around it. The history stays
+    // visible — it is in the record either way — but it is stated as history.
+    return { ...base, status: "healthy",
+      finding: `${before} change(s) reached the default branch without review before protection was turned on. Nothing has since — every change now goes through a pull request.`,
+      prescription: "Nothing to do. Those changes are in the record; the way they happened is closed off." };
+  }
+
   const status: VitalStatus = prs > 0 ? "watch" : "at risk";
   return { ...base, status,
-    finding: `${direct} change(s) went straight to the default branch with no pull request in the last ${windowDays} days${prs > 0 ? `, alongside ${prs} that did go through review` : ` — nothing reviewed them first`}.`,
-    prescription: "Do your work on a branch and open a pull request; turning on branch protection makes this automatic." };
+    finding: `${since} change(s) went straight to the default branch with no pull request${before > 0 ? `, on top of ${before} from before protection was on` : ""}${prs > 0 ? `, alongside ${prs} that did go through review` : ""}.`,
+    prescription: "These got past protection that is already on, which means an admin override — check each one was deliberate." };
 }
 
 // ── vital + section: record integrity (tamper-evidence) ────────────────────

@@ -14,6 +14,8 @@ const ctx = (over: Partial<RemediationContext> = {}): RemediationContext => ({
   latestProtectionEvent: null,
   restoreDrift: true,
   directPushes: 0,
+  directPushesSinceProtection: 0,
+  protectionInPlace: false,
   accepted: new Set(),
   ...over,
 });
@@ -78,6 +80,26 @@ describe("what it offers, and what it doesn't", () => {
     const solo = issues[0]!.options.find((o) => o.id === "direct_pushes.solo")!;
     expect(solo).toBeTruthy();
     expect(solo.effort).toBe("one click");
+  });
+
+  it("stops raising direct pushes once protection is on and none happened since", () => {
+    // The bug this fixes: pressing the recommended one-click fix returned 200,
+    // applied protection, and the issue came straight back — because it was
+    // about pushes from before protection existed, which no button can unmake.
+    const settled = ctx({ directPushes: 2, directPushesSinceProtection: 0, protectionInPlace: true });
+    expect(ids(buildIssues([vital("review_discipline", "at risk")], settled))).not.toContain("direct_pushes");
+  });
+
+  it("still raises it when someone pushed past protection that is already on", () => {
+    // That IS actionable, and it is a different thing: an admin went around the
+    // rule after it was in force.
+    const bypassed = ctx({ directPushes: 2, directPushesSinceProtection: 2, protectionInPlace: true });
+    expect(ids(buildIssues([vital("review_discipline", "at risk")], bypassed))).toContain("direct_pushes");
+  });
+
+  it("raises it when there is no protection yet — then the fix is real", () => {
+    const unprotected = ctx({ directPushes: 3, directPushesSinceProtection: 3, protectionInPlace: false });
+    expect(ids(buildIssues([vital("review_discipline", "at risk")], unprotected))).toContain("direct_pushes");
   });
 
   it("stops calling direct pushes a problem once the repo IS solo", () => {
