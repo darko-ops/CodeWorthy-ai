@@ -74,6 +74,10 @@ export interface RemediationContext {
   restoreDrift: boolean;
   /** Direct-to-default pushes in the window. */
   directPushes: number;
+  /** …of those, how many happened AFTER protection was last put in place. */
+  directPushesSinceProtection: number;
+  /** Is protection currently in force? */
+  protectionInPlace: boolean;
   /** Has the user already accepted a given issue id? */
   accepted: Set<string>;
 }
@@ -286,9 +290,23 @@ export function buildIssues(vitals: HealthVital[], ctx: RemediationContext): Rep
   // remediate — the vital already reports on whether each one got reviewed.
   // Offering "stop pushing to main" to someone who deliberately chose to push
   // to main is how a tool teaches people to ignore it.
+  // Only raise this when there is something left to DO about it. Pushes that
+  // happened BEFORE protection went on are history: they are in the record, the
+  // cause is already fixed, and no button can unmake them. Offering "make pull
+  // requests required" for them meant the recommended one-click fix succeeded,
+  // changed nothing visible, and the issue came straight back — the dead end
+  // fix paths exist to remove, in a subtler form.
   const review = byId.get("review_discipline");
-  if (ctx.mode !== "solo" && review && review.status !== "healthy" && review.status !== "unknown" && !ctx.accepted.has("direct_pushes")) {
-    const n = ctx.directPushes;
+  const somethingToDo = !ctx.protectionInPlace || ctx.directPushesSinceProtection > 0;
+  if (
+    ctx.mode !== "solo" &&
+    somethingToDo &&
+    review &&
+    review.status !== "healthy" &&
+    review.status !== "unknown" &&
+    !ctx.accepted.has("direct_pushes")
+  ) {
+    const n = ctx.protectionInPlace ? ctx.directPushesSinceProtection : ctx.directPushes;
     issues.push({
       id: "direct_pushes",
       vitalId: "review_discipline",

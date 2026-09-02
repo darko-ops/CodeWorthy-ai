@@ -85,6 +85,22 @@ export function RepoDashboard() {
   // what makes the page agree with it.
   const [healthNonce, setHealthNonce] = useState(0);
   const [rulesOpen, setRulesOpen] = useState(false);
+
+  // GitHub only allows branch protection on a PRIVATE repository on a paid
+  // plan. We used to discover that by trying and being refused — the user
+  // pressed the recommended fix and got an error. The dashboard already knows
+  // which repos are private, so it can say so first.
+  const selectedIsPrivate = useMemo(() => {
+    if (!selectedRepo) return false;
+    for (const list of Object.values(repos)) {
+      const hit = list?.find((r) => r.full_name === selectedRepo);
+      if (hit) return hit.private;
+    }
+    return false;
+  }, [selectedRepo, repos]);
+  // Once GitHub has actually refused, the fix path says so with real options —
+  // so the notice steps back to avoid saying the same thing twice, louder.
+  const protectionRefused = (health?.issues ?? []).some((i) => i.id === "protection_unavailable");
   const [windowDays, setWindowDays] = useState<number>(30);
   const [filter, setFilter] = useState("");
   // One search box, in the top bar, filtering the overview table. It lives up
@@ -316,6 +332,7 @@ export function RepoDashboard() {
 
           <section className="repo-main">
             <div className="repo-eyebrow">{owner}</div>
+            {selectedIsPrivate && <PrivateNotice constraintKnown={protectionRefused} />}
             <header className="repo-header">
               <h1 className="repo-title">{selectedRepo.split("/").slice(1).join("/")}</h1>
               <div className="repo-header-right">
@@ -810,5 +827,28 @@ function ActivityError({ err }: { err: ApiError }) {
       <h2>{err.kind === "offline" ? "Waking up…" : "Couldn't load activity"}</h2>
       <p className="hint">{msg}</p>
     </div>
+  );
+}
+
+// Private repositories on GitHub's free plan cannot have branch protection or
+// rulesets at all — the API refuses with a 403. Saying so up front matters
+// because the alternative is worse than silence: the user presses the
+// recommended one-click fix, it fails, and the tool looks broken rather than
+// constrained.
+//
+// It is deliberately a note and not a warning. A private repo on a PAID plan is
+// completely fine, and we cannot tell which one this is until we try — so it
+// states the condition rather than asserting a problem the user may not have.
+function PrivateNotice({ constraintKnown }: { constraintKnown: boolean }) {
+  if (constraintKnown) return null; // the fix path is already saying it, with options
+  return (
+    <aside className="private-note" role="note">
+      <span className="private-note-mark" aria-hidden>🔒</span>
+      <p>
+        This repository is <strong>private</strong>. GitHub only allows branch protection and rulesets on private
+        repositories on a paid plan — on the free plan it refuses, and CodeWorthy can review and record here but cannot
+        enforce. If yours is on a paid plan this doesn't apply and everything works normally.
+      </p>
+    </aside>
   );
 }

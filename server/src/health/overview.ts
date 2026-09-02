@@ -232,6 +232,27 @@ export async function buildOverview(
     for (const r of rows) lastAct.set(r.repo, r.last_ts instanceof Date ? r.last_ts.toISOString() : String(r.last_ts));
   }
 
+  // Direct pushes SINCE protection went on, per repo. The portfolio has to
+  // split this the same way the repo's own screen does — otherwise the overview
+  // keeps naming a decision ("2 changes went straight to main") that the repo
+  // page has already stopped raising because the cause is fixed, and the two
+  // views contradict each other.
+  const directSince = new Map<string, number>();
+  {
+    const { rows } = await pool.query(
+      `SELECT e.repo, count(*)::int AS n FROM audit_events e
+        WHERE e.repo = ANY($1) AND e.event_type = 'push.direct_to_default'
+          AND e.ts >= now() - make_interval(days => $2)
+          AND e.ts > coalesce((SELECT max(p.ts) FROM audit_events p
+                                WHERE p.repo = e.repo
+                                  AND p.event_type IN ('protection.configured','protection.restored')),
+                              'epoch'::timestamptz)
+        GROUP BY e.repo`,
+      [uniq, days]
+    );
+    for (const r of rows) directSince.set(r.repo, r.n);
+  }
+
   const flags = await flaggedCountsByRepo(pool, uniq, days);
   const buckets = await flaggedBucketsByRepo(pool, uniq, days);
   const modes = await getRepoModes(pool, uniq);
@@ -260,6 +281,9 @@ export async function buildOverview(
         latestProtectionEvent: latestProt.get(full_name) ?? null,
         restoreDrift: config.protection.restoreDrift,
         directPushes: review.get(full_name)?.direct ?? 0,
+        directPushesSinceProtection: directSince.get(full_name) ?? 0,
+        protectionInPlace:
+          latestProt.get(full_name) === "protection.configured" || latestProt.get(full_name) === "protection.restored",
         accepted: accepted.get(full_name) ?? new Set<string>(),
       }
     );

@@ -1094,3 +1094,31 @@ tbody tr:hover {
   .rules-gate { flex-direction: column; gap: 12px; }
   .rules-panel { padding: 18px 16px; }
 }
+
+/* An option that sends you to GitHub can't know when you're done — this is how
+   you tell it, instead of waiting for the next webhook or the hourly sweep. */
+.fix-external { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fix-steps-recheck { margin: 4px 0 14px; }
+
+/* Telling CodeWorthy you've made a change it can't see yet. Quiet on purpose:
+   it's a follow-up to the real action, not a competing one. */
+.btn-quiet {
+  background: none; border: 1px solid currentColor; color: inherit;
+  border-radius: 8px; padding: 8px 14px; font: 600 12.5px var(--sans);
+  cursor: pointer; opacity: 0.75;
+}
+.btn-quiet:hover { opacity: 1; }
+.pick-recheck { margin-top: 12px; }
+
+/* Private repos: branch protection needs a paid GitHub plan. Stated as a
+   condition, not an alarm — a private repo on a paid plan is completely fine,
+   and we can't tell which this is until we try. */
+.private-note {
+  display: flex; gap: 11px; align-items: flex-start;
+  border: 1px solid var(--border-dark); border-left: 3px solid var(--watch);
+  border-radius: 10px; padding: 13px 15px; margin: 0 0 18px;
+  background: rgba(232, 176, 75, 0.05);
+}
+.private-note-mark { font-size: 14px; line-height: 1.5; flex: none; }
+.private-note p { margin: 0; font: 400 12.5px/1.65 var(--sans); color: var(--on-dark-4); max-width: 78ch; }
+.private-note strong { color: var(--on-dark-2); }
