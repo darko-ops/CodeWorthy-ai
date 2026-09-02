@@ -17,6 +17,7 @@ import type { Pool } from "pg";
 import { buildDigest, type DigestEntry } from "../digest/digest.js";
 import { verifyAuditChain, verifyAgainstAnchor, makeAnchor, type Anchor } from "../audit/tamper.js";
 import { config } from "../config.js";
+import { DEFAULT_MODE, getRepoMode, type RepoMode } from "../steward/repoMode.js";
 
 export type VitalStatus = "healthy" | "watch" | "at risk" | "unknown";
 
@@ -30,6 +31,8 @@ export interface HealthVital {
 
 export interface HealthReport {
   repoFilter: string | null;
+  /** How this repo is worked on — drives what "healthy" means for it. */
+  mode: RepoMode;
   generatedAt: string;
   overall: "Healthy" | "Needs attention" | "At risk";
   vitals: HealthVital[];
@@ -58,10 +61,11 @@ export async function buildHealthReport(
   const windowDays = Math.min(Math.max(opts.windowDays ?? 30, 1), 90);
 
   const integrityResult = await integrityVitalAndSection(pool, deps);
+  const mode = repo ? await getRepoMode(pool, repo) : DEFAULT_MODE;
   const vitals: HealthVital[] = [
-    await protectionVital(pool, repo),
+    await protectionVital(pool, repo, mode),
     await mergeGateVital(pool, repo, windowDays),
-    await reviewDisciplineVital(pool, repo, windowDays),
+    await reviewDisciplineVital(pool, repo, windowDays, mode),
     integrityResult.vital,
   ];
   const integrity = integrityResult.section;
@@ -73,6 +77,7 @@ export async function buildHealthReport(
 
   return {
     repoFilter: repo,
+    mode,
     generatedAt: new Date().toISOString(),
     overall,
     vitals,
@@ -83,7 +88,7 @@ export async function buildHealthReport(
 }
 
 // ── vital: branch protection (latest state, not windowed) ──────────────────
-async function protectionVital(pool: Pool, repo: string | null): Promise<HealthVital> {
+async function protectionVital(pool: Pool, repo: string | null, mode: RepoMode = DEFAULT_MODE): Promise<HealthVital> {
   const base = { id: "protection", label: "Branch protection" };
   if (!repo) {
     return { ...base, status: "unknown", finding: "This chart is clearest for a single repository — add ?repo=owner/name.", prescription: "" };
@@ -122,6 +127,11 @@ async function protectionVital(pool: Pool, repo: string | null): Promise<HealthV
       prescription: n > 0 ? "Admin overrides are allowed but recorded — check that each one was deliberate." : "Nothing to do — protection is in force and self-correcting." };
   }
   if (latest === "protection.configured") {
+    if (mode === "solo") {
+      return { ...base, status: "healthy",
+        finding: "This repository is in solo mode: you push to the default branch directly, and CodeWorthy reviews each change after it lands. Force-pushes and branch deletion are still blocked.",
+        prescription: "Nothing to do. Switch to shared mode when a second person starts landing changes here." };
+    }
     return { ...base, status: "healthy",
       finding: "The default branch is protected — changes go through a reviewable pull request, the CodeWorthy check must pass, and force-pushes and deletions are blocked.",
       prescription: "Keep protection on; every change stays reviewable." };
@@ -170,10 +180,43 @@ async function mergeGateVital(pool: Pool, repo: string | null, windowDays: numbe
 }
 
 // ── vital: review discipline (windowed behavior) ───────────────────────────
-async function reviewDisciplineVital(pool: Pool, repo: string | null, windowDays: number): Promise<HealthVital> {
+async function reviewDisciplineVital(
+  pool: Pool,
+  repo: string | null,
+  windowDays: number,
+  mode: RepoMode = DEFAULT_MODE
+): Promise<HealthVital> {
   const base = { id: "review_discipline", label: "Review discipline" };
   if (!repo) {
     return { ...base, status: "unknown", finding: "Add ?repo=owner/name to see how changes are landing.", prescription: "" };
+  }
+
+  // In solo mode a direct push IS the workflow, so counting it as a failure
+  // would leave the vital permanently red for doing exactly what the user
+  // chose. What matters instead is whether each one actually got reviewed
+  // after it landed — an unreviewed change is the real gap, in either mode.
+  if (mode === "solo") {
+    const { rows } = await pool.query(
+      `SELECT
+         count(*) FILTER (WHERE event_type = 'push.direct_to_default')                            AS pushes,
+         count(*) FILTER (WHERE event_type = 'gate.evaluated' AND payload->>'postMerge' = 'true') AS reviewed
+       FROM audit_events
+       WHERE repo = $1 AND ts >= now() - make_interval(days => $2)`,
+      [repo, windowDays]
+    );
+    const pushes = Number(rows[0]?.pushes ?? 0);
+    const reviewed = Number(rows[0]?.reviewed ?? 0);
+    if (pushes === 0) {
+      return { ...base, status: "unknown", finding: `No changes tracked in the last ${windowDays} days.`, prescription: "" };
+    }
+    if (reviewed >= pushes) {
+      return { ...base, status: "healthy",
+        finding: `${pushes} change(s) went straight to the default branch, as solo mode intends, and CodeWorthy reviewed every one of them after it landed.`,
+        prescription: "Nothing to do — every change is getting reviewed, just after the fact rather than before." };
+    }
+    return { ...base, status: "watch",
+      finding: `${pushes} change(s) landed directly and ${pushes - reviewed} of them got no review — CodeWorthy couldn't read the commit.`,
+      prescription: "Check that CodeWorthy still has access to this repository, so changes don't land completely unlooked-at." };
   }
   const { rows } = await pool.query(
     `SELECT event_type, count(*)::int AS n FROM audit_events

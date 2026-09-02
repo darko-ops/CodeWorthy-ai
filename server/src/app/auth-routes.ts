@@ -22,10 +22,14 @@ import {
   listRepositories,
   oauthConfigured,
   signState,
+  installationForRepo,
   userCanAccessRepo,
   verifyState,
 } from "./oauth.js";
 import { createSession, deleteSession, getSession, type UserSession } from "./session.js";
+import { getInstallationClient } from "../github/auth.js";
+import { ensureProtection } from "../steward/enforce.js";
+import { isRepoMode, setRepoMode } from "../steward/repoMode.js";
 
 export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
   // --- CORS: allow the dashboard SPA origins to call /api/* with a bearer. ---
@@ -205,6 +209,57 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       const limit = q.limit ? parseInt(q.limit, 10) : 100;
       const sinceDays = q.days ? parseInt(q.days, 10) : undefined;
       return recentChangelog(pool, { repo: fullName, limit, sinceDays });
+    });
+  });
+
+  // Set how a repository is worked on, and reshape its protection to match.
+  //
+  // This is the switch that lets a single maintainer keep working in their own
+  // repo. Solo mode drops the pull-request requirement and keeps the
+  // irreversible operations blocked; shared mode restores the full rule.
+  app.post("/api/repos/:owner/:repo/mode", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const p = req.params as { owner: string; repo: string };
+    const fullName = `${p.owner}/${p.repo}`;
+    // NOTE: a global JSON content-type parser (steward/routes.ts) wraps every
+    // JSON body as { raw, json } so the webhook can verify its signature over
+    // the exact bytes GitHub sent. Any other JSON route has to unwrap it.
+    const raw = req.body as { json?: unknown } | undefined;
+    const body = ((raw && "json" in raw ? raw.json : raw) ?? {}) as { mode?: unknown; reason?: unknown };
+    if (!isRepoMode(body.mode)) {
+      reply.code(400).send({ error: "bad_mode", message: 'mode must be "solo" or "shared".' });
+      return;
+    }
+    const mode = body.mode;
+
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      const installationId = await installationForRepo(s.token, fullName);
+      // The decision is recorded first and separately from the settings change,
+      // so the record shows what was intended even if GitHub then refuses.
+      await setRepoMode(pool, {
+        repo: fullName,
+        mode,
+        actor: s.login,
+        installationId,
+        ...(typeof body.reason === "string" ? { reason: body.reason } : {}),
+      });
+      if (installationId == null) {
+        return { ok: true, mode, protection: "not_installed" };
+      }
+      const client = await getInstallationClient(installationId);
+      const repoInfo = (await client.listInstallationRepositories()).find(
+        (r) => r.full_name.toLowerCase() === fullName.toLowerCase()
+      );
+      const result = await ensureProtection(client, pool, fullName, installationId, {
+        defaultBranch: repoInfo?.default_branch ?? "main",
+        mode,
+      });
+      return { ok: true, mode, protection: result.action, mechanism: result.mechanism, detail: result.detail ?? null };
     });
   });
 

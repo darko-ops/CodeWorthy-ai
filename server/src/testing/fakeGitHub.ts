@@ -28,6 +28,7 @@ export class FakeGitHub implements GitHubClient {
   rulesets: unknown[] = [];
   ruleset: unknown = null;
   pullRequest: unknown = {};
+  commitDiff: unknown = { files: [] };
 
   protected rec<T>(m: string, args: unknown[], ret: T): Promise<T> {
     this.calls.push({ m, args });
@@ -41,6 +42,7 @@ export class FakeGitHub implements GitHubClient {
   listPullRequestCommits(...a: any[]): Promise<unknown> { return this.rec("listPullRequestCommits", a, this.commits); }
   listCheckRunsForRef(...a: any[]): Promise<unknown> { return this.rec("listCheckRunsForRef", a, this.checkRuns); }
   getPullRequest(...a: any[]): Promise<unknown> { return this.rec("getPullRequest", a, this.pullRequest); }
+  getCommitDiff(...a: any[]): Promise<unknown> { return this.rec("getCommitDiff", a, this.commitDiff); }
   listPullRequests(...a: any[]): Promise<unknown> { return this.rec("listPullRequests", a, [] as unknown[]); }
   getBranch(...a: any[]): Promise<unknown> { return this.rec("getBranch", a, {}); }
   getBranchProtection(...a: any[]): Promise<unknown> { return this.rec("getBranchProtection", a, this.protection); }

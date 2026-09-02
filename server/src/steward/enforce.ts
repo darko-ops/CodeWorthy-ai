@@ -22,11 +22,26 @@ import type { Pool } from "pg";
 import { appendAuditEvent } from "../audit/audit.js";
 import { isNotFound, type GitHubClient } from "../github/client.js";
 import { STEWARD_CHECK, configureProtection, detectProtectionDrift } from "./protection.js";
-import { applyRuleset, detectRulesetDrift, inspectProtection, RULESET_NAME } from "./rulesets.js";
+import { applyRuleset, detectRulesetDrift, inspectProtection, RULESET_NAME, type RulesetShape } from "./rulesets.js";
+import { getRepoMode, type RepoMode } from "./repoMode.js";
+import { config } from "../config.js";
 
 export interface EnsureOptions {
   defaultBranch?: string;
   checkName?: string;
+  /** Omit to read the repo's recorded mode from the spine. */
+  mode?: RepoMode;
+}
+
+/**
+ * An approval can only be required when an independent approver exists to give
+ * it. Requiring one otherwise hands the user a repository nothing can merge —
+ * the same failure as requiring a check nobody posts, which is the bug this
+ * whole tier was built to fix. So this follows the approver's configuration,
+ * never an aspiration.
+ */
+export function approvalRequired(): boolean {
+  return Boolean(config.approver.appId);
 }
 
 export interface EnsureResult {
@@ -48,12 +63,29 @@ export async function ensureProtection(
   opts: EnsureOptions = {}
 ): Promise<EnsureResult> {
   const checkName = opts.checkName ?? STEWARD_CHECK;
+  const mode = opts.mode ?? (await getRepoMode(pool, repo));
+  const shape: RulesetShape = { checkName, mode, requireApproval: approvalRequired() };
   try {
-    const applied = await applyRuleset(client, pool, repo, installationId, checkName);
+    const applied = await applyRuleset(client, pool, repo, installationId, shape);
     return { mechanism: "ruleset", action: applied.action };
   } catch (rulesetErr) {
     const reason = rulesetErr instanceof Error ? rulesetErr.message : String(rulesetErr);
     try {
+      // The legacy mechanism has no solo shape — it can only require a PR or
+      // not protect at all. For a solo repo, requiring a PR is exactly what the
+      // user asked us not to do, so we decline rather than silently re-block
+      // them and call it a fallback.
+      if (mode === "solo") {
+        await appendAuditEvent(pool, {
+          installationId,
+          repo,
+          eventType: "exception.protection_unavailable",
+          actor: "codeworthy-steward",
+          payload: { repo, mode, detail: reason, note: "solo mode needs rulesets; the legacy mechanism can't express it" },
+          plainEnglish: `Exception: CodeWorthy couldn't apply solo-mode protection to ${repo} (${reason}). It did NOT fall back to the older mechanism, because that would have required a pull request for every change — the opposite of what solo mode is for. The branch is unprotected.`,
+        });
+        return { mechanism: "none", action: "failed", detail: reason };
+      }
       await configureProtection(client, pool, repo, opts.defaultBranch ?? "main", installationId, checkName);
       await appendAuditEvent(pool, {
         installationId,
@@ -101,6 +133,11 @@ export async function enforceProtection(
   const checkName = opts.checkName ?? STEWARD_CHECK;
   const restoreAllowed = opts.restore !== false;
   const trigger = opts.trigger ?? "check";
+  // The repo's own mode decides what "correct" means here. Without this the
+  // sweep would read every solo repo as weakened and re-impose shared rules on
+  // it every hour — overriding a deliberate choice, on a schedule.
+  const mode = await getRepoMode(pool, repo);
+  const shape: RulesetShape = { checkName, mode, requireApproval: approvalRequired() };
 
   // Reading the live state has three outcomes, and conflating any two of them is
   // how a guardrail does damage: (a) the rule is there — diff it; (b) the rule
@@ -111,7 +148,7 @@ export async function enforceProtection(
   let unreadable: string | null = null;
 
   try {
-    const inspected = await inspectProtection(client, repo, checkName);
+    const inspected = await inspectProtection(client, repo, shape);
     weakenings = inspected.weakenings;
     hadRuleset = inspected.rulesetId != null;
   } catch (err) {
@@ -128,7 +165,7 @@ export async function enforceProtection(
       const legacy = await client.getBranchProtection(repo, opts.defaultBranch ?? "main");
       if (legacy) weakenings = detectProtectionDrift(legacy, checkName);
     } catch (err) {
-      if (isNotFound(err)) weakenings = detectRulesetDrift(null, checkName); // genuinely unprotected
+      if (isNotFound(err)) weakenings = detectRulesetDrift(null, shape); // genuinely unprotected
       else unreadable = err instanceof Error ? err.message : String(err);
     }
   }
@@ -153,7 +190,7 @@ export async function enforceProtection(
     repo,
     eventType: "exception.protection_weakened",
     actor: "codeworthy-steward",
-    payload: { weakenings, mechanism: hadRuleset ? "ruleset" : "branch-protection", rulesetName: RULESET_NAME, trigger },
+    payload: { weakenings, mode, mechanism: hadRuleset ? "ruleset" : "branch-protection", rulesetName: RULESET_NAME, trigger },
     plainEnglish: `Exception: branch protection on ${repo} was weakened — ${weakenings.join("; ")}.${restoreAllowed ? " CodeWorthy is restoring it." : " CodeWorthy is configured to report this rather than restore it."}`,
   });
 
@@ -164,6 +201,7 @@ export async function enforceProtection(
   const applied = await ensureProtection(client, pool, repo, installationId, {
     defaultBranch: opts.defaultBranch,
     checkName,
+    mode,
   });
   if (applied.action === "failed") {
     return { status: unprotected ? "unprotected" : "weakened", weakenings, restored: false };
