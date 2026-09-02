@@ -16,14 +16,14 @@
   --sand-eyebrow: #96826a;
 
   /* ---- surfaces: dark ---- */
-  /* The navy the public surfaces use: landing, sign-in, and the dark bands on
-     them. The dashboard re-maps these same names to a neutral grey ramp on
-     .dash-wrap — see "Screen 2" below. */
-  --ink-900:      #0b1621;
-  --ink-800:      #101f2c;
-  --ink-700:      #16283a;
-  --line-dark:    #1b3040;
-  --border-dark:  #22384c;
+  /* v2: a neutral grey ramp, not navy. Same five steps, same token names, so
+     nothing that reads them had to move. --signal and the status colours are
+     unchanged — one bright thing on a quiet ground. */
+  --ink-900:      #16181a;
+  --ink-800:      #1b1e21;
+  --ink-700:      #22262a;
+  --line-dark:    #24282c;
+  --border-dark:  #33383e;
 
   /* ---- text ---- */
   --ink:          #0d1b2a;
@@ -31,11 +31,11 @@
   --ink-muted:    #6b839a;
   --ink-faint:    #94a7b8;
   --on-dark:      #ffffff;
-  --on-dark-2:    #cfe0e8;
-  --on-dark-3:    #a3b8c8;
-  --on-dark-4:    #8fa8bb;
-  --on-dark-5:    #6f8798;
-  --on-dark-6:    #5d7488;
+  --on-dark-2:    #e6eaee;
+  --on-dark-3:    #c8cdd3;
+  --on-dark-4:    #9aa1a9;
+  --on-dark-5:    #71787f;
+  --on-dark-6:    #5f666d;
 
   /* ---- brand ---- */
   --signal:       #4cc9c0;   /* teal, ON DARK ONLY */
@@ -54,7 +54,7 @@
   --risk-ink:     #b04e33;
   --risk-wash:    #fdefea;
   --risk-line:    #f3cec2;
-  --unknown:      #94a7b8;
+  --unknown:      #4d545b;   /* quiet, never red */
 
   /* ---- lines & shape ---- */
   --hairline:     #e3e8ec;
@@ -216,8 +216,8 @@ a:hover {
   padding: 18px;
 }
 .stat-tile.glow {
-  background: linear-gradient(160deg, #0d3b2b, #101f2c);
-  border-color: #22384c;
+  background: linear-gradient(160deg, #0d3b2b, var(--ink-800));
+  border-color: var(--border-dark);
 }
 .stat-tile.glow .stat-label {
   color: #b9e6e1;
@@ -408,29 +408,7 @@ tbody tr:hover {
    pulse. Nothing animates on scroll, and nothing animates on height, so an
    expanding decision row doesn't make the page jump.
 =========================================================================== */
-/* The v2 ramp is scoped to the dashboard rather than :root. The token NAMES
-   are the ones the whole stylesheet already uses, so nothing below had to
-   change — but the landing page and the sign-in screen read the same names and
-   are not part of this redesign, so re-mapping them here is what keeps a
-   dashboard change out of the public brand. Custom properties inherit, so every
-   rule inside .dash-wrap resolves to grey and every rule outside stays navy.
-   --signal and the status colours are deliberately absent: they are identical
-   in both palettes. */
-.dash-wrap {
-  --ink-900:      #16181a;   /* page */
-  --ink-800:      #1b1e21;   /* card / raised row */
-  --ink-700:      #22262a;   /* hover fill on a dark button */
-  --line-dark:    #24282c;   /* hairline between rows */
-  --border-dark:  #33383e;   /* border on a card or control */
-  --on-dark-2:    #e6eaee;   /* strong body */
-  --on-dark-3:    #c8cdd3;   /* body on a teal wash */
-  --on-dark-4:    #9aa1a9;   /* body text, findings */
-  --on-dark-5:    #71787f;   /* secondary meta */
-  --on-dark-6:    #5f666d;   /* section labels, timestamps */
-  --unknown:      #4d545b;   /* quiet, never red */
-
-  min-height: 100vh; background: var(--ink-900); color: var(--on-dark-2);
-}
+.dash-wrap { min-height: 100vh; background: var(--ink-900); color: var(--on-dark-2); }
 .dash-topbar {
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 15px 26px; background: var(--ink-900);
@@ -909,9 +887,12 @@ tbody tr:hover {
 .signin-form { background: var(--page); padding: 64px 56px; display: flex; flex-direction: column; justify-content: center; }
 .signin-h1 { font: 800 30px var(--sans); letter-spacing: -0.03em; margin: 0 0 8px; color: var(--ink); }
 .signin-deck { font: 400 14px/1.6 var(--sans); color: var(--ink-muted); margin: 0 0 28px; }
-.signin-github { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 15px; background: var(--ink); color: #fff; border: none; border-radius: 10px; font: 600 15px var(--sans); cursor: pointer; transition: background 0.18s, transform 0.18s; }
-.signin-github:hover { background: #16283a; }
-.signin-scopes { font: 500 12px/1.5 var(--mono); color: var(--ink-faint); margin: 14px 0 0; text-align: center; }.signin-role-card.selected { background: var(--ink); border-color: var(--ink); }
+/* Neutral near-black, not the navy --ink: this button sits next to the dark
+   panel on the same screen, and a navy button beside a grey panel reads as a
+   mistake. --ink stays navy where it belongs — as text on light surfaces. */
+.signin-github { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 15px; background: var(--ink-900); color: #fff; border: none; border-radius: 10px; font: 600 15px var(--sans); cursor: pointer; transition: background 0.18s, transform 0.18s; }
+.signin-github:hover { background: var(--ink-700); }
+.signin-scopes { font: 500 12px/1.5 var(--mono); color: var(--ink-faint); margin: 14px 0 0; text-align: center; }.signin-role-card.selected { background: var(--ink-900); border-color: var(--ink-900); }
 .signin-role-card.selected .signin-role-title { color: #fff; }
 .signin-role-card.selected .signin-role-sub { color: var(--on-dark-4); }.signin-error { background: var(--risk-wash); border: 1px solid var(--risk-line); color: var(--risk-ink); border-radius: 9px; padding: 10px 12px; font: 500 13px var(--sans); margin: 0 0 16px; }
 @media (max-width: 900px) {
