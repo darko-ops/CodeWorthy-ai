@@ -109,9 +109,17 @@ async function remediationContext(pool: Pool, repo: string, windowDays: number, 
        (SELECT count(*)::int FROM audit_events
          WHERE repo = $1 AND event_type = 'push.direct_to_default'
            AND ts >= now() - make_interval(days => $2))                        AS direct_pushes,
-       (SELECT coalesce(array_agg(DISTINCT payload->>'issueId'), '{}')
-          FROM audit_events
-         WHERE repo = $1 AND event_type = 'issue.accepted')                    AS accepted`,
+       -- An acceptance can be withdrawn, and withdrawing it appends rather
+       -- than deletes, so "is this accepted?" is the LATEST of the two events
+       -- for that issue, not merely whether an acceptance was ever recorded.
+       (SELECT coalesce(array_agg(issue_id), '{}') FROM (
+          SELECT DISTINCT ON (payload->>'issueId')
+                 payload->>'issueId' AS issue_id, event_type
+            FROM audit_events
+           WHERE repo = $1 AND event_type IN ('issue.accepted','issue.unaccepted')
+             AND payload->>'issueId' IS NOT NULL
+           ORDER BY payload->>'issueId', ts DESC, id DESC
+        ) latest WHERE event_type = 'issue.accepted')                          AS accepted`,
     [repo, windowDays]
   );
   const row = rows[0] ?? {};

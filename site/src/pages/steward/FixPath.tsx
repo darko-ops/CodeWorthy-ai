@@ -1,4 +1,4 @@
-// Ranked fix paths — what to do about an unhealthy repo, best option first.
+// Decisions — what to do about an unhealthy repo, worst first.
 //
 // The dashboard used to state a problem and stop. Every unhealthy vital carried
 // one sentence of advice that assumed CodeWorthy's preferred fix was available,
@@ -6,61 +6,127 @@
 // is the state people uninstall from.
 //
 // So each issue is a short path instead of a verdict. The recommendation is
-// first and marked; every alternative says what it costs; and you can walk down
-// the list saying "not an option for me" until you reach one you can actually
-// take. The list always ends somewhere — the final option settles the issue by
-// accepting it on the record — so a repo can always be brought back to a clean
-// state even when the ideal fix is impossible for it.
+// first and marked; every alternative says what it costs; and the list always
+// ends somewhere — the final option settles the issue by accepting it on the
+// record — so a repo can always be brought back to a clean state even when the
+// ideal fix is impossible for it.
+//
+// v2 changes how that path is SHOWN, not what it is. The options used to be a
+// walk-down: one card at a time, behind a "not an option for me — show the next
+// one" button. You couldn't see what you were choosing between until you had
+// rejected everything else, which is a strange way to ask someone to weigh a
+// trade-off. Now the row expands into a pick-list: every option on one line,
+// the recommendation pre-selected, and the trade-off written under whichever
+// one you're looking at. Selecting never acts; only the commit button does.
 import { useState } from "react";
 import { apiAction, ApiError, type FixOption, type RepoIssue, type RepoMode } from "../../api";
 
+// The effort words, shortened to fit a 72px column without wrapping. The API's
+// own vocabulary is three fixed values, so this is a rename, not a truncation.
+const EFFORT_LABEL: Record<FixOption["effort"], string> = {
+  "one click": "one click",
+  "a few minutes": "a few min",
+  "a decision to make": "a decision",
+};
+// Teal reads as "cheap"; the amber of "a decision to make" reads as "this one
+// costs you something". Both only on the selected row — an unselected list
+// coloured by effort would be four competing signals.
 const EFFORT_TONE: Record<FixOption["effort"], string> = {
-  "one click": "fix-effort-fast",
-  "a few minutes": "fix-effort-mid",
-  "a decision to make": "fix-effort-slow",
+  "one click": "fast",
+  "a few minutes": "fast",
+  "a decision to make": "slow",
 };
 
-export function FixPath({ issues, onChanged }: { issues: RepoIssue[]; onChanged: () => void }) {
+export function FixPath({
+  issues,
+  actor,
+  onChanged,
+}: {
+  issues: RepoIssue[];
+  /** Whose name the record will carry for whatever is decided here. */
+  actor?: string;
+  onChanged: () => void;
+}) {
+  // Only one row is open at a time: two open pick-lists is two questions asked
+  // at once, and the point of this screen is a single next move.
+  const [expanded, setExpanded] = useState<string | null>(null);
+
   if (issues.length === 0) {
     return (
-      <section className="fix-clear">
-        <div className="fix-clear-mark" aria-hidden>✓</div>
-        <div>
-          <h3 className="fix-clear-title">Nothing needs a decision</h3>
-          <p className="fix-clear-body">
-            Every finding on this repository is either resolved or deliberately accepted. CodeWorthy keeps watching and
-            keeps the record; there's nothing waiting on you.
-          </p>
-        </div>
-      </section>
+      <p className="fix-clear">
+        Every finding on this repository is either resolved or deliberately accepted. CodeWorthy keeps watching and
+        keeps the record; there's nothing waiting on you.
+      </p>
     );
   }
 
   return (
-    <section className="fix-path">
-      <header className="fix-path-head">
-        <h3 className="fix-path-title">
-          {issues.length} thing{issues.length === 1 ? "" : "s"} to decide
-        </h3>
-        <p className="fix-path-sub">
-          Worst first, and the fastest way out at the top of each. Work down until there's nothing left.
-        </p>
-      </header>
-      {issues.map((issue) => (
-        <IssueCard key={issue.id} issue={issue} onChanged={onChanged} />
+    <div className="decisions">
+      {issues.map((issue, i) => (
+        <DecisionRow
+          key={issue.id}
+          issue={issue}
+          first={i === 0}
+          expanded={expanded === issue.id}
+          actor={actor}
+          onToggle={() => setExpanded((cur) => (cur === issue.id ? null : issue.id))}
+          onChanged={onChanged}
+        />
       ))}
-    </section>
+    </div>
   );
 }
 
-function IssueCard({ issue, onChanged }: { issue: RepoIssue; onChanged: () => void }) {
-  const [index, setIndex] = useState(0);
+/** The cue under "Do this first": what the recommended option costs, in the
+ *  same two clauses every time — effort, then what you give up. */
+function recommendedCue(option: FixOption | undefined): string {
+  if (!option) return "";
+  return `${EFFORT_LABEL[option.effort]} · ${option.tradeoff ? "there's a trade-off" : "nothing given up"}`;
+}
+
+function DecisionRow({
+  issue,
+  first,
+  expanded,
+  actor,
+  onToggle,
+  onChanged,
+}: {
+  issue: RepoIssue;
+  first: boolean;
+  expanded: boolean;
+  actor?: string;
+  onToggle: () => void;
+  onChanged: () => void;
+}) {
+  const [selected, setSelected] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<string | null>(null);
+  const [done, setDone] = useState<
+    { verb: string; title: string; note: string; undoPath: string | null } | null
+  >(null);
 
-  const option = issue.options[index];
-  const exhausted = index >= issue.options.length;
+  const recommended = issue.options[0];
+  const option = issue.options[selected] ?? recommended;
+
+  function select(i: number) {
+    setSelected(i);
+    setError(null);
+  }
+  // Arrow keys move between options the way a native radio group does; space
+  // and enter pick the focused one. Selecting still never runs anything.
+  function onPickKey(e: React.KeyboardEvent<HTMLDivElement>, i: number) {
+    const last = issue.options.length - 1;
+    const to =
+      e.key === "ArrowDown" || e.key === "ArrowRight" ? (i === last ? 0 : i + 1)
+      : e.key === "ArrowUp" || e.key === "ArrowLeft" ? (i === 0 ? last : i - 1)
+      : e.key === " " || e.key === "Enter" ? i
+      : null;
+    if (to === null) return;
+    e.preventDefault();
+    select(to);
+    (e.currentTarget.parentElement?.children[to] as HTMLElement | undefined)?.focus();
+  }
 
   async function run(o: FixOption) {
     if (o.action.kind !== "codeworthy" && o.action.kind !== "accept") return;
@@ -68,7 +134,18 @@ function IssueCard({ issue, onChanged }: { issue: RepoIssue; onChanged: () => vo
     setError(null);
     try {
       await apiAction(o.action.path, o.action.kind === "codeworthy" ? o.action.body : undefined);
-      setDone(o.title);
+      setDone({
+        verb: o.action.kind === "accept" ? "Accepted" : "Settled",
+        title: issue.title,
+        note:
+          o.action.kind === "accept"
+            ? "Recorded as a deliberate choice. It shows in the report as accepted, never as a pass."
+            : `${o.title} — done, and in the record. This may take a moment to clear from the vitals below.`,
+        // Only an acceptance can be taken back, and taking it back APPENDS the
+        // reversal — the original decision stays in the record, because a
+        // record you can quietly edit is worth nothing.
+        undoPath: o.action.kind === "accept" ? o.action.path.replace("/accept/", "/unaccept/") : null,
+      });
       onChanged();
     } catch (err) {
       // The server's message, verbatim — it knows why this failed and we don't.
@@ -80,116 +157,175 @@ function IssueCard({ issue, onChanged }: { issue: RepoIssue; onChanged: () => vo
     }
   }
 
+  async function undo(path: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiAction(path);
+      setDone(null);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't take that back.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (done) {
     return (
-      <article className="fix-issue fix-issue-done">
-        <div className="fix-done-mark" aria-hidden>✓</div>
+      <div className="decision-settled">
+        <span className="settled-check" aria-hidden>✓</span>
         <div>
-          <h4 className="fix-issue-title">{issue.title}</h4>
-          <p className="fix-done-body">
-            <strong>{done}</strong> — done, and in the record. This may take a moment to clear from the vitals above.
-          </p>
+          <div className="settled-meta">
+            {done.verb} · just now{actor ? ` by @${actor}` : ""}
+          </div>
+          <p className="settled-title">{done.title}</p>
+          <p className="settled-note">{done.note}</p>
+          {error && <p className="fix-error">{error}</p>}
         </div>
-      </article>
+        {done.undoPath && (
+          <button className="btn-plain" onClick={() => undo(done.undoPath!)} disabled={busy}>
+            {busy ? "Working…" : "Undo"}
+          </button>
+        )}
+      </div>
     );
   }
 
+  // A one-click CodeWorthy action IS the recommendation, so it goes straight on
+  // the row as the screen's one filled button — there is nothing to weigh.
+  const oneClick =
+    recommended && recommended.action.kind === "codeworthy" && recommended.effort === "one click";
+
   return (
-    <article className={`fix-issue fix-sev-${issue.severity.replace(/\s/g, "-")}`}>
-      <header className="fix-issue-head">
-        <span className="fix-sev-dot" aria-hidden />
-        <div>
-          <h4 className="fix-issue-title">{issue.title}</h4>
-          <p className="fix-issue-finding">{issue.finding}</p>
-        </div>
-      </header>
+    <div className={"decision-row" + (first ? " first" : "") + (expanded ? " expanded" : "")}>
+      <div>
+        {first && recommended && (
+          <div className="dr-cue">
+            <span className="dr-cue-label">Do this first</span>
+            <span className="dr-cue-note">{recommendedCue(recommended)}</span>
+          </div>
+        )}
+        <h3 className="dr-title">{issue.title}</h3>
+        <p className="dr-consequence">{issue.consequence}</p>
+      </div>
 
-      <p className="fix-issue-consequence">{issue.consequence}</p>
-
-      {issue.constraint && (
-        // Saying "we can't" without "because" reads as the tool being broken.
-        <p className="fix-issue-constraint">
-          <span className="fix-constraint-label">Why CodeWorthy can't just do this</span>
-          {issue.constraint}
-        </p>
-      )}
-
-      {exhausted ? (
-        <div className="fix-exhausted">
-          <p>
-            That's every option CodeWorthy has for this one. Nothing here is a fit — which is worth knowing in itself.
-          </p>
-          <button className="fix-btn fix-btn-ghost" onClick={() => setIndex(0)}>
-            Start again from the top
+      <div className="dr-action">
+        {expanded ? (
+          <button className="btn-plain" onClick={onToggle} aria-expanded>
+            Collapse ↑
           </button>
+        ) : oneClick && !error ? (
+          <button className="btn-filled" onClick={() => run(recommended)} disabled={busy}>
+            {busy ? "Working…" : recommended.action.label}
+          </button>
+        ) : (
+          <button className="btn-outline" onClick={onToggle} aria-expanded={false}>
+            See {issue.options.length} option{issue.options.length === 1 ? "" : "s"}
+          </button>
+        )}
+      </div>
+
+      {/* A one-click row can still fail, and its message has to land somewhere
+          the user is already looking. */}
+      {!expanded && error && <FixError message={error} />}
+
+      {expanded && (
+        <div className="dr-expand">
+          {issue.constraint && (
+            // Saying "we can't" without "because" reads as the tool being broken.
+            <p className="constraint">
+              <span className="constraint-label">Why CodeWorthy can't just do this — </span>
+              {issue.constraint} Pick the trade you can live with.
+            </p>
+          )}
+
+          <div className="picklist" role="radiogroup" aria-label={`Options for ${issue.title}`}>
+            {issue.options.map((o, i) => (
+              // A div, not a button: the selected row holds an ordered list and
+              // a Copy button, and neither is legal inside a <button>. Roving
+              // tabindex + arrow keys give it the keyboard behaviour a native
+              // radio group would have had.
+              <div
+                key={o.id}
+                role="radio"
+                aria-checked={i === selected}
+                tabIndex={i === selected ? 0 : -1}
+                className={"pick-row" + (i === selected ? " selected" : "")}
+                onClick={() => select(i)}
+                onKeyDown={(e) => onPickKey(e, i)}
+              >
+                <span className="pick-radio" aria-hidden />
+                <div>
+                  <span className="pick-label">{o.title}</span>
+                  {i === selected && (
+                    <>
+                      <p className="pick-note">
+                        {i === 0
+                          ? `Recommended · ${o.tradeoff ?? "nothing given up"}`
+                          : (o.tradeoff ?? o.detail)}
+                      </p>
+                      {o.action.kind === "manual" && <ManualSteps action={o.action} />}
+                    </>
+                  )}
+                </div>
+                <span className={"pick-effort " + EFFORT_TONE[o.effort]}>{EFFORT_LABEL[o.effort]}</span>
+              </div>
+            ))}
+          </div>
+
+          {/* A manual option has no button: the steps and the snippet ARE the
+              action, and they're already open in the row above. */}
+          {option && option.action.kind !== "manual" && (
+            <div className="commit-row">
+              <CommitAction option={option} busy={busy} onRun={() => run(option)} />
+              <span className="commit-note">whatever you pick is recorded with your name and the reason</span>
+            </div>
+          )}
+          {error && <FixError message={error} plural={issue.options.length > 2} />}
         </div>
-      ) : (
-        option && (
-          <>
-            <div className="fix-option-meta">
-              <span className="fix-option-count">
-                Option {index + 1} of {issue.options.length}
-              </span>
-              {index === 0 && <span className="fix-recommended">Recommended</span>}
-              <span className={`fix-effort ${EFFORT_TONE[option.effort]}`}>{option.effort}</span>
-            </div>
-
-            <div className="fix-option">
-              <h5 className="fix-option-title">{option.title}</h5>
-              <p className="fix-option-detail">{option.detail}</p>
-              {option.tradeoff && (
-                <p className="fix-option-tradeoff">
-                  <span className="fix-tradeoff-label">The trade-off</span>
-                  {option.tradeoff}
-                </p>
-              )}
-              <OptionAction option={option} busy={busy} onRun={() => run(option)} />
-              {error && <p className="fix-error">{error}</p>}
-            </div>
-
-            {index < issue.options.length - 1 && (
-              <button className="fix-next" onClick={() => { setError(null); setIndex((i) => i + 1); }}>
-                Not an option for me — show the next one →
-              </button>
-            )}
-          </>
-        )
       )}
-    </article>
+    </div>
   );
 }
 
-function OptionAction({ option, busy, onRun }: { option: FixOption; busy: boolean; onRun: () => void }) {
-  const a = option.action;
+// The failure is the server's sentence, and then one line saying the list is
+// still there. A dead end is the thing this screen exists to prevent.
+function FixError({ message, plural = true }: { message: string; plural?: boolean }) {
+  return (
+    <p className="fix-error">
+      {message}
+      <span className="fix-error-after">
+        The other option{plural ? "s stay" : " stays"} available — that's why the list always ends somewhere.
+      </span>
+    </p>
+  );
+}
+
+function CommitAction({ option, busy, onRun }: { option: FixOption; busy: boolean; onRun: () => void }) {
+  const a = option.action as Exclude<FixOption["action"], { kind: "manual" }>;
 
   if (a.kind === "github") {
     return (
-      <a className="fix-btn fix-btn-primary" href={a.url} target="_blank" rel="noreferrer">
+      <a className="btn-filled" href={a.url} target="_blank" rel="noreferrer">
         {a.label} ↗
       </a>
     );
   }
-
-  if (a.kind === "manual") {
-    return <ManualSteps action={a} />;
-  }
-
+  // Accepting uses the same button as fixing: it's a normal move on the record,
+  // not a downgraded one.
   return (
-    <button
-      className={`fix-btn ${a.kind === "accept" ? "fix-btn-quiet" : "fix-btn-primary"}`}
-      onClick={onRun}
-      disabled={busy}
-    >
+    <button className="btn-filled" onClick={onRun} disabled={busy}>
       {busy ? "Working…" : a.label}
     </button>
   );
 }
 
 function ManualSteps({ action }: { action: Extract<FixOption["action"], { kind: "manual" }> }) {
-  const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  async function copy() {
+  async function copy(e: React.MouseEvent) {
+    e.stopPropagation(); // the row is a radio; copying must not re-select it
     if (!action.snippet) return;
     try {
       await navigator.clipboard.writeText(action.snippet.body);
@@ -201,34 +337,26 @@ function ManualSteps({ action }: { action: Extract<FixOption["action"], { kind: 
   }
 
   return (
-    <div className="fix-manual">
-      <button className="fix-btn fix-btn-primary" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        {open ? "Hide the steps" : action.label}
-      </button>
-      {open && (
-        <div className="fix-steps">
-          <ol>
-            {action.steps.map((step, i) => (
-              <li key={i}>{step}</li>
-            ))}
-          </ol>
-          {action.snippet && (
-            <figure className="fix-snippet">
-              <figcaption>
-                <code>{action.snippet.filename}</code>
-                <button className="fix-copy" onClick={copy}>
-                  {copied ? "Copied ✓" : "Copy"}
-                </button>
-              </figcaption>
-              <pre>{action.snippet.body}</pre>
-            </figure>
-          )}
-        </div>
+    <>
+      <ol className="pick-steps">
+        {action.steps.map((step, i) => (
+          <li key={i}>{step}</li>
+        ))}
+      </ol>
+      {action.snippet && (
+        <figure className="snippet">
+          <figcaption className="snippet-cap">
+            <span>{action.snippet.filename}</span>
+            <button type="button" className="snippet-copy" onClick={copy}>
+              {copied ? "Copied ✓" : "Copy"}
+            </button>
+          </figcaption>
+          <pre>{action.snippet.body}</pre>
+        </figure>
       )}
-    </div>
+    </>
   );
 }
-
 
 // The mode control, for when nothing is wrong.
 //
@@ -259,7 +387,7 @@ export function ModeSwitch({ repo, mode, onChanged }: { repo: string; mode: Repo
 
   return (
     <div className="mode-switch">
-      <button className="mode-switch-open" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+      <button className="btn-plain" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
         {open ? "Cancel" : "Change how this repo is worked on"}
       </button>
       {open && (
@@ -278,7 +406,7 @@ export function ModeSwitch({ repo, mode, onChanged }: { repo: string; mode: Repo
               </>
             )}
           </p>
-          <button className="fix-btn fix-btn-primary" onClick={switchTo} disabled={busy}>
+          <button className="btn-filled" onClick={switchTo} disabled={busy}>
             {busy ? "Working…" : `Switch to ${next} mode`}
           </button>
           {error && <p className="fix-error">{error}</p>}

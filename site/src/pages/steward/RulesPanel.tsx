@@ -100,7 +100,7 @@ export function RulesPanel({ repo, onClose, onChanged }: { repo: string; onClose
           <h3 className="rules-title">Rules for {repo}</h3>
           <p className="rules-sub">What has to be true before a change lands. Saved to the change record, with who changed it.</p>
         </div>
-        <button className="fix-btn fix-btn-ghost" onClick={onClose}>Close</button>
+        <button className="btn-outline" onClick={onClose}>Close</button>
       </header>
 
       <div className="rules-group">
@@ -197,7 +197,7 @@ export function RulesPanel({ repo, onClose, onChanged }: { repo: string; onClose
       </div>
 
       <div className="rules-actions">
-        <button className="fix-btn fix-btn-primary" onClick={save} disabled={busy}>
+        <button className="btn-filled" onClick={save} disabled={busy}>
           {busy ? "Saving…" : "Save rules"}
         </button>
         {error && <p className="fix-error">{error}</p>}
