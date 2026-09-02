@@ -48,9 +48,17 @@ export function toStewardEvent(eventName: string, payload: Json): StewardEvent |
           { branch, head: payload.after, before: payload.before },
           `Exception: ${payload.pusher?.name ?? "someone"} force-pushed ${branch} in ${repo}, rewriting its history — commits that were there before may be gone.`);
       }
-      if (isDefault && !created && commits > 0) {
-        // Direct push to the default branch — M2 opens a retroactive draft PR;
-        // M1 records it so the change log shows it from day one.
+      // A squash-merge or merge-commit arrives here as a push to the default
+      // branch, so this handler cannot tell "someone merged a reviewed pull
+      // request" from "someone bypassed review" by shape alone. Recording the
+      // first as the second put a flat contradiction in the record: the same
+      // commit logged as `pull_request.merged` AND as "pushed straight to main
+      // — no pull request reviewed them", seconds apart.
+      //
+      // This handler is deliberately pure (no API calls), so it uses the
+      // message shape GitHub itself generates for merges. actions.ts does the
+      // authoritative check before acting on it.
+      if (isDefault && !created && commits > 0 && !looksLikeMerge(payload)) {
         return event(installationId, repo, "push.direct_to_default", payload.pusher?.name,
           { branch, commits, head: payload.after },
           `${payload.pusher?.name ?? "someone"} pushed ${commits} commit(s) straight to ${branch} in ${repo} — no pull request reviewed them.`);
@@ -107,6 +115,20 @@ export function toStewardEvent(eventName: string, payload: Json): StewardEvent |
     default:
       return null;
   }
+}
+
+/**
+ * Does this push look like a pull request landing, rather than a bypass?
+ *
+ * GitHub writes both merge shapes itself: a squash lands as "<title> (#123)"
+ * and a merge commit as "Merge pull request #123 from …". Matching on that is a
+ * heuristic — a hand-written commit could imitate it — which is why it only
+ * decides how the push is DESCRIBED here. Whether CodeWorthy acts on it is
+ * settled against the API in actions.ts, where a wrong answer costs something.
+ */
+export function looksLikeMerge(payload: Json): boolean {
+  const subject = String(payload.head_commit?.message ?? "").split("\n")[0] ?? "";
+  return /\(#\d+\)\s*$/.test(subject) || /^Merge pull request #\d+\b/.test(subject);
 }
 
 /** Verify-then-dispatch entry: caller passes the parsed payload; we log it. */

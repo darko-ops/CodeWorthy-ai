@@ -2,7 +2,11 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
+    # steward/** is excluded: CodeWorthy creates steward/edit-<sha> branches to
+    # preserve a commit that reached the default branch without review. They
+    # point at a commit that is ALREADY on main and has already been tested
+    # there, so building them again tests nothing and doubles the Actions bill.
+    branches: ["**", "!steward/**"]
   pull_request:
 
 defaults:

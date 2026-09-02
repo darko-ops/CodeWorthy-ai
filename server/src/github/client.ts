@@ -69,6 +69,8 @@ export interface GitHubClient {
   getPullRequest(repo: string, number: number): Promise<unknown>;
   /** One commit with its file patches — the diff a solo-mode review reads. */
   getCommitDiff(repo: string, sha: string): Promise<unknown>;
+  /** Pull requests a commit belongs to — how we tell a merge from a bypass. */
+  listPullRequestsForCommit(repo: string, sha: string): Promise<unknown>;
   // Reconciliation read (V1): the ground-truth population of merged PRs.
   listPullRequests(repo: string, params?: Record<string, string>): Promise<unknown>;
   getBranch(repo: string, branch: string): Promise<unknown>;
@@ -123,6 +125,7 @@ export function createGitHubClient(token: string): GitHubClient {
     listCheckRunsForRef: (repo, ref) => gh(token, "GET", `/repos/${repo}/commits/${ref}/check-runs?per_page=100`),
     getPullRequest: (repo, number) => gh(token, "GET", `/repos/${repo}/pulls/${number}`),
     getCommitDiff: (repo, sha) => gh(token, "GET", `/repos/${repo}/commits/${sha}`),
+    listPullRequestsForCommit: (repo, sha) => gh(token, "GET", `/repos/${repo}/commits/${sha}/pulls?per_page=10`),
     listPullRequests: (repo, params = {}) => gh(token, "GET", `/repos/${repo}/pulls?${new URLSearchParams(params)}`),
     getBranch: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}`),
     getBranchProtection: (repo, branch) => gh(token, "GET", `/repos/${repo}/branches/${branch}/protection`),

@@ -174,6 +174,16 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
 
   if (eventName === "push" && isDirectToDefault(payload)) {
     const branch = (payload.ref ?? "").replace("refs/heads/", "");
+
+    // Settle it against the API before acting. A squash-merge reaches us as a
+    // push to the default branch, and treating one as a bypass did real damage:
+    // it recorded a reviewed change as unreviewed, preserved a pointless
+    // steward/edit-* branch for it, and that branch then ran the repo's whole
+    // CI suite a second time. The webhook ordering gives no help either — the
+    // matching pull_request event can arrive before OR after this one — so the
+    // question is asked of GitHub rather than of the spine.
+    if (await arrivedViaPullRequest(client, repo, payload.after)) return;
+
     const mode = await getRepoMode(pool, repo);
 
     // SOLO: pushing here is the agreed way of working, not a deviation. So it
@@ -275,4 +285,30 @@ function isOurApp(appId: unknown): boolean {
 export function isDirectToDefault(payload: any): boolean {
   const branch = (payload.ref ?? "").replace("refs/heads/", "");
   return Boolean(branch && branch === payload.repository?.default_branch && payload.created !== true && (payload.commits?.length ?? 0) > 0);
+}
+
+
+/**
+ * Did this commit land through a pull request?
+ *
+ * Returns FALSE when GitHub can't tell us. A wrong "yes" makes CodeWorthy stay
+ * silent about a change that really did bypass review, which is the one thing
+ * this whole tier exists to notice; a wrong "no" costs a redundant branch and a
+ * comment. Those are not the same size of mistake.
+ */
+export async function arrivedViaPullRequest(client: GitHubClient, repo: string, sha: string | undefined): Promise<boolean> {
+  if (!sha) return false;
+  try {
+    const raw = (await client.listPullRequestsForCommit(repo, sha)) as Array<{
+      merged_at?: string | null;
+      merge_commit_sha?: string | null;
+    }> | null;
+    if (!Array.isArray(raw)) return false;
+    // Only a MERGED pull request whose merge commit is this exact SHA counts.
+    // A commit can be associated with an open PR (it is on that PR's branch)
+    // without having landed through it.
+    return raw.some((pr) => pr?.merged_at != null && pr?.merge_commit_sha === sha);
+  } catch {
+    return false;
+  }
 }
