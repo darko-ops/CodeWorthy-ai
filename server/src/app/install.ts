@@ -103,18 +103,45 @@ export function renderProtectDonePage(results: Array<{ repo: string; ok: boolean
 // One-click App registration: a form that POSTs the manifest to GitHub's
 // app-creation page. GitHub reads the manifest, the operator confirms, and it
 // redirects back to our callback with a temporary code.
+// The permission list shown here is DERIVED from the manifest being posted, not
+// written by hand beside it. It was hand-written once, and when the approver
+// flow reused this form it advertised the Steward's permissions — telling the
+// user they were granting Administration and Checks write on an App that asks
+// for neither. A consent screen that misstates the grant is worse than no
+// consent screen, and the only way to keep the two from drifting is to stop
+// having two of them.
+const PERMISSION_NOTES: Record<string, string> = {
+  contents: "read the diff",
+  pull_requests: "open drafts, post reviews",
+  administration: "branch protection, on your consent",
+  checks: "post the PR review check",
+  issues: "post comments on pull requests",
+  metadata: "required baseline",
+};
+
 export function renderManifestForm(manifest: AppManifest): string {
   const json = esc(JSON.stringify(manifest));
-  return page("Create the CodeWorthy GitHub App", `
-<h1>⚙️ Create the CodeWorthy GitHub App</h1>
-<div class="sub">One click registers the App on your GitHub account with exactly the permissions below — read code, comment on PRs, and configure branch protection. No code-write, no merge scope.</div>
-<div class="card"><h2>Permissions requested</h2><ul>
-  <li>Contents — <b>read</b> (read the diff; never write)</li>
-  <li>Pull requests — <b>write</b> (open drafts, post reviews)</li>
-  <li>Administration — <b>write</b> (branch protection, on your consent)</li>
-  <li>Checks — <b>write</b> (post the PR review check)</li>
-  <li>Metadata — <b>read</b></li>
-</ul></div>
+  const perms = Object.entries(manifest.default_permissions)
+    .map(([name, level]) => {
+      const label = name.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
+      const note = PERMISSION_NOTES[name];
+      return `<li>${esc(label)} — <b>${esc(level)}</b>${note ? ` (${esc(note)})` : ""}</li>`;
+    })
+    .join("");
+  // Saying what it CANNOT do matters as much as what it can, and this is also
+  // derived — so an App that later gained a permission stops claiming it lacks it.
+  const granted = new Set(Object.keys(manifest.default_permissions));
+  const absent = [
+    !granted.has("administration") && "change your repository settings",
+    !granted.has("checks") && "post the check that gates a merge",
+    manifest.default_permissions.contents !== "write" && "write code",
+  ].filter(Boolean) as string[];
+
+  return page(`Create ${manifest.name}`, `
+<h1>⚙️ Create ${esc(manifest.name)}</h1>
+<div class="sub">One click registers this App on your GitHub account with exactly the permissions below — nothing more. There is no merge scope on GitHub, and none of CodeWorthy's Apps can merge.</div>
+<div class="card"><h2>Permissions requested</h2><ul>${perms}</ul></div>
+${absent.length ? `<div class="card"><h2>What it cannot do</h2><ul>${absent.map((a) => `<li class="wont">✗ ${esc(a)}</li>`).join("")}</ul></div>` : ""}
 <form action="https://github.com/settings/apps/new" method="post">
   <input type="hidden" name="manifest" value="${json}">
   <button class="btn" type="submit">Create App on GitHub →</button>
