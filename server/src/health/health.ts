@@ -18,6 +18,7 @@ import { buildDigest, type DigestEntry } from "../digest/digest.js";
 import { verifyAuditChain, verifyAgainstAnchor, makeAnchor, type Anchor } from "../audit/tamper.js";
 import { config } from "../config.js";
 import { DEFAULT_MODE, getRepoMode, type RepoMode } from "../steward/repoMode.js";
+import { buildIssues, type RepoIssue } from "./remediation.js";
 
 export type VitalStatus = "healthy" | "watch" | "at risk" | "unknown";
 
@@ -38,6 +39,8 @@ export interface HealthReport {
   vitals: HealthVital[];
   activity: { total: number; windowDays: number; alerts: DigestEntry[]; recent: DigestEntry[] };
   integrity: { ok: boolean; headline: string; chain: string; anchor: string };
+  /** Ranked fix paths for everything unhealthy. Empty when there's nothing to do. */
+  issues: RepoIssue[];
   note: string;
 }
 
@@ -54,7 +57,7 @@ export interface HealthDeps {
 
 export async function buildHealthReport(
   pool: Pool,
-  opts: { repo?: string; windowDays?: number } = {},
+  opts: { repo?: string; windowDays?: number; defaultBranch?: string } = {},
   deps: HealthDeps = {}
 ): Promise<HealthReport> {
   const repo = opts.repo ?? null;
@@ -75,6 +78,11 @@ export async function buildHealthReport(
 
   const digest = await buildDigest(pool, { repo: repo ?? undefined, periodDays: windowDays });
 
+  // Fix paths are per-repo: the portfolio view has no single branch to act on.
+  const issues = repo
+    ? buildIssues(vitals, await remediationContext(pool, repo, windowDays, mode, opts.defaultBranch))
+    : [];
+
   return {
     repoFilter: repo,
     mode,
@@ -83,7 +91,38 @@ export async function buildHealthReport(
     vitals,
     activity: { total: digest.totalEvents, windowDays, alerts: digest.alerts, recent: digest.timeline.slice(0, 8) },
     integrity,
+    issues,
     note: "This is a checkup of the repository's health, not a judgement of any person. Every result is drawn from the append-only audit log and shown with what it means.",
+  };
+}
+
+// Everything buildIssues needs, in one round trip. Deliberately reads only the
+// audit spine — rendering the dashboard must not cost a GitHub call per repo.
+async function remediationContext(pool: Pool, repo: string, windowDays: number, mode: RepoMode, defaultBranch?: string) {
+  const { rows } = await pool.query(
+    `SELECT
+       (SELECT event_type FROM audit_events
+         WHERE repo = $1 AND event_type IN (
+           'protection.configured','protection.restored','protection.weakened',
+           'exception.protection_weakened','exception.protection_unavailable')
+         ORDER BY ts DESC, id DESC LIMIT 1)                                    AS latest_protection,
+       (SELECT count(*)::int FROM audit_events
+         WHERE repo = $1 AND event_type = 'push.direct_to_default'
+           AND ts >= now() - make_interval(days => $2))                        AS direct_pushes,
+       (SELECT coalesce(array_agg(DISTINCT payload->>'issueId'), '{}')
+          FROM audit_events
+         WHERE repo = $1 AND event_type = 'issue.accepted')                    AS accepted`,
+    [repo, windowDays]
+  );
+  const row = rows[0] ?? {};
+  return {
+    repo,
+    defaultBranch: defaultBranch ?? "main",
+    mode,
+    latestProtectionEvent: (row.latest_protection as string | null) ?? null,
+    restoreDrift: config.protection.restoreDrift,
+    directPushes: Number(row.direct_pushes ?? 0),
+    accepted: new Set<string>(((row.accepted as string[] | null) ?? []).filter(Boolean)),
   };
 }
 

@@ -1395,3 +1395,163 @@ tbody tr:hover {
 }
 
 .signin-newhere { font: 400 13px/1.6 var(--sans); color: var(--ink-faint); text-align: center; margin: 18px 0 0; }
+
+/* ── Fix paths ─────────────────────────────────────────────────────────────
+   Ranked options for an unhealthy repo. Sits ABOVE the vitals on purpose:
+   what to DO comes before what is true. The recommendation is visually first
+   and the only one with an accent border — everything else is deliberately
+   quieter, so the eye lands on the best answer without having to read four
+   cards to find it. */
+.fix-path { margin: 0 0 26px; }
+.fix-path-head { margin-bottom: 16px; }
+.fix-path-title { font: 700 17px var(--sans); color: var(--on-dark-2); margin: 0 0 4px; }
+.fix-path-sub { font: 400 13px/1.6 var(--sans); color: var(--on-dark-4); margin: 0; }
+
+.fix-issue {
+  background: var(--ink-800);
+  border: 1px solid var(--border-dark);
+  border-left: 3px solid var(--on-dark-5);
+  border-radius: 12px;
+  padding: 20px 22px;
+  margin-bottom: 14px;
+}
+.fix-sev-at-risk { border-left-color: var(--risk); }
+.fix-sev-watch   { border-left-color: var(--watch); }
+
+.fix-issue-head { display: flex; gap: 12px; align-items: flex-start; }
+.fix-sev-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin-top: 7px; flex: none; }
+.fix-sev-at-risk .fix-sev-dot { background: var(--risk); }
+.fix-sev-watch   .fix-sev-dot { background: var(--watch); }
+.fix-issue-title { font: 700 15px var(--sans); color: var(--on-dark-2); margin: 0 0 5px; }
+.fix-issue-finding { font: 400 13px/1.6 var(--sans); color: var(--on-dark-4); margin: 0; }
+.fix-issue-consequence { font: 400 13px/1.65 var(--sans); color: var(--on-dark-4); margin: 12px 0 0; }
+
+/* Why we can't just fix it. "We can't" without "because" reads as broken. */
+.fix-issue-constraint {
+  font: 400 12.5px/1.6 var(--sans);
+  color: var(--on-dark-4);
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+  padding: 11px 13px;
+  margin: 14px 0 0;
+}
+.fix-constraint-label {
+  display: block;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--on-dark-5);
+  margin-bottom: 5px;
+}
+
+.fix-option-meta { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; flex-wrap: wrap; }
+.fix-option-count { font: 600 10px var(--mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--on-dark-5); }
+.fix-recommended {
+  font: 700 10px var(--mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--signal-ink);
+  background: var(--signal);
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+.fix-effort { font: 500 11px var(--sans); border-radius: 999px; padding: 2px 9px; border: 1px solid var(--border-dark); color: var(--on-dark-4); }
+.fix-effort-fast { color: var(--signal); border-color: rgba(76, 201, 192, 0.35); }
+.fix-effort-slow { color: var(--watch); border-color: rgba(232, 176, 75, 0.3); }
+
+.fix-option {
+  border: 1px solid var(--border-dark);
+  border-radius: 10px;
+  padding: 16px 18px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.fix-option-title { font: 700 14px var(--sans); color: var(--on-dark-2); margin: 0 0 6px; }
+.fix-option-detail { font: 400 13px/1.65 var(--sans); color: var(--on-dark-4); margin: 0 0 12px; }
+.fix-option-tradeoff { font: 400 12.5px/1.6 var(--sans); color: var(--on-dark-4); margin: 0 0 14px; }
+.fix-tradeoff-label {
+  display: block;
+  font: 600 10px var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--watch);
+  margin-bottom: 4px;
+}
+
+.fix-btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  border-radius: 9px; padding: 10px 17px;
+  font: 600 13px var(--sans); cursor: pointer; text-decoration: none;
+  border: 1px solid var(--border-dark); background: transparent; color: var(--on-dark-2);
+}
+.fix-btn-primary { background: var(--signal); border-color: var(--signal); color: var(--signal-ink); }
+.fix-btn-primary:hover { background: var(--signal-press); border-color: var(--signal-press); color: #fff; }
+.fix-btn-quiet:hover, .fix-btn-ghost:hover { border-color: var(--on-dark-5); }
+.fix-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* Deliberately understated: skipping an option is a normal move, not a
+   failure, and it should not compete with the recommendation. */
+.fix-next {
+  display: block; margin-top: 12px; padding: 0;
+  background: none; border: 0; cursor: pointer;
+  font: 500 12.5px var(--sans); color: var(--on-dark-5); text-align: left;
+}
+.fix-next:hover { color: var(--on-dark-2); text-decoration: underline; }
+
+.fix-error { font: 500 12.5px/1.6 var(--sans); color: var(--risk); margin: 12px 0 0; }
+
+.fix-exhausted { margin-top: 16px; }
+.fix-exhausted p { font: 400 13px/1.65 var(--sans); color: var(--on-dark-4); margin: 0 0 12px; }
+
+.fix-manual { display: block; }
+.fix-steps { margin-top: 14px; }
+.fix-steps ol { margin: 0 0 14px; padding-left: 20px; }
+.fix-steps li { font: 400 13px/1.7 var(--sans); color: var(--on-dark-4); }
+.fix-snippet { margin: 0; border: 1px solid var(--border-dark); border-radius: 8px; overflow: hidden; }
+.fix-snippet figcaption {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 8px 12px; background: rgba(255, 255, 255, 0.03);
+  font: 500 12px var(--mono); color: var(--on-dark-4);
+}
+.fix-copy { border: 1px solid var(--border-dark); background: transparent; color: var(--on-dark-2); border-radius: 6px; padding: 4px 10px; font: 600 11px var(--sans); cursor: pointer; }
+.fix-snippet pre {
+  margin: 0; padding: 14px; overflow-x: auto;
+  font: 400 12px/1.6 var(--mono); color: var(--on-dark-2);
+}
+
+.fix-issue-done { display: flex; gap: 14px; align-items: flex-start; border-left-color: var(--signal); }
+.fix-done-mark, .fix-clear-mark {
+  width: 26px; height: 26px; border-radius: 50%; flex: none;
+  display: grid; place-items: center;
+  background: var(--signal); color: var(--signal-ink); font: 700 14px var(--sans);
+}
+.fix-done-body { font: 400 13px/1.65 var(--sans); color: var(--on-dark-4); margin: 6px 0 0; }
+
+.fix-clear {
+  display: flex; gap: 14px; align-items: flex-start;
+  background: var(--ink-800); border: 1px solid var(--border-dark);
+  border-left: 3px solid var(--signal);
+  border-radius: 12px; padding: 20px 22px; margin: 0 0 26px;
+}
+.fix-clear-title { font: 700 15px var(--sans); color: var(--on-dark-2); margin: 0 0 5px; }
+.fix-clear-body { font: 400 13px/1.65 var(--sans); color: var(--on-dark-4); margin: 0; max-width: 62ch; }
+
+/* How the repo is worked on — the fact that decides what "healthy" means. */
+.mode-badge {
+  margin-left: 9px; border-radius: 999px; padding: 2px 8px;
+  font: 700 9px var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  border: 1px solid var(--border-dark); color: var(--on-dark-4); cursor: help;
+}
+.mode-solo { color: var(--watch); border-color: rgba(232, 176, 75, 0.35); }
+.mode-shared { color: var(--signal); border-color: rgba(76, 201, 192, 0.3); }
+
+@media (max-width: 640px) {
+  .fix-issue, .fix-clear { padding: 16px 15px; }
+  .fix-option { padding: 14px 14px; }
+}
+
+.mode-switch { margin-top: 18px; }
+.mode-switch-open { background: none; border: 0; padding: 0; cursor: pointer; font: 500 12.5px var(--sans); color: var(--on-dark-5); }
+.mode-switch-open:hover { color: var(--on-dark-2); text-decoration: underline; }
+.mode-switch-panel { margin-top: 12px; border: 1px solid var(--border-dark); border-radius: 10px; padding: 16px 18px; background: rgba(255, 255, 255, 0.02); }
+.mode-switch-body { font: 400 13px/1.7 var(--sans); color: var(--on-dark-4); margin: 0 0 14px; max-width: 66ch; }
+.mode-switch-body strong { color: var(--on-dark-2); }

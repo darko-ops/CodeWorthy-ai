@@ -30,6 +30,7 @@ import { createSession, deleteSession, getSession, type UserSession } from "./se
 import { getInstallationClient } from "../github/auth.js";
 import { ensureProtection } from "../steward/enforce.js";
 import { isRepoMode, setRepoMode } from "../steward/repoMode.js";
+import { appendAuditEvent } from "../audit/audit.js";
 
 export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
   // --- CORS: allow the dashboard SPA origins to call /api/* with a bearer. ---
@@ -260,6 +261,75 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
         mode,
       });
       return { ok: true, mode, protection: result.action, mechanism: result.mechanism, detail: result.detail ?? null };
+    });
+  });
+
+  // The "one click" behind most recommended options: apply the protection this
+  // repo's mode calls for. Same code path and same audit events as the consent
+  // flow, scoped to one repository the caller has proven access to.
+  app.post("/api/repos/:owner/:repo/protect", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const p = req.params as { owner: string; repo: string };
+    const fullName = `${p.owner}/${p.repo}`;
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      const installationId = await installationForRepo(s.token, fullName);
+      if (installationId == null) {
+        reply.code(409).send({ error: "not_installed", message: "CodeWorthy isn't installed on this repository, so it can't change its settings." });
+        return;
+      }
+      const client = await getInstallationClient(installationId);
+      const repoInfo = (await client.listInstallationRepositories()).find(
+        (r) => r.full_name.toLowerCase() === fullName.toLowerCase()
+      );
+      const result = await ensureProtection(client, pool, fullName, installationId, {
+        defaultBranch: repoInfo?.default_branch ?? "main",
+      });
+      // A failure here is the interesting case, not an error to swallow: it is
+      // how the dashboard LEARNS the constraint exists (a private repo on a
+      // free plan, say) and re-renders with the options that work around it.
+      if (result.action === "failed") {
+        reply.code(409).send({
+          error: "protection_unavailable",
+          message: "GitHub wouldn't let CodeWorthy protect this branch. Reload for the other ways to fix this.",
+          detail: result.detail ?? null,
+        });
+        return;
+      }
+      return { ok: true, mechanism: result.mechanism, action: result.action };
+    });
+  });
+
+  // "This risk is mine and I'm keeping it." The last option on every issue, so
+  // a repo can always reach a settled state — recorded with who decided and
+  // when, which is what makes it a judgement call rather than an oversight.
+  app.post("/api/repos/:owner/:repo/accept/:issueId", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const p = req.params as { owner: string; repo: string; issueId: string };
+    const fullName = `${p.owner}/${p.repo}`;
+    if (!/^[a-z0-9_]{1,64}$/.test(p.issueId)) {
+      reply.code(400).send({ error: "bad issue id" });
+      return;
+    }
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      await appendAuditEvent(pool, {
+        installationId: await installationForRepo(s.token, fullName),
+        repo: fullName,
+        eventType: "issue.accepted",
+        actor: s.login,
+        payload: { issueId: p.issueId },
+        plainEnglish: `${s.login} reviewed the "${p.issueId.replace(/_/g, " ")}" finding on ${fullName} and accepted it deliberately. CodeWorthy stops flagging it; the risk and the decision both stay in the record.`,
+      });
+      return { ok: true, accepted: p.issueId };
     });
   });
 
