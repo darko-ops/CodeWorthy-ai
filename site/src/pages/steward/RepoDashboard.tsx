@@ -503,6 +503,9 @@ function OverviewPanel({
   onSelect: (repo: string) => void;
 }) {
   const t = report.totals;
+  // Counted from the rows when the server is an older build that doesn't break
+  // the totals out by band — the rows themselves always carry the status.
+  const healthyFallback = report.repos.filter((r) => r.overall === "Healthy").length;
   const shown = query
     ? report.repos.filter((r) => r.full_name.toLowerCase().includes(query.toLowerCase()))
     : report.repos;
@@ -516,7 +519,7 @@ function OverviewPanel({
         <div className="ov-counts">
           <Count n={t.atRisk} label="at risk" color="var(--risk)" />
           <Count n={t.needsAttention} label="needs attention" color="var(--watch)" />
-          <Count n={t.healthy} label="healthy" color="var(--signal)" />
+          <Count n={t.healthy ?? healthyFallback} label="healthy" color="var(--signal)" />
           {t.quiet > 0 && <Count n={t.quiet} label="quiet" color="var(--unknown)" />}
         </div>
       </div>
@@ -524,9 +527,15 @@ function OverviewPanel({
       <RecordStrip
         ok={report.integrity.ok}
         title={report.integrity.ok ? "Record intact" : "Integrity check needed"}
+        // The site and the API deploy independently, so a browser can hold a
+        // build that is briefly ahead of the server it's talking to. Where a
+        // field the server didn't send would otherwise be printed, fall back to
+        // what every version does return rather than the word "undefined".
         body={
           report.integrity.ok
-            ? `${report.integrity.chain} across ${t.repos} ${t.repos === 1 ? "repository" : "repositories"}`
+            ? report.integrity.chain
+              ? `${report.integrity.chain} across ${t.repos} ${t.repos === 1 ? "repository" : "repositories"}`
+              : report.integrity.headline
             : report.integrity.headline
         }
         href={estateDigestUrl(windowDays)}
@@ -591,7 +600,7 @@ function RepoRow({ repo, onSelect }: { repo: RepoOverview; onSelect: (repo: stri
       <span className="rt-spark">
         <Sparkline buckets={repo.flaggedBuckets} flagged={repo.flagged} />
       </span>
-      <span className="rt-merges">{repo.merges}</span>
+      <span className="rt-merges">{repo.merges ?? "—"}</span>
       <span className="rt-active">{repo.lastActivity ? ago(repo.lastActivity) : "—"}</span>
     </button>
   );
