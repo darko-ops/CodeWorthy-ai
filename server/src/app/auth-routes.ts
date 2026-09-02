@@ -28,8 +28,9 @@ import {
 } from "./oauth.js";
 import { createSession, deleteSession, getSession, type UserSession } from "./session.js";
 import { getInstallationClient } from "../github/auth.js";
-import { ensureProtection } from "../steward/enforce.js";
-import { isRepoMode, setRepoMode } from "../steward/repoMode.js";
+import { approvalRequired, ensureProtection } from "../steward/enforce.js";
+import { getRepoMode, isRepoMode, setRepoMode } from "../steward/repoMode.js";
+import { getRepoRules, parseRules, setRepoRules } from "../steward/repoRules.js";
 import { appendAuditEvent } from "../audit/audit.js";
 
 export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
@@ -330,6 +331,75 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
         plainEnglish: `${s.login} reviewed the "${p.issueId.replace(/_/g, " ")}" finding on ${fullName} and accepted it deliberately. CodeWorthy stops flagging it; the risk and the decision both stay in the record.`,
       });
       return { ok: true, accepted: p.issueId };
+    });
+  });
+
+  // ── the rules page ────────────────────────────────────────────────────────
+  // What has to be true for a change to land here. Read and written from the
+  // dashboard rather than a file in the repo, because the client deliberately
+  // cannot read repository contents — and because who changed a rule, when, and
+  // to what belongs in the append-only record rather than in a commit someone
+  // can rewrite.
+  app.get("/api/repos/:owner/:repo/rules", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const p = req.params as { owner: string; repo: string };
+    const fullName = `${p.owner}/${p.repo}`;
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      const [rules, mode] = await Promise.all([getRepoRules(pool, fullName), getRepoMode(pool, fullName)]);
+      return {
+        repo: fullName,
+        mode,
+        rules,
+        // Whether an approving review can actually be required here. The UI
+        // shows the control disabled, with the reason, rather than letting
+        // someone ask for an approval nothing can give.
+        approverAvailable: await approvalRequired(fullName),
+      };
+    });
+  });
+
+  app.post("/api/repos/:owner/:repo/rules", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const p = req.params as { owner: string; repo: string };
+    const fullName = `${p.owner}/${p.repo}`;
+    // The webhook's raw-body JSON parser wraps every JSON body (see the mode route).
+    const raw = req.body as { json?: unknown } | undefined;
+    const body = ((raw && "json" in raw ? raw.json : raw) ?? {}) as { rules?: unknown; mode?: unknown };
+
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      const installationId = await installationForRepo(s.token, fullName);
+      const previous = await getRepoRules(pool, fullName);
+      const rules = parseRules(body.rules, previous);
+      const changes = await setRepoRules(pool, { repo: fullName, rules, previous, actor: s.login, installationId });
+
+      // Mode keeps its own event and its own reader — one source of truth for
+      // the setting that decides what "protected" means at all.
+      let mode = await getRepoMode(pool, fullName);
+      if (isRepoMode(body.mode) && body.mode !== mode) {
+        await setRepoMode(pool, { repo: fullName, mode: body.mode, actor: s.login, installationId });
+        mode = body.mode;
+      }
+
+      if (installationId == null) return { ok: true, rules, mode, changes, protection: "not_installed" };
+      const client = await getInstallationClient(installationId);
+      const repoInfo = (await client.listInstallationRepositories()).find(
+        (r) => r.full_name.toLowerCase() === fullName.toLowerCase()
+      );
+      const applied = await ensureProtection(client, pool, fullName, installationId, {
+        defaultBranch: repoInfo?.default_branch ?? "main",
+        mode,
+      });
+      return { ok: true, rules, mode, changes, protection: applied.action, mechanism: applied.mechanism };
     });
   });
 

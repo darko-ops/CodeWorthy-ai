@@ -26,7 +26,8 @@ import {
   protectionEverConfigured,
   recordBypass,
 } from "./enforce.js";
-import { DEFAULT_CONFIG, type StewardConfig } from "./stewardConfig.js";
+import { type StewardConfig } from "./stewardConfig.js";
+import { getRepoRules, toStewardConfig } from "./repoRules.js";
 import { getAnthropicClient, type LlmClient } from "./llm/anthropic.js";
 import { reviewPullRequest } from "./llm/reviewer.js";
 
@@ -53,7 +54,11 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
 
   const client = deps.client ?? (await getInstallationClient(installationId!));
   const repo: string = payload.repository?.full_name ?? "";
-  const repoConfig = deps.config ?? DEFAULT_CONFIG;
+  // The repo's own rules, set from the dashboard. Until now this was always
+  // DEFAULT_CONFIG: stewardConfig.ts could parse a .steward.yml, but nothing
+  // could ever fetch one — the client has no contents-read capability by
+  // design — so the per-repo severities were an intention, not a setting.
+  const repoConfig = deps.config ?? toStewardConfig(await getRepoRules(pool, repo));
 
   // ── the gate: every head commit of every open PR gets a verdict ───────────
   if (eventName === "pull_request" && GATED_PR_ACTIONS.has(payload.action)) {

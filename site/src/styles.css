@@ -1555,3 +1555,81 @@ tbody tr:hover {
 .mode-switch-panel { margin-top: 12px; border: 1px solid var(--border-dark); border-radius: 10px; padding: 16px 18px; background: rgba(255, 255, 255, 0.02); }
 .mode-switch-body { font: 400 13px/1.7 var(--sans); color: var(--on-dark-4); margin: 0 0 14px; max-width: 66ch; }
 .mode-switch-body strong { color: var(--on-dark-2); }
+
+/* ── Rules panel ───────────────────────────────────────────────────────────
+   What has to be true before a change lands. Reached from the Rules button in
+   the repo header. Severity choices are a segmented control rather than a
+   dropdown, so the alternatives — and the fact that "don't check" IS one of
+   them — are visible without opening anything. */
+.rules-btn {
+  border: 1px solid var(--border-dark); background: transparent; color: var(--on-dark-2);
+  border-radius: 9px; padding: 9px 16px; font: 600 13px var(--sans); cursor: pointer; flex: none;
+}
+.rules-btn:hover { border-color: var(--on-dark-5); }
+.rules-btn.is-on { background: var(--on-dark-2); color: var(--ink-900); border-color: var(--on-dark-2); }
+
+.rules-panel {
+  background: var(--ink-800); border: 1px solid var(--border-dark);
+  border-radius: 14px; padding: 26px 28px; margin-bottom: 26px;
+}
+.rules-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
+.rules-title { font: 700 17px var(--sans); color: var(--on-dark-2); margin: 0 0 4px; }
+.rules-sub { font: 400 13px/1.6 var(--sans); color: var(--on-dark-4); margin: 0; }
+
+.rules-group { padding: 20px 0; border-top: 1px solid var(--border-dark); }
+.rules-group:first-of-type { border-top: 0; }
+.rules-group-title {
+  font: 600 10px var(--mono); letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--on-dark-5); margin: 0 0 14px;
+}
+.rules-note { font: 400 12.5px/1.65 var(--sans); color: var(--on-dark-4); margin: 0 0 12px; max-width: 70ch; }
+
+.rules-modes { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rules-mode {
+  display: block; border: 1px solid var(--border-dark); border-radius: 10px;
+  padding: 14px 16px; cursor: pointer; background: rgba(255, 255, 255, 0.02);
+}
+.rules-mode.is-on { border-color: var(--signal); background: rgba(76, 201, 192, 0.07); }
+.rules-mode input { margin-right: 8px; }
+.rules-mode-name { font: 700 14px var(--sans); color: var(--on-dark-2); }
+.rules-mode-detail { display: block; margin-top: 6px; font: 400 12.5px/1.6 var(--sans); color: var(--on-dark-4); }
+
+.rules-gate { display: flex; gap: 20px; align-items: flex-start; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid rgba(255,255,255,0.04); }
+.rules-gate:last-child { border-bottom: 0; }
+.rules-gate-text { max-width: 46ch; }
+.rules-gate-title { font: 600 13.5px var(--sans); color: var(--on-dark-2); margin-bottom: 4px; }
+.rules-gate-detail { font: 400 12.5px/1.6 var(--sans); color: var(--on-dark-4); }
+.rules-levels { display: flex; gap: 0; flex: none; border: 1px solid var(--border-dark); border-radius: 8px; overflow: hidden; }
+.rules-level {
+  background: transparent; border: 0; border-right: 1px solid var(--border-dark);
+  color: var(--on-dark-4); font: 600 12px var(--sans); padding: 8px 13px; cursor: pointer; white-space: nowrap;
+}
+.rules-level:last-child { border-right: 0; }
+.rules-level:hover { color: var(--on-dark-2); }
+.rules-level.is-on { background: var(--signal); color: var(--signal-ink); }
+/* Turning a check off entirely should not look like the neutral choice. */
+.rules-level.is-on.is-off { background: var(--risk); color: #2a0f08; }
+
+.rules-toggle { display: flex; gap: 11px; align-items: flex-start; padding: 11px 0; cursor: pointer; }
+.rules-toggle.is-disabled { opacity: 0.5; cursor: default; }
+.rules-toggle input { margin-top: 3px; flex: none; }
+.rules-toggle-label { display: block; font: 600 13.5px var(--sans); color: var(--on-dark-2); }
+.rules-toggle-detail { display: block; margin-top: 4px; font: 400 12.5px/1.6 var(--sans); color: var(--on-dark-4); max-width: 72ch; }
+
+.rules-paths {
+  width: 100%; background: rgba(0, 0, 0, 0.25); color: var(--on-dark-2);
+  border: 1px solid var(--border-dark); border-radius: 8px; padding: 11px 13px;
+  font: 400 12.5px/1.7 var(--mono); resize: vertical;
+}
+.rules-fixed .rules-note { color: var(--on-dark-5); }
+
+.rules-actions { padding-top: 20px; border-top: 1px solid var(--border-dark); }
+.rules-saved { margin-top: 14px; font: 400 13px/1.7 var(--sans); color: var(--on-dark-4); }
+.rules-saved ul { margin: 6px 0 0; padding-left: 18px; }
+.rules-saved li { color: var(--signal); }
+
+@media (max-width: 760px) {
+  .rules-modes { grid-template-columns: 1fr; }
+  .rules-gate { flex-direction: column; gap: 12px; }
+  .rules-panel { padding: 18px 16px; }
+}

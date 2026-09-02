@@ -53,6 +53,17 @@ export interface RulesetShape {
    * hand someone an unmergeable repository.
    */
   requireApproval?: boolean;
+  /** Shared mode: review comments must be resolved before merging. */
+  requireConversationResolution?: boolean;
+  /**
+   * Shared mode: require CodeWorthy's check to pass.
+   *
+   * Turning this OFF is a real choice a repo can make — the review still runs
+   * and still comments, it just stops blocking. What it must never do is leave
+   * the context REQUIRED while nothing posts it, which is the bug this whole
+   * tier was built to fix.
+   */
+  requireCheck?: boolean;
 }
 
 /**
@@ -79,8 +90,7 @@ export function desiredRuleset(shape: RulesetShape | string = {}) {
   const rules: Array<Record<string, unknown>> = [{ type: "deletion" }, { type: "non_fast_forward" }];
 
   if (mode === "shared") {
-    rules.push(
-      {
+    rules.push({
         type: "pull_request",
         parameters: {
           // One approval when an independent approver exists; zero otherwise.
@@ -91,17 +101,18 @@ export function desiredRuleset(shape: RulesetShape | string = {}) {
           dismiss_stale_reviews_on_push: true,
           require_code_owner_review: false,
           require_last_push_approval: false,
-          required_review_thread_resolution: true,
+          required_review_thread_resolution: o.requireConversationResolution !== false,
         },
-      },
-      {
+    });
+    if (o.requireCheck !== false) {
+      rules.push({
         type: "required_status_checks",
         parameters: {
           strict_required_status_checks_policy: false,
           required_status_checks: [{ context: checkName }],
         },
-      }
-    );
+      });
+    }
   }
 
   return {
@@ -222,8 +233,13 @@ export function detectRulesetDrift(current: unknown, shape: RulesetShape | strin
   // deliberate choice into an alarm that never clears.
   if (mode === "shared") {
     if (!byType.has("pull_request")) weak.push("a pull request is no longer required");
-    const checks: Array<Record<string, any>> = byType.get("required_status_checks")?.parameters?.required_status_checks ?? [];
-    if (!checks.some((c) => c?.context === checkName)) weak.push(`the "${checkName}" check is no longer required`);
+    // Only drift if the repo ASKED for the check. A repo that deliberately
+    // turned it off must not be reported as weakened every hour for honouring
+    // its own setting.
+    if (o.requireCheck !== false) {
+      const checks: Array<Record<string, any>> = byType.get("required_status_checks")?.parameters?.required_status_checks ?? [];
+      if (!checks.some((c) => c?.context === checkName)) weak.push(`the "${checkName}" check is no longer required`);
+    }
   }
 
   // Bypass beyond repo admin is a real widening: a Team or an Integration in
