@@ -163,11 +163,20 @@ export async function enforceProtection(
   let weakenings: string[] = [];
   let hadRuleset = false;
   let unreadable: string | null = null;
+  // WHICH mechanism drifted, so the repair goes to the thing that broke.
+  // Restoring by always creating a ruleset "works" — GitHub applies the most
+  // restrictive rule, so the branch does end up protected — but it leaves the
+  // weakened legacy rule sitting there permissive and contradicting the ruleset
+  // beside it, and the record says "restored" when the setting that drifted was
+  // never actually reverted. For a product whose value is that the record is
+  // exact, a fix that is only effectively right is not right.
+  let drifted: "ruleset" | "branch-protection" | "none" = "none";
 
   try {
     const inspected = await inspectProtection(client, repo, shape);
     weakenings = inspected.weakenings;
     hadRuleset = inspected.rulesetId != null;
+    if (hadRuleset && weakenings.length) drifted = "ruleset";
   } catch (err) {
     // A 404 here means this host/plan has no rulesets API, not that we're
     // locked out — fall through and check the legacy mechanism.
@@ -180,7 +189,10 @@ export async function enforceProtection(
     // until we've looked there too.
     try {
       const legacy = await client.getBranchProtection(repo, opts.defaultBranch ?? "main");
-      if (legacy) weakenings = detectProtectionDrift(legacy, checkName);
+      if (legacy) {
+        weakenings = detectProtectionDrift(legacy, checkName);
+        if (weakenings.length) drifted = "branch-protection";
+      }
     } catch (err) {
       if (isNotFound(err)) weakenings = detectRulesetDrift(null, shape); // genuinely unprotected
       else unreadable = err instanceof Error ? err.message : String(err);
@@ -207,7 +219,7 @@ export async function enforceProtection(
     repo,
     eventType: "exception.protection_weakened",
     actor: "codeworthy-steward",
-    payload: { weakenings, mode, mechanism: hadRuleset ? "ruleset" : "branch-protection", rulesetName: RULESET_NAME, trigger },
+    payload: { weakenings, mode, mechanism: drifted, rulesetName: RULESET_NAME, trigger },
     plainEnglish: `Exception: branch protection on ${repo} was weakened — ${weakenings.join("; ")}.${restoreAllowed ? " CodeWorthy is restoring it." : " CodeWorthy is configured to report this rather than restore it."}`,
   });
 
@@ -215,13 +227,35 @@ export async function enforceProtection(
     return { status: unprotected ? "unprotected" : "weakened", weakenings, restored: false };
   }
 
-  const applied = await ensureProtection(client, pool, repo, installationId, {
-    defaultBranch: opts.defaultBranch,
-    checkName,
-    mode,
-  });
-  if (applied.action === "failed") {
-    return { status: unprotected ? "unprotected" : "weakened", weakenings, restored: false };
+  // Repair the mechanism that drifted. The exception is solo mode, which the
+  // legacy mechanism cannot express at all — it can only require a pull request
+  // or protect nothing — so a solo repo is always repaired with a ruleset.
+  let mechanism: EnsureResult["mechanism"];
+  if (drifted === "branch-protection" && mode === "shared") {
+    try {
+      await configureProtection(client, pool, repo, opts.defaultBranch ?? "main", installationId, checkName);
+      mechanism = "branch-protection";
+    } catch (err) {
+      await appendAuditEvent(pool, {
+        installationId,
+        repo,
+        eventType: "exception.protection_unavailable",
+        actor: "codeworthy-steward",
+        payload: { repo, detail: err instanceof Error ? err.message : String(err), mechanism: "branch-protection", trigger },
+        plainEnglish: `Exception: CodeWorthy could not repair the weakened branch protection on ${repo}. The branch is still weakened — this needs a human.`,
+      });
+      return { status: unprotected ? "unprotected" : "weakened", weakenings, restored: false };
+    }
+  } else {
+    const applied = await ensureProtection(client, pool, repo, installationId, {
+      defaultBranch: opts.defaultBranch,
+      checkName,
+      mode,
+    });
+    if (applied.action === "failed") {
+      return { status: unprotected ? "unprotected" : "weakened", weakenings, restored: false };
+    }
+    mechanism = applied.mechanism;
   }
 
   await appendAuditEvent(pool, {
@@ -229,8 +263,8 @@ export async function enforceProtection(
     repo,
     eventType: "protection.restored",
     actor: "codeworthy-steward",
-    payload: { weakenings, mechanism: applied.mechanism, trigger },
-    plainEnglish: `CodeWorthy restored branch protection on ${repo} after it was weakened (${weakenings.join("; ")}). Both the change and the restoration are in this record, with times.`,
+    payload: { weakenings, mechanism, drifted, trigger },
+    plainEnglish: `CodeWorthy restored branch protection on ${repo} after it was weakened (${weakenings.join("; ")}) — by putting the ${mechanism === "ruleset" ? "ruleset" : "branch protection rule"} that drifted back the way it was, not by adding a second rule on top of it. Both the change and the restoration are in this record, with times.`,
   });
   return { status: "restored", weakenings, restored: true };
 }

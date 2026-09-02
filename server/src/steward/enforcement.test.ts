@@ -169,6 +169,52 @@ describe("keeping protection in place", () => {
     expect(await events()).toEqual([]);
   });
 
+  it("repairs the mechanism that drifted, instead of layering a ruleset over it", async () => {
+    // Found by weakening a real repo and watching. Restoring by always creating
+    // a ruleset "works" — GitHub applies the most restrictive rule — but it
+    // leaves the weakened legacy rule sitting there permissive and
+    // contradicting the ruleset beside it, while the record claims the setting
+    // was restored. Effectively right is not right when the record is the
+    // product.
+    const c = new Fake();
+    c.rulesets = []; // no ruleset here; this repo is on the legacy mechanism
+    c.protection = {
+      allow_force_pushes: { enabled: true }, // ← the drift
+      allow_deletions: { enabled: false },
+      required_pull_request_reviews: {},
+      required_status_checks: { contexts: [STEWARD_CHECK] },
+    };
+
+    const r = await enforceProtection(c, pool, "dana/legacy", 42);
+    expect(r.status).toBe("restored");
+    expect(r.weakenings).toContain("force-pushes are now allowed");
+
+    expect(c.countOf("setBranchProtection")).toBe(1); // repaired in place
+    expect(c.countOf("createRepoRuleset")).toBe(0); // NOT layered over
+    const [restored] = await events("protection.restored");
+    expect(restored.payload.mechanism).toBe("branch-protection");
+    expect(restored.plain_english).toContain("not by adding a second rule on top");
+  });
+
+  it("still repairs a solo repo with a ruleset — legacy cannot express solo", async () => {
+    // The one exception: the legacy mechanism can only require a pull request
+    // or protect nothing, and requiring a PR is exactly what solo mode exists
+    // to avoid. So a drifted solo repo is repaired with a ruleset even though
+    // the drift was found on legacy.
+    await pool.query(
+      `INSERT INTO audit_events (installation_id, repo, event_type, actor, payload, plain_english)
+       VALUES (42, 'dana/solo', 'repo.mode_set', 'dana', '{"mode":"solo"}'::jsonb, 'solo')`
+    );
+    const c = new Fake();
+    c.rulesets = [];
+    c.protection = { allow_force_pushes: { enabled: true }, allow_deletions: { enabled: false }, required_pull_request_reviews: {}, required_status_checks: { contexts: [STEWARD_CHECK] } };
+
+    const r = await enforceProtection(c, pool, "dana/solo", 42);
+    expect(r.restored).toBe(true);
+    expect(c.countOf("createRepoRuleset")).toBe(1);
+    expect(c.countOf("setBranchProtection")).toBe(0);
+  });
+
   it("records an unreadable repo as an exception rather than assuming it's fine", async () => {
     const c = new Fake();
     c.listRepoRulesets = () => Promise.reject(new Error("401"));
