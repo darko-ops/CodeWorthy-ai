@@ -76,3 +76,46 @@ export function buildAppManifest(baseUrl: string): AppManifest {
 export function installUrl(appSlug: string): string | null {
   return appSlug ? `https://github.com/apps/${appSlug}/installations/new` : null;
 }
+
+
+/**
+ * The APPROVER App — a second, separate GitHub App.
+ *
+ * Separate identity is the whole point: the actor that reviews a change must
+ * not be the actor that approves it, or the approval is the reviewer agreeing
+ * with itself. That separation is enforced three ways, and this manifest is one
+ * of them:
+ *
+ *   1. Here — the approver gets NO `checks` permission, so it cannot post the
+ *      check that gates a merge, and NO `administration`, so it cannot change
+ *      the rule it is approving under.
+ *   2. In code — approver/client.ts is a separate surface with no merge, no
+ *      check-run, and no protection capability (asserted by a doctrine test).
+ *   3. At runtime — its own credentials and its own installation token.
+ *
+ * It subscribes to no events. The Steward calls it after a review lands, so it
+ * needs no webhook of its own — fewer moving parts, and one less thing that can
+ * fire out of order.
+ */
+export function buildApproverManifest(baseUrl: string): AppManifest {
+  const base = baseUrl.replace(/\/+$/, "");
+  return {
+    name: "CodeWorthy Approver",
+    url: "https://codeworthy.ai",
+    hook_attributes: { url: `${base}/webhooks/github`, active: false },
+    redirect_url: `${base}/steward/approver-manifest/callback`,
+    setup_url: `${base}/steward/approver`,
+    setup_on_update: false,
+    public: true,
+    default_permissions: {
+      // Submit ONE review per pull request. That is the entire privileged act.
+      pull_requests: "write",
+      // Read the diff, for the independent second review in strict mode.
+      contents: "read",
+      metadata: "read",
+      // Deliberately absent: checks (can't gate), administration (can't change
+      // the rule it approves under), issues, workflows.
+    },
+    default_events: [],
+  };
+}

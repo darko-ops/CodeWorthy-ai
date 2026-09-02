@@ -62,6 +62,8 @@ export const config = {
   // The GitHub App's slug (from its URL: github.com/apps/<slug>). Drives the
   // "Install on GitHub" button on the consent page.
   appSlug: process.env.GITHUB_APP_SLUG ?? "",
+  // The approver App's slug, for its "Install on your repos" link.
+  approverSlug: process.env.APPROVER_APP_SLUG ?? "",
   // The dashboard SPA origin (codeworthy.ai) — the OAuth callback redirects the
   // browser back here, and CORS allows it to call the /api/* endpoints.
   webBaseUrl: (process.env.STEWARD_WEB_BASE_URL ?? "https://codeworthy.ai").replace(/\/+$/, ""),

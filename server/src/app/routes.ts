@@ -4,7 +4,7 @@
 import type { FastifyInstance } from "fastify";
 import type { Pool } from "pg";
 import { config } from "../config.js";
-import { buildAppManifest } from "./manifest.js";
+import { buildAppManifest, buildApproverManifest } from "./manifest.js";
 import {
   applyProtectionConsent,
   page,
@@ -13,6 +13,8 @@ import {
   renderManifestForm,
   renderProtectDonePage,
   renderSetupPage,
+  renderApproverPage,
+  renderApproverCredentials,
 } from "./install.js";
 
 export function registerAppRoutes(app: FastifyInstance, pool: Pool) {
@@ -60,28 +62,41 @@ export function registerAppRoutes(app: FastifyInstance, pool: Pool) {
   // One-click App registration (manifest flow).
   app.get("/steward/app-manifest", async (_req, reply) => html(reply, renderManifestForm(buildAppManifest(config.baseUrl))));
 
+  // The approver's front door, and its own one-click registration. Separate
+  // route, separate manifest, separate credentials — see manifest.ts for why
+  // the separation is enforced in three places rather than asserted once.
+  app.get("/steward/approver", async (_req, reply) =>
+    html(reply, renderApproverPage({
+      configured: Boolean(config.approver.appId),
+      strict: config.approver.strict,
+      slug: config.approverSlug || null,
+    }))
+  );
+  app.get("/steward/approver-manifest", async (_req, reply) =>
+    html(reply, renderManifestForm(buildApproverManifest(config.baseUrl)))
+  );
+  app.get("/steward/approver-manifest/callback", async (req, reply) => {
+    const code = (req.query as { code?: string }).code;
+    if (!code) return html(reply.code(400), page("Missing code", "<h1>Missing code</h1><p class='muted'>Start from <a href='/steward/approver'>the Approver page</a>.</p>"));
+    try {
+      const appData = await convertManifestCode(code);
+      html(reply, renderApproverCredentials({
+        id: appData.id, slug: appData.slug, htmlUrl: appData.html_url,
+        pem: appData.pem, webhookSecret: appData.webhook_secret,
+      }));
+    } catch (err) {
+      app.log.error({ err }, "approver manifest conversion failed");
+      html(reply.code(502), page("Couldn't finish", "<h1>⚠️ Approver creation didn't complete</h1><p class='muted'>The one-time code may have expired. Start again from <a href='/steward/approver'>the Approver page</a>.</p>"));
+    }
+  });
+
   // GitHub redirects here with a temporary ?code after the App is created; we
   // exchange it for the App's credentials and show them once.
   app.get("/steward/app-manifest/callback", async (req, reply) => {
     const code = (req.query as { code?: string }).code;
     if (!code) return html(reply.code(400), page("Missing code", "<h1>Missing code</h1><p class='muted'>Start from <a href='/steward/app-manifest'>Create the App</a>.</p>"));
     try {
-      const res = await fetch(`https://api.github.com/app-manifests/${encodeURIComponent(code)}/conversions`, {
-        method: "POST",
-        headers: {
-          accept: "application/vnd.github+json",
-          "x-github-api-version": "2022-11-28",
-          "user-agent": "codeworthy-steward",
-        },
-      });
-      if (!res.ok) throw new Error(`GitHub conversion -> ${res.status}`);
-      const appData = (await res.json()) as {
-        id: number;
-        slug: string;
-        html_url: string;
-        pem: string;
-        webhook_secret: string;
-      };
+      const appData = await convertManifestCode(code);
       html(
         reply,
         renderManifestCredentials({
@@ -97,4 +112,22 @@ export function registerAppRoutes(app: FastifyInstance, pool: Pool) {
       html(reply.code(502), page("Couldn't finish", "<h1>⚠️ App creation didn't complete</h1><p class='muted'>The one-time code may have expired. Start again from <a href='/steward/app-manifest'>Create the App</a>.</p>"));
     }
   });
+}
+
+
+/** Exchange a one-time manifest code for an App's credentials. Shared by both
+ *  App flows — the Steward and the Approver register the same way. */
+async function convertManifestCode(code: string): Promise<{
+  id: number; slug: string; html_url: string; pem: string; webhook_secret: string;
+}> {
+  const res = await fetch(`https://api.github.com/app-manifests/${encodeURIComponent(code)}/conversions`, {
+    method: "POST",
+    headers: {
+      accept: "application/vnd.github+json",
+      "x-github-api-version": "2022-11-28",
+      "user-agent": "codeworthy-steward",
+    },
+  });
+  if (!res.ok) throw new Error(`GitHub conversion -> ${res.status}`);
+  return (await res.json()) as { id: number; slug: string; html_url: string; pem: string; webhook_secret: string };
 }
