@@ -33,6 +33,16 @@ afterAll(async () => { await pool.end(); });
 beforeEach(async () => { await migrate(url); await pool.query("TRUNCATE audit_events"); });
 
 describe("what counts as an open finding", () => {
+  it("counts the whole exception.* family, not just the named ones", async () => {
+    // alertEventTypes() reads the CATEGORY map; the "any exception.* is an
+    // alert" contract lives in the display fallback. So these were categorised
+    // as alerts everywhere a human could read them, and counted nowhere.
+    await ev("a/b", "exception.protection_bypassed", 30);
+    await ev("a/b", "exception.gate_unavailable", 29);
+    expect(await count("a/b")).toBe(2);
+    expect(openFlagEventTypes()).not.toContain("exception.protection_bypassed"); // named list doesn't have it
+  });
+
   it("does not count CodeWorthy's own response as a second problem", async () => {
     await ev("a/b", "push.direct_to_default", 60);
     await ev("a/b", "mechanic.retroactive_review", 59); // the response, not a finding
@@ -86,7 +96,7 @@ describe("what counts as an open finding", () => {
     await ev("a/b", "mechanic.retroactive_review", 119);
     await ev("a/b", "push.direct_to_default", 100);
     await ev("a/b", "mechanic.retroactive_review", 99);
-    expect(await count("a/b")).toBe(4); // what it used to show
+    expect(await count("a/b")).toBe(2); // two pushes; the two responses aren't findings
     await ev("a/b", "protection.configured", 90);
     expect(await count("a/b")).toBe(0);
   });

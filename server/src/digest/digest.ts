@@ -89,7 +89,17 @@ const CLOSED_BY_PROTECTION = [
 // be undone by a later setting. They stay counted for the window — that is what
 // an exception register is for.
 
-/** The alert types worth counting as an OPEN finding. */
+/**
+ * The NAMED alert types worth counting as an open finding.
+ *
+ * The SQL below also counts the whole `exception.*` family, and it has to:
+ * alertEventTypes() reads the CATEGORY map, but the family contract ("any
+ * exception.* is an alert") lives in categorize()'s fallback, which only the
+ * DISPLAY path goes through. So exception.gate_unavailable and
+ * exception.protection_bypassed were categorised as alerts everywhere a human
+ * could read them, and counted nowhere — the flag column silently under-reported
+ * the exceptions an auditor most wants to see.
+ */
 export function openFlagEventTypes(): string[] {
   return alertEventTypes().filter((t) => !RESPONSE_EVENT_TYPES.includes(t));
 }
@@ -109,7 +119,10 @@ const OPEN_FINDINGS_FROM = `
            max(ts) FILTER (WHERE event_type = 'gate.evaluated')                                 AS gated_at
       FROM audit_events WHERE repo = ANY($1) GROUP BY repo
   ) c ON c.repo = e.repo
-  WHERE e.repo = ANY($1) AND e.event_type = ANY($2)
+  WHERE e.repo = ANY($1)
+    -- named alerts, PLUS the whole exception.* family (the V0.3 contract)
+    AND (e.event_type = ANY($2) OR e.event_type LIKE 'exception.%')
+    AND e.event_type <> ALL($5)
     AND e.ts >= now() - make_interval(days => $3)
     AND NOT (e.event_type = ANY($4) AND c.protected_at IS NOT NULL AND c.protected_at > e.ts)
     AND NOT (e.event_type = 'exception.gate_unavailable' AND c.gated_at IS NOT NULL AND c.gated_at > e.ts)`;
@@ -125,7 +138,7 @@ export async function flaggedCountsByRepo(
   const days = Math.min(Math.max(sinceDays, 1), 365);
   const res = await pool.query(
     `SELECT e.repo, count(*)::int AS n ${OPEN_FINDINGS_FROM} GROUP BY e.repo`,
-    [repos, openFlagEventTypes(), days, CLOSED_BY_PROTECTION]
+    [repos, openFlagEventTypes(), days, CLOSED_BY_PROTECTION, RESPONSE_EVENT_TYPES]
   );
   const out: Record<string, number> = {};
   for (const r of res.rows) out[r.repo] = r.n;
@@ -151,13 +164,13 @@ export async function flaggedBucketsByRepo(
     // The bucket index is the elapsed fraction of the window, clamped so an
     // event landing exactly at `now` doesn't fall off the end.
     `SELECT e.repo,
-            least($5::int - 1,
+            least($6::int - 1,
                   floor(extract(epoch from (e.ts - (now() - make_interval(days => $3))))
-                        / (($3::float * 86400) / $5::float))::int) AS bucket,
+                        / (($3::float * 86400) / $6::float))::int) AS bucket,
             count(*)::int AS n
        ${OPEN_FINDINGS_FROM}
       GROUP BY e.repo, bucket`,
-    [repos, openFlagEventTypes(), days, CLOSED_BY_PROTECTION, FLAGGED_BUCKETS]
+    [repos, openFlagEventTypes(), days, CLOSED_BY_PROTECTION, RESPONSE_EVENT_TYPES, FLAGGED_BUCKETS]
   );
   const out: Record<string, number[]> = {};
   for (const r of res.rows) {
