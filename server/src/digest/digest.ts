@@ -85,6 +85,44 @@ export async function flaggedCountsByRepo(
   return out;
 }
 
+/** How many periods the flagged trend is split into. Ten is what the overview
+ *  table's sparkline draws; keeping it here means the shape is a server fact
+ *  rather than something the UI invents. */
+export const FLAGGED_BUCKETS = 10;
+
+// Flagged events per repo, split into FLAGGED_BUCKETS equal periods across the
+// window, oldest first — the overview table's trend line. Same event types as
+// flaggedCountsByRepo, so each row's bars always sum to its flagged count.
+export async function flaggedBucketsByRepo(
+  pool: Pool,
+  repos: string[],
+  sinceDays: number
+): Promise<Record<string, number[]>> {
+  if (!repos.length) return {};
+  const days = Math.min(Math.max(sinceDays, 1), 365);
+  const res = await pool.query(
+    // The bucket index is the elapsed fraction of the window, clamped so an
+    // event landing exactly at `now` doesn't fall off the end.
+    `SELECT repo,
+            least($4::int - 1,
+                  floor(extract(epoch from (ts - (now() - make_interval(days => $3))))
+                        / (($3::float * 86400) / $4::float))::int) AS bucket,
+            count(*)::int AS n
+       FROM audit_events
+      WHERE repo = ANY($1) AND event_type = ANY($2)
+        AND ts >= now() - make_interval(days => $3)
+      GROUP BY repo, bucket`,
+    [repos, alertEventTypes(), days, FLAGGED_BUCKETS]
+  );
+  const out: Record<string, number[]> = {};
+  for (const r of res.rows) {
+    const b = Number(r.bucket);
+    if (!Number.isFinite(b) || b < 0 || b >= FLAGGED_BUCKETS) continue;
+    (out[r.repo] ??= new Array<number>(FLAGGED_BUCKETS).fill(0))[b] = r.n;
+  }
+  return out;
+}
+
 export async function buildDigest(
   pool: Pool,
   opts: { repo?: string; periodDays?: number } = {}

@@ -47,6 +47,12 @@ export function digestUrl(repo: string, days = 7): string {
   return `${API_BASE}/steward/digest.html?repo=${encodeURIComponent(repo)}&days=${days}`;
 }
 
+/** The same rendered summary across every repo in the record — what the
+ *  overview's "Export log" offers, where there is no single repo to name. */
+export function estateDigestUrl(days = 30): string {
+  return `${API_BASE}/steward/digest.html?days=${days}`;
+}
+
 export type ApiErrorKind = "unauthenticated" | "offline" | "forbidden" | "server";
 
 export class ApiError extends Error {
@@ -228,17 +234,34 @@ export interface HealthReport {
 export type Overall = "Healthy" | "Needs attention" | "At risk" | "Quiet";
 export interface RepoOverview {
   full_name: string;
+  private: boolean;
+  defaultBranch: string;
   overall: Overall;
   protection: "healthy" | "watch" | "at risk";
   review: VitalStatus;
   flagged: number;
+  /** Flagged events per equal period across the window, oldest first. The
+   *  overview table draws these as-is — a missing or short array means the
+   *  server had no trend to give, and the row shows none. */
+  flaggedBuckets: number[];
   events: number;
+  /** Changes that reached the default branch in the window. */
+  merges: number;
+  /** The worst thing still waiting on a decision, or null when there is none. */
+  decision: string | null;
   lastActivity: string | null;
 }
 export interface OverviewReport {
   generatedAt: string;
   windowDays: number;
   repos: RepoOverview[];
-  totals: { repos: number; needsAttention: number; atRisk: number; flagged: number };
-  integrity: { ok: boolean; headline: string };
+  totals: {
+    repos: number;
+    needsAttention: number;
+    atRisk: number;
+    healthy: number;
+    quiet: number;
+    flagged: number;
+  };
+  integrity: { ok: boolean; headline: string; chain: string };
 }

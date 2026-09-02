@@ -12,7 +12,7 @@ import { mapGitHubError } from "./apiErrors.js";
 import { allowedWebOrigins } from "./webOrigins.js";
 import { recentChangelog } from "../audit/audit.js";
 import { buildHealthReport } from "../health/health.js";
-import { buildOverview } from "../health/overview.js";
+import { buildOverview, type OverviewRepoInput } from "../health/overview.js";
 import { flaggedCountsByRepo } from "../digest/digest.js";
 import {
   authorizeUrl,
@@ -145,13 +145,18 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     });
   });
 
-  // Every repo full-name this user can see through their installations.
-  async function accessibleRepos(token: string): Promise<string[]> {
+  // Every repo this user can see through their installations. The overview
+  // needs more than the name — visibility and the default branch decide how a
+  // row reads and which branch a decision names — so the GitHub payload is
+  // carried through rather than flattened to strings here.
+  async function accessibleRepos(token: string): Promise<OverviewRepoInput[]> {
     const insts = await listInstallations(token);
-    const out: string[] = [];
+    const out: OverviewRepoInput[] = [];
     for (const inst of insts) {
       const rs = await listRepositories(token, inst.id);
-      for (const r of rs) out.push(r.full_name);
+      for (const r of rs) {
+        out.push({ full_name: r.full_name, private: r.private, default_branch: r.default_branch });
+      }
     }
     return out;
   }
@@ -163,7 +168,9 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     if (!s) return;
     const q = req.query as { days?: string };
     const days = q.days ? parseInt(q.days, 10) : 30;
-    return withGitHub(reply, async () => flaggedCountsByRepo(pool, await accessibleRepos(s.token), days));
+    return withGitHub(reply, async () =>
+      flaggedCountsByRepo(pool, (await accessibleRepos(s.token)).map((r) => r.full_name), days)
+    );
   });
 
   // The portfolio overview — all repos at a high level (per-repo status, flagged
@@ -331,6 +338,36 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
         plainEnglish: `${s.login} reviewed the "${p.issueId.replace(/_/g, " ")}" finding on ${fullName} and accepted it deliberately. CodeWorthy stops flagging it; the risk and the decision both stay in the record.`,
       });
       return { ok: true, accepted: p.issueId };
+    });
+  });
+
+  // Taking that back. The acceptance is NOT deleted — the spine is append-only,
+  // and a record you can quietly edit is worth nothing. Instead this appends the
+  // reversal, so the history reads "accepted, then reconsidered", with both
+  // times and both names. CodeWorthy starts flagging the finding again.
+  app.post("/api/repos/:owner/:repo/unaccept/:issueId", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const p = req.params as { owner: string; repo: string; issueId: string };
+    const fullName = `${p.owner}/${p.repo}`;
+    if (!/^[a-z0-9_]{1,64}$/.test(p.issueId)) {
+      reply.code(400).send({ error: "bad issue id" });
+      return;
+    }
+    return withGitHub(reply, async () => {
+      if (!(await userCanAccessRepo(s.token, fullName))) {
+        reply.code(403).send({ error: "no access to repo" });
+        return;
+      }
+      await appendAuditEvent(pool, {
+        installationId: await installationForRepo(s.token, fullName),
+        repo: fullName,
+        eventType: "issue.unaccepted",
+        actor: s.login,
+        payload: { issueId: p.issueId },
+        plainEnglish: `${s.login} withdrew the acceptance of the "${p.issueId.replace(/_/g, " ")}" finding on ${fullName}. The earlier decision stays in the record; CodeWorthy raises the finding again.`,
+      });
+      return { ok: true, unaccepted: p.issueId };
     });
   });
 

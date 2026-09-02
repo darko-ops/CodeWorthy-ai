@@ -14,13 +14,16 @@ export const VITAL_COLOR: Record<VitalStatus, string> = {
 export function VitalsMeter({
   vitals,
   sm = false,
+  slim = false,
 }: {
   vitals: { id: string; label: string; status: VitalStatus }[];
   sm?: boolean;
+  /** The repo dashboard's size: 3px bars under a 15px verdict line. */
+  slim?: boolean;
 }) {
   return (
     <div
-      className={"vitals-meter" + (sm ? " sm" : "")}
+      className={"vitals-meter" + (sm ? " sm" : "") + (slim ? " slim" : "")}
       role="img"
       aria-label={vitals.map((v) => `${v.label}: ${v.status}`).join(", ")}
     >
