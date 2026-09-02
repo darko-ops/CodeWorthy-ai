@@ -42,6 +42,74 @@ that fails the build if it breaks:
 | Weakening is corrected, not just logged | `enforcement.test.ts` — asserts the restore call *and* both audit events |
 | CodeWorthy still can't merge | the forbidden-verb doctrine test, unchanged |
 
+## Two modes, because one shape doesn't fit
+
+A single maintainer forced to branch-and-PR against themselves either stops
+using the tool or turns protection off entirely — and an unprotected repo with
+no record is strictly worse than a fast one with a complete record. So a repo
+declares how it is worked on, and the protection follows.
+
+| | **shared** (default) | **solo** |
+|---|---|---|
+| Push to the default branch | pull request required | **allowed** |
+| CodeWorthy | gates before merge | **reviews after it lands** |
+| Force-push | blocked | **blocked** |
+| Branch deletion | blocked | **blocked** |
+| A direct push is… | `exception.protection_bypassed` | an ordinary event |
+
+Speed is what solo mode buys. The ability to erase the history the record is
+made of is not on the table in either mode.
+
+Three details that took getting right:
+
+- **Solo omits `required_status_checks`, not just the `pull_request` rule.** A
+  required check rejects a direct push too, so leaving it would have re-blocked
+  the exact thing solo mode exists to allow.
+- **Drift detection is mode-aware.** Judged by shared rules, a healthy solo
+  ruleset looks like it is missing two rules — so the hourly sweep would have
+  "restored" it and silently undone a deliberate choice, on a schedule, forever.
+- **A solo push is not an exception.** Recording the user's agreed workflow as a
+  deviation would fill the exception register with normal activity and destroy
+  the meaning of the register, which is the part an auditor actually reads.
+
+Reviews of landed commits are recorded with `postMerge: true`, so nothing in the
+record can later be read as a pre-merge gate, and they post no check run — a red
+check on a commit already on `main` blocks nothing and can never be cleared.
+
+## The approver: a second actor that can say no
+
+The reviewer must not also be the approver, or the approval is the reviewer
+agreeing with itself. So approval is a **separate GitHub App** with its own
+credentials, and its job is deliberately not to re-review the diff — that is the
+reviewer's job, and doing it twice is the same judgement twice. It answers a
+different question: *were the reviewer's blocking findings dealt with?* Fixed,
+or waived by a person who gave a reason.
+
+What makes it worth having is that it can refuse. An approver that always
+approves is worse than none: it manufactures evidence that a control operated
+when it did not. So it fails closed.
+
+| Situation | Decision |
+|---|---|
+| No verdict for **this exact commit** | abstain — a verdict on an earlier commit says nothing about the code being approved |
+| Blocking findings outstanding | decline, naming them |
+| Waiver with no stated reason | doesn't count — the reason *is* the evidence |
+| Waiver from a bot | doesn't count |
+| Waiver from the reviewer or approver itself | doesn't count — a control can't excuse itself |
+
+Separation is enforced three ways rather than asserted once: the approver's
+manifest grants no `checks` permission (it cannot post the check that gates a
+merge) and no `administration` (it cannot change the rule it approves under);
+`approver/client.ts` is a separate capability surface with a doctrine test
+asserting both directions; and it authenticates with its own installation token.
+
+Waivers are pull-request comments — `@codeworthy waive <finding_id>: <reason>` —
+and a comment re-triggers the decision, so a waiver takes effect without a push.
+
+`required_approving_review_count` follows whether an approver is actually
+configured. Requiring an approval nobody can give is the same failure as
+requiring a check nobody posts: an unmergeable repository.
+
 ## Why rulesets, not legacy branch protection
 
 Both are supported (legacy is the automatic fallback when the rulesets API isn't
@@ -140,6 +208,9 @@ the other never merges. The name lives in `STEWARD_CHECK`
 | `exception.protection_bypassed` | something landed on a protected branch anyway |
 | `exception.protection_rule_edited` / `_deleted` | GitHub told us a human changed a rule |
 | `exception.protection_unavailable` | we could not protect a repo at all — needs a human |
+| `repo.mode_set` | someone changed how a repo is worked on (solo / shared) |
+| `approval.granted` / `approval.declined` | the independent approver's decision, and its reasoning |
+| `issue.accepted` | a human accepted a finding deliberately, on the record |
 
 Every one carries a plain-language sentence. The pattern an auditor cares about
 is the pair: a deviation and its correction, both timestamped, in an append-only
