@@ -143,6 +143,16 @@ export async function listRepositories(token: string, installationId: number): P
 // Gate helper: does this user have access to owner/name through some
 // installation? Used before returning a repo's Steward activity so the
 // (currently public) changelog is only served to someone who can see the repo.
+/** Which installation covers this repo, so we can act on it. Null if none. */
+export async function installationForRepo(token: string, fullName: string): Promise<number | null> {
+  const insts = await listInstallations(token);
+  for (const inst of insts) {
+    const repos = await listRepositories(token, inst.id);
+    if (repos.some((r) => r.full_name.toLowerCase() === fullName.toLowerCase())) return inst.id;
+  }
+  return null;
+}
+
 export async function userCanAccessRepo(token: string, fullName: string): Promise<boolean> {
   const insts = await listInstallations(token);
   for (const inst of insts) {

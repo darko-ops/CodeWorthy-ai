@@ -15,7 +15,8 @@ import { getInstallationClient } from "../github/auth.js";
 import type { GitHubClient } from "../github/client.js";
 import { recordMergeEvidence } from "./mergeEvidence.js";
 import { retroactiveReview } from "./mechanics.js";
-import { runGate } from "./gate/check.js";
+import { runGate, runPostMergeGate } from "./gate/check.js";
+import { getRepoMode } from "./repoMode.js";
 import { STEWARD_CHECK } from "./protection.js";
 import {
   ensureProtection,
@@ -137,6 +138,26 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
 
   if (eventName === "push" && isDirectToDefault(payload)) {
     const branch = (payload.ref ?? "").replace("refs/heads/", "");
+    const mode = await getRepoMode(pool, repo);
+
+    // SOLO: pushing here is the agreed way of working, not a deviation. So it
+    // is NOT an exception and NOT a bypass — recording it as one would fill the
+    // exception register with the user's normal workflow and destroy the
+    // meaning of the register itself. What happens instead is the review:
+    // CodeWorthy reads the commit that landed and reports on it, marked
+    // post-merge so nobody can later read it as a pre-merge gate.
+    if (mode === "solo") {
+      await runPostMergeGate(client, pool, {
+        repo,
+        sha: payload.after,
+        branch,
+        pusher: payload.pusher?.name ?? payload.sender?.login ?? null,
+        installationId,
+        config: repoConfig,
+      });
+      return;
+    }
+
     // If protection is supposed to be on, a commit landing here means someone
     // with bypass rights went around it — a named exception, not a plain push.
     // It also means the rule itself may have been removed, so verify and

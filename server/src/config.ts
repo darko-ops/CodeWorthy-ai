@@ -30,6 +30,18 @@ export const config = {
     // makes the guarantee independent of any single webhook delivery.
     sweepMinutes: Math.max(5, parseInt(process.env.STEWARD_PROTECTION_SWEEP_MINUTES ?? "60", 10) || 60),
   },
+  // The independent approver — a SEPARATE GitHub App, with its own credentials
+  // and its own identity in the audit trail. Separate on purpose: the actor
+  // that reviews a change must not be the actor that approves it, or the
+  // approval is the reviewer agreeing with itself. Unset -> no approver exists,
+  // and protection never requires an approval nobody can give.
+  approver: {
+    appId: process.env.APPROVER_APP_ID ?? "",
+    privateKey: (process.env.APPROVER_PRIVATE_KEY ?? "").replace(/\\n/g, "\n"),
+    // Default: approve once CodeWorthy's blocking findings are addressed.
+    // "strict" re-reviews the diff independently and forms its own opinion.
+    strict: process.env.APPROVER_STRICT === "1",
+  },
   // M1.5. WORM anchor for the audit hash chain's head. Precedence: S3 (prod) >
   // file (dev) > none. When set, the integrity endpoint also checks the chain
   // head against the anchor, and the anchor job (npm run anchor) pins it.

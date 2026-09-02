@@ -20,6 +20,7 @@ import type { Pool } from "pg";
 import { appendAuditEvent } from "../audit/audit.js";
 import type { GitHubClient } from "../github/client.js";
 import { STEWARD_CHECK } from "./protection.js";
+import { DEFAULT_MODE, type RepoMode } from "./repoMode.js";
 
 /** The name is the identity — we find, diff and restore our ruleset by it. */
 export const RULESET_NAME = "CodeWorthy — protected default branch";
@@ -42,7 +43,67 @@ export interface RulesetSummary {
  * that never works and a guardrail they turn off. We gate on correctness, not
  * on freshness.
  */
-export function desiredRuleset(checkName: string = STEWARD_CHECK) {
+export interface RulesetShape {
+  checkName?: string;
+  /** How the repo is worked on. Defaults to shared. */
+  mode?: RepoMode;
+  /**
+   * Require one approving review. Only ever true when an independent approver
+   * is actually configured — requiring an approval nobody can give is how you
+   * hand someone an unmergeable repository.
+   */
+  requireApproval?: boolean;
+}
+
+/**
+ * The ruleset we want, for the way this repo is actually worked on.
+ *
+ * SHARED: a pull request is required, CodeWorthy's check must pass, comments
+ * must be resolved, and force-pushes and deletion are blocked.
+ *
+ * SOLO: only the irreversible operations are blocked — force-push and deletion.
+ * No pull-request requirement and no required check, because both of those
+ * reject a direct push and solo mode exists precisely to allow one. The review
+ * still happens: CodeWorthy reviews each pushed commit after it lands and
+ * records what it found. Velocity with a complete record, rather than a rule
+ * the one maintainer deletes in week two.
+ */
+export function desiredRuleset(shape: RulesetShape | string = {}) {
+  // Back-compat: this used to take a bare check name.
+  const o: RulesetShape = typeof shape === "string" ? { checkName: shape } : shape;
+  const checkName = o.checkName ?? STEWARD_CHECK;
+  const mode = o.mode ?? DEFAULT_MODE;
+
+  // Blocked in BOTH modes. These destroy history, and the audit record is made
+  // of history — solo mode buys speed, never the ability to erase the evidence.
+  const rules: Array<Record<string, unknown>> = [{ type: "deletion" }, { type: "non_fast_forward" }];
+
+  if (mode === "shared") {
+    rules.push(
+      {
+        type: "pull_request",
+        parameters: {
+          // One approval when an independent approver exists; zero otherwise.
+          // The reviewer and the approver must not be the same actor, which is
+          // the whole point — but a required approval with nobody able to give
+          // it is an unmergeable repo, so this follows the approver's presence.
+          required_approving_review_count: o.requireApproval ? 1 : 0,
+          dismiss_stale_reviews_on_push: true,
+          require_code_owner_review: false,
+          require_last_push_approval: false,
+          required_review_thread_resolution: true,
+        },
+      },
+      {
+        type: "required_status_checks",
+        parameters: {
+          strict_required_status_checks_policy: false,
+          required_status_checks: [{ context: checkName }],
+        },
+      }
+    );
+  }
+
   return {
     name: RULESET_NAME,
     target: "branch" as const,
@@ -51,30 +112,7 @@ export function desiredRuleset(checkName: string = STEWARD_CHECK) {
     // exception. See the doctrine note at the top of this file.
     bypass_actors: [{ actor_id: ROLE_ADMIN, actor_type: "RepositoryRole" as const, bypass_mode: "always" as const }],
     conditions: { ref_name: { include: ["~DEFAULT_BRANCH"], exclude: [] } },
-    rules: [
-      { type: "deletion" as const },
-      { type: "non_fast_forward" as const }, // blocks force-pushes over shared history
-      {
-        type: "pull_request" as const,
-        parameters: {
-          // Zero required approvals on purpose: a solo builder has nobody to
-          // approve their PR, and a rule that cannot be satisfied gets deleted.
-          // The REVIEW that matters here is CodeWorthy's check below.
-          required_approving_review_count: 0,
-          dismiss_stale_reviews_on_push: true,
-          require_code_owner_review: false,
-          require_last_push_approval: false,
-          required_review_thread_resolution: true,
-        },
-      },
-      {
-        type: "required_status_checks" as const,
-        parameters: {
-          strict_required_status_checks_policy: false,
-          required_status_checks: [{ context: checkName }],
-        },
-      },
-    ],
+    rules,
   };
 }
 
@@ -108,9 +146,11 @@ export async function applyRuleset(
   pool: Pool,
   repo: string,
   installationId: number | null,
-  checkName: string = STEWARD_CHECK
+  shape: RulesetShape = {}
 ): Promise<ApplyResult> {
-  const desired = desiredRuleset(checkName);
+  const checkName = shape.checkName ?? STEWARD_CHECK;
+  const mode = shape.mode ?? DEFAULT_MODE;
+  const desired = desiredRuleset(shape);
   const existing = await findOurRuleset(client, repo);
 
   let action: ApplyResult["action"];
@@ -135,12 +175,16 @@ export async function applyRuleset(
       rulesetName: RULESET_NAME,
       rulesetId,
       action,
+      mode,
       target: "~DEFAULT_BRANCH",
-      requires: ["pull_request", checkName, "conversation_resolution"],
+      requires: mode === "shared" ? ["pull_request", checkName, "conversation_resolution"] : [],
       blocks: ["force_push", "deletion"],
       bypass: ["repository admin (logged as an exception when used)"],
     },
-    plainEnglish: `CodeWorthy ${action === "created" ? "turned on" : "reapplied"} branch protection for the default branch of ${repo}: changes now need a pull request and the "${checkName}" check, force-pushes and branch deletion are blocked, and comments must be resolved. A repository admin can still override it — and CodeWorthy records it as an exception when they do.`,
+    plainEnglish:
+      mode === "solo"
+        ? `CodeWorthy ${action === "created" ? "turned on" : "reapplied"} solo-mode protection on the default branch of ${repo}: you can push to it directly, and CodeWorthy reviews each change after it lands. Force-pushes and branch deletion stay blocked, so the history the record is built on can't be erased.`
+        : `CodeWorthy ${action === "created" ? "turned on" : "reapplied"} branch protection for the default branch of ${repo}: changes now need a pull request and the "${checkName}" check, force-pushes and branch deletion are blocked, and comments must be resolved. A repository admin can still override it — and CodeWorthy records it as an exception when they do.`,
   });
 
   return { mechanism: "ruleset", action, rulesetId };
@@ -150,7 +194,10 @@ export async function applyRuleset(
  * Compare GitHub's current ruleset to what we want, in plain language.
  * Empty array = healthy. Order is worst-first so the first line is the headline.
  */
-export function detectRulesetDrift(current: unknown, checkName: string = STEWARD_CHECK): string[] {
+export function detectRulesetDrift(current: unknown, shape: RulesetShape | string = {}): string[] {
+  const o: RulesetShape = typeof shape === "string" ? { checkName: shape } : shape;
+  const checkName = o.checkName ?? STEWARD_CHECK;
+  const mode = o.mode ?? DEFAULT_MODE;
   if (!current || typeof current !== "object") return ["branch protection is off entirely — CodeWorthy's ruleset is gone"];
   const rs = current as Record<string, any>;
   const weak: string[] = [];
@@ -165,12 +212,19 @@ export function detectRulesetDrift(current: unknown, checkName: string = STEWARD
 
   const rules: Array<Record<string, any>> = Array.isArray(rs.rules) ? rs.rules : [];
   const byType = new Map(rules.map((r) => [r?.type, r]));
+  // Both modes block the irreversible operations. Losing either is drift.
   if (!byType.has("non_fast_forward")) weak.push("force-pushes are now allowed");
   if (!byType.has("deletion")) weak.push("branch deletion is now allowed");
-  if (!byType.has("pull_request")) weak.push("a pull request is no longer required");
 
-  const checks: Array<Record<string, any>> = byType.get("required_status_checks")?.parameters?.required_status_checks ?? [];
-  if (!checks.some((c) => c?.context === checkName)) weak.push(`the "${checkName}" check is no longer required`);
+  // The pull-request and check rules are SHARED-mode only. Checking for them in
+  // solo mode would make every solo repo look permanently weakened, and the
+  // reconciler would fight the user's own setting every hour — turning a
+  // deliberate choice into an alarm that never clears.
+  if (mode === "shared") {
+    if (!byType.has("pull_request")) weak.push("a pull request is no longer required");
+    const checks: Array<Record<string, any>> = byType.get("required_status_checks")?.parameters?.required_status_checks ?? [];
+    if (!checks.some((c) => c?.context === checkName)) weak.push(`the "${checkName}" check is no longer required`);
+  }
 
   // Bypass beyond repo admin is a real widening: a Team or an Integration in
   // this list means something other than a human admin can route around it.
@@ -203,11 +257,11 @@ export interface ProtectionCheck {
 export async function inspectProtection(
   client: GitHubClient,
   repo: string,
-  checkName: string = STEWARD_CHECK
+  shape: RulesetShape | string = {}
 ): Promise<ProtectionCheck> {
   const summary = await findOurRuleset(client, repo);
-  if (!summary) return { rulesetId: null, weakenings: detectRulesetDrift(null, checkName), healthy: false };
+  if (!summary) return { rulesetId: null, weakenings: detectRulesetDrift(null, shape), healthy: false };
   const full = await client.getRepoRuleset(repo, summary.id);
-  const weakenings = detectRulesetDrift(full, checkName);
+  const weakenings = detectRulesetDrift(full, shape);
   return { rulesetId: summary.id, weakenings, healthy: weakenings.length === 0 };
 }

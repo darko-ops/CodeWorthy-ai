@@ -293,3 +293,141 @@ async function findOurCheckRun(client: GitHubClient, repo: string, headSha: stri
   for (const c of list) if (c?.name === STEWARD_CHECK && typeof c.id === "number") return c.id;
   return null;
 }
+
+// ── solo mode: review what already landed ─────────────────────────────────────
+//
+// In solo mode the maintainer pushes straight to the default branch, so there
+// is no pull request to gate and nothing to block — the commit is already the
+// live version. The review still has to happen, and it has to be honest about
+// its own timing: this is a report on a change that shipped, not a gate that
+// let it through.
+//
+// It posts a comment on the commit and records the verdict with `postMerge:
+// true`, so the change record can never be read as "this was reviewed before it
+// landed". It deliberately posts NO check run: a failing check on a commit
+// already on main blocks nothing, and would show a permanent red mark on the
+// branch that no action can clear.
+export interface PostMergeContext {
+  repo: string;
+  sha: string;
+  branch: string;
+  pusher: string | null;
+  installationId: number | null;
+  config?: StewardConfig;
+}
+
+export async function runPostMergeGate(
+  client: GitHubClient,
+  pool: Pool,
+  ctx: PostMergeContext
+): Promise<GateOutcome> {
+  const config = ctx.config ?? DEFAULT_CONFIG;
+
+  let result: GateResult;
+  let subject = "";
+  try {
+    const raw = (await client.getCommitDiff(ctx.repo, ctx.sha)) as {
+      files?: unknown;
+      commit?: { message?: string };
+    } | null;
+    subject = (raw?.commit?.message ?? "").split("\n")[0] ?? "";
+    result = reviewChangeSet(
+      {
+        files: parsePullRequestFiles(raw?.files),
+        commitSubjects: subject ? [subject] : [],
+        // A landed commit has no pending CI to wait on, and "your tests are red"
+        // is not a finding about THIS review — it belongs to whatever runs next.
+        checks: [],
+      },
+      config
+    );
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    await appendAuditEvent(pool, {
+      installationId: ctx.installationId,
+      repo: ctx.repo,
+      eventType: "exception.gate_unavailable",
+      actor: "codeworthy-steward",
+      payload: { sha: ctx.sha, branch: ctx.branch, postMerge: true, reason },
+      plainEnglish: `Exception: CodeWorthy could not review commit ${ctx.sha.slice(0, 7)} on ${ctx.branch} in ${ctx.repo} — ${reason}. The change is live and unreviewed.`,
+    });
+    return { decision: "unavailable", findingCount: 0, checkPosted: false, commented: false };
+  }
+
+  const fingerprint = verdictFingerprint(result);
+  const seen = await pool.query(
+    `SELECT 1 FROM audit_events
+      WHERE repo = $1 AND event_type = 'gate.evaluated'
+        AND payload->>'sha' = $2 AND payload->>'fingerprint' = $3 LIMIT 1`,
+    [ctx.repo, ctx.sha, fingerprint]
+  );
+  if ((seen.rowCount ?? 0) > 0) {
+    return { decision: result.decision, findingCount: result.findings.length, checkPosted: false, commented: false, skipped: "unchanged" };
+  }
+
+  let commented = false;
+  try {
+    await client.createCommitComment(ctx.repo, ctx.sha, renderPostMergeComment(result, ctx));
+    commented = true;
+  } catch {
+    /* the record is the control here; a comment failure must not lose it */
+  }
+
+  await appendAuditEvent(pool, {
+    installationId: ctx.installationId,
+    repo: ctx.repo,
+    eventType: "gate.evaluated",
+    actor: "codeworthy-steward",
+    payload: {
+      sha: ctx.sha,
+      branch: ctx.branch,
+      pusher: ctx.pusher,
+      postMerge: true,
+      mode: "solo",
+      decision: result.decision,
+      fingerprint,
+      filesChanged: result.filesChanged,
+      addedLines: result.addedLines,
+      findings: result.findings.map((f) => ({ id: f.id, severity: f.severity, file: f.file })),
+    },
+    plainEnglish:
+      result.decision === "blocked"
+        ? `CodeWorthy reviewed ${ctx.sha.slice(0, 7)} AFTER it landed on ${ctx.branch} in ${ctx.repo} and found ${result.findings.filter((f) => f.severity === "gate").length} serious problem(s). This is already the live version — it was not blocked, because in solo mode there is nothing to block.`
+        : result.decision === "advise"
+          ? `CodeWorthy reviewed ${ctx.sha.slice(0, 7)} after it landed on ${ctx.branch} in ${ctx.repo}: nothing serious, ${result.findings.length} suggestion(s).`
+          : `CodeWorthy reviewed ${ctx.sha.slice(0, 7)} after it landed on ${ctx.branch} in ${ctx.repo} and found nothing to flag.`,
+  });
+
+  return { decision: result.decision, findingCount: result.findings.length, checkPosted: false, commented };
+}
+
+function renderPostMergeComment(r: GateResult, ctx: PostMergeContext): string {
+  const gates = r.findings.filter((f) => f.severity === "gate");
+  const advs = r.findings.filter((f) => f.severity === "advise");
+  const lines: string[] = [GATE_MARKER];
+
+  if (gates.length) {
+    lines.push(
+      `### 🔴 CodeWorthy reviewed this after it landed — ${gates.length} thing(s) need attention`,
+      "",
+      `This commit is already on \`${ctx.branch}\`. Solo mode means nothing blocked it, so this is a heads-up rather than a gate.`,
+      ""
+    );
+    for (const f of gates) lines.push(`- 🔴 ${f.file ? `\`${f.file}\` — ` : ""}${f.message}`, `  - _${f.fix}_`);
+    if (gates.some((f) => f.id === "secret_introduced")) {
+      lines.push("", "> A secret in a commit is leaked the moment it is pushed, whether or not you remove it later. Rotate it rather than deleting the line.");
+    }
+  } else if (advs.length) {
+    lines.push(`### 🟡 CodeWorthy reviewed this after it landed`, "", "Nothing serious. A couple of things worth a look:", "");
+    for (const f of advs) lines.push(`- 🟡 ${f.file ? `\`${f.file}\` — ` : ""}${f.message}`, `  - _${f.fix}_`);
+  } else {
+    lines.push("### 🟢 CodeWorthy reviewed this after it landed", "", "Nothing to flag. Carry on.");
+  }
+
+  lines.push(
+    "",
+    "---",
+    `_Reviewed ${r.filesChanged} file(s), ~${r.addedLines} new lines, after the push. This repository is in **solo mode**: you push directly and CodeWorthy reviews afterwards. Force-pushes and branch deletion are still blocked._`
+  );
+  return lines.join("\n");
+}
