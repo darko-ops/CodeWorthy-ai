@@ -177,3 +177,63 @@ export async function applyProtectionConsent(
   }
   return results;
 }
+
+
+// ── the approver's front door ───────────────────────────────────────────────
+export function renderApproverPage(o: { configured: boolean; strict: boolean; slug: string | null }): string {
+  const status = o.configured
+    ? `<p class="will">✓ An approver is configured. Branch protection on shared repos now requires one approving review, and this App is what gives it.</p>`
+    : `<p class="muted">No approver is configured yet. Until one exists, CodeWorthy never requires an approving review — a required approval nobody can give is an unmergeable repository.</p>`;
+  const install = o.slug
+    ? `<a class="btn secondary" href="https://github.com/apps/${esc(o.slug)}/installations/new">Install the Approver on your repos →</a>`
+    : "";
+  return page("CodeWorthy Approver", `
+<h1>⚖️ The Approver</h1>
+<div class="sub">A second App, with its own identity. CodeWorthy reviews; this approves — and the two are deliberately not the same actor.</div>
+<div class="card">
+  <h2>What it does</h2>
+  <ul>
+    <li>Reads CodeWorthy's verdict for the exact commit under review.</li>
+    <li>Approves when every blocking finding is <b>fixed</b>, or <b>waived by a person who gave a reason</b>.</li>
+    <li><b>Refuses</b> otherwise — and refusing is the point. An approver that always approves is worse than none: it manufactures evidence that a control operated when it didn't.</li>
+    <li>Never approves a commit it has no verdict for. A verdict on an earlier commit says nothing about this one.</li>
+  </ul>
+</div>
+<div class="card">
+  <h2>What it can't do</h2>
+  <ul>
+    <li class="wont">✗ Merge, push, or change your settings</li>
+    <li class="wont">✗ Post the check that gates the merge — that's the reviewer's, and one actor doing both would be approving its own work</li>
+    <li class="wont">✗ Waive a finding on its own behalf. Neither can CodeWorthy. Only a person can accept a risk.</li>
+  </ul>
+</div>
+<div class="card">
+  <h2>Mode</h2>
+  <p>${o.strict
+    ? "<b>Strict.</b> It also forms its own independent read of the diff, and can withhold approval on that basis alone — it can never grant one the base rules would have refused."
+    : "<b>Standard.</b> It checks that CodeWorthy's findings were dealt with. Set <code>APPROVER_STRICT=1</code> for an independent second review as well."}</p>
+</div>
+${status}
+<form action="/steward/approver-manifest" method="get" style="display:inline-block;margin-right:10px">
+  <button class="btn" type="submit">Create the Approver App →</button>
+</form>
+${install}
+<div class="foot">Waive a finding by commenting on the pull request: <code>@codeworthy waive &lt;finding_id&gt;: why this is acceptable here</code></div>`);
+}
+
+export function renderApproverCredentials(o: { id: number; slug: string; htmlUrl: string; pem: string; webhookSecret: string }): string {
+  const pemEscaped = o.pem.replace(/\r?\n/g, "\\n");
+  const flyCommand = [
+    "fly secrets set --app codeworthy-steward \\",
+    `  APPROVER_APP_ID='${o.id}' \\`,
+    `  APPROVER_PRIVATE_KEY='${pemEscaped}'`,
+  ].join("\n");
+  return page("Approver created — save these", `
+<h1>⚖️ Approver App created</h1>
+<div class="sub"><strong>Shown once.</strong> These are the approver's OWN credentials — separate from the Steward's on purpose. Sharing them would collapse the two actors into one.</div>
+<div class="card"><h2>One command</h2>
+<pre style="white-space:pre-wrap;word-break:break-all">${esc(flyCommand)}</pre>
+<p class="muted">Then redeploy, and install the App on the repositories you want it to approve.</p></div>
+<a class="btn secondary" href="${esc(o.htmlUrl)}">Open the App on GitHub →</a>
+<div class="foot">Once it's installed, shared-mode repos will require one approving review — and this App is what gives it.</div>`);
+}

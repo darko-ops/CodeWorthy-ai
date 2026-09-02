@@ -17,6 +17,7 @@ import { recordMergeEvidence } from "./mergeEvidence.js";
 import { retroactiveReview } from "./mechanics.js";
 import { runGate, runPostMergeGate } from "./gate/check.js";
 import { getRepoMode } from "./repoMode.js";
+import { runApprover } from "../approver/approve.js";
 import { STEWARD_CHECK } from "./protection.js";
 import {
   ensureProtection,
@@ -67,6 +68,16 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
         config: repoConfig,
         detailsUrl: `${config.baseUrl}/steward/health.html?repo=${encodeURIComponent(repo)}`,
       });
+      // The approver runs AFTER the gate, because it decides on the gate's
+      // verdict for this exact commit. It is a separate GitHub App with its own
+      // credentials; if it isn't installed here it simply abstains.
+      await runApprover(pool, {
+        repo,
+        number: pr.number,
+        headSha: pr.head.sha,
+        author: pr.user?.login ?? null,
+        installationId,
+      }).catch(() => {});
     }
 
     // The LLM advise tier, on top of (never instead of) the gate. Doubly
@@ -117,7 +128,27 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
         config: repoConfig,
         detailsUrl: `${config.baseUrl}/steward/health.html?repo=${encodeURIComponent(repo)}`,
       });
+      await runApprover(pool, { repo, number: pr.number, headSha, author: null, installationId }).catch(() => {});
     }
+    return;
+  }
+
+  // A waiver arrives as a comment ("@codeworthy waive <finding>: <reason>"), so
+  // a comment has to make the approver look again — otherwise the user writes
+  // the waiver and nothing happens until they push, which reads as broken.
+  if (eventName === "issue_comment" && payload.action === "created" && payload.issue?.pull_request) {
+    const number = payload.issue?.number;
+    if (typeof number !== "number") return;
+    if (!/@codeworthy\s+waive\s/i.test(payload.comment?.body ?? "")) return;
+    const pr = (await client.getPullRequest(repo, number).catch(() => null)) as { head?: { sha?: string }; user?: { login?: string } } | null;
+    if (!pr?.head?.sha) return;
+    await runApprover(pool, {
+      repo,
+      number,
+      headSha: pr.head.sha,
+      author: pr.user?.login ?? null,
+      installationId,
+    }).catch(() => {});
     return;
   }
 
