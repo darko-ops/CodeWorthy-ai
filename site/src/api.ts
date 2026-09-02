@@ -161,6 +161,30 @@ export interface DigestEntry {
   plainEnglish: string;
 }
 export type RepoMode = "solo" | "shared";
+export type GateLevel = "gate" | "advise" | "off";
+export interface RepoRules {
+  gates: { secrets: GateLevel; destructiveMigration: GateLevel; committedDependencies: GateLevel };
+  protectedPaths: string[];
+  requireApproval: boolean;
+  requireConversationResolution: boolean;
+  requireCodeworthyCheck: boolean;
+}
+export interface RulesResponse {
+  repo: string;
+  mode: RepoMode;
+  rules: RepoRules;
+  /** False when no approver is installed here — the UI disables that control. */
+  approverAvailable: boolean;
+}
+export interface RulesSaved {
+  ok: boolean;
+  rules: RepoRules;
+  mode: RepoMode;
+  /** Plain-language list of what changed, straight from the audit record. */
+  changes: string[];
+  protection?: string;
+}
+
 export type Effort = "one click" | "a few minutes" | "a decision to make";
 export type FixAction =
   | { kind: "codeworthy"; label: string; method: "POST"; path: string; body?: Record<string, unknown> }

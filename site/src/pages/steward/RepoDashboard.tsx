@@ -3,6 +3,7 @@
 // states when the server is asleep (trial) or a repo has no history yet.
 import { useEffect, useMemo, useState } from "react";
 import { FixPath, ModeSwitch } from "./FixPath";
+import { RulesPanel } from "./RulesPanel";
 import { Navigate } from "react-router-dom";
 import {
   apiGet,
@@ -64,6 +65,7 @@ export function RepoDashboard() {
   // changed the world (protection applied, mode set, finding accepted); this is
   // what makes the page agree with it.
   const [healthNonce, setHealthNonce] = useState(0);
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [windowDays, setWindowDays] = useState<number>(30);
   const [filter, setFilter] = useState("");
   const [overview, setOverview] = useState<OverviewReport | null>(null);
@@ -128,6 +130,7 @@ export function RepoDashboard() {
     if (!selectedRepo) return;
     let live = true;
     setHealth(null);
+    setRulesOpen(false);
     apiGet<HealthReport>(`/api/repos/${selectedRepo}/health?days=${windowDays}`)
       .then((h) => live && setHealth(h))
       .catch(() => live && setHealth(null));
@@ -296,9 +299,25 @@ export function RepoDashboard() {
                       </button>
                     ))}
                   </div>
+                  <button
+                    className={`rules-btn ${rulesOpen ? "is-on" : ""}`}
+                    onClick={() => setRulesOpen((o) => !o)}
+                    aria-expanded={rulesOpen}
+                    title="What has to be true before a change lands here"
+                  >
+                    Rules
+                  </button>
                   <SummaryLink repo={selectedRepo} days={windowDays} />
                 </div>
               </header>
+
+              {rulesOpen && (
+                <RulesPanel
+                  repo={selectedRepo}
+                  onClose={() => setRulesOpen(false)}
+                  onChanged={() => setHealthNonce((n) => n + 1)}
+                />
+              )}
 
               {health && (
                 <HealthCard

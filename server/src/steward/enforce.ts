@@ -24,6 +24,7 @@ import { isNotFound, type GitHubClient } from "../github/client.js";
 import { STEWARD_CHECK, configureProtection, detectProtectionDrift } from "./protection.js";
 import { applyRuleset, detectRulesetDrift, inspectProtection, RULESET_NAME, type RulesetShape } from "./rulesets.js";
 import { getRepoMode, type RepoMode } from "./repoMode.js";
+import { getRepoRules, toRulesetShape } from "./repoRules.js";
 import { config } from "../config.js";
 import { approverClientFor } from "../approver/client.js";
 
@@ -81,7 +82,11 @@ export async function ensureProtection(
 ): Promise<EnsureResult> {
   const checkName = opts.checkName ?? STEWARD_CHECK;
   const mode = opts.mode ?? (await getRepoMode(pool, repo));
-  const shape: RulesetShape = { checkName, mode, requireApproval: await approvalRequired(repo) };
+  const shape = toRulesetShape(await getRepoRules(pool, repo), {
+    checkName,
+    mode,
+    approverAvailable: await approvalRequired(repo),
+  });
   try {
     const applied = await applyRuleset(client, pool, repo, installationId, shape);
     return { mechanism: "ruleset", action: applied.action };
@@ -154,7 +159,11 @@ export async function enforceProtection(
   // sweep would read every solo repo as weakened and re-impose shared rules on
   // it every hour — overriding a deliberate choice, on a schedule.
   const mode = await getRepoMode(pool, repo);
-  const shape: RulesetShape = { checkName, mode, requireApproval: await approvalRequired(repo) };
+  const shape = toRulesetShape(await getRepoRules(pool, repo), {
+    checkName,
+    mode,
+    approverAvailable: await approvalRequired(repo),
+  });
 
   // Reading the live state has three outcomes, and conflating any two of them is
   // how a guardrail does damage: (a) the rule is there — diff it; (b) the rule
