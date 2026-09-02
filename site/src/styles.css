@@ -564,7 +564,10 @@ tbody tr:hover {
 
 /* Flag trend. Ten bars on a 24px baseline — the window split into ten equal
    periods, straight from the server. Never drawn from a single total. */
-.spark { display: flex; align-items: flex-end; gap: 3px; height: 24px; }
+/* height must match SPARK_TRACK in RepoDashboard.tsx. overflow:hidden is the
+   belt to that braces: bar heights are computed in JS, and a row is not the
+   place to find out the arithmetic was wrong. */
+.spark { display: flex; align-items: flex-end; gap: 3px; height: 24px; overflow: hidden; }
 .spark-bar { width: 7px; border-radius: 1px; background: #2a2e33; flex: none; }
 .spark-bar.one { background: var(--watch); }
 .spark-bar.many { background: var(--risk); }

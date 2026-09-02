@@ -626,10 +626,22 @@ function RepoRow({ repo, onSelect }: { repo: RepoOverview; onSelect: (repo: stri
 // The flag trend, straight from the server's per-period counts. If the server
 // didn't send a trend, the row says the total instead of drawing a shape the
 // data doesn't support.
+// The track the bars live in. Must match .spark's height in the stylesheet:
+// the bars are absolute pixel heights, so nothing but this number stops a tall
+// one growing out of its row.
+const SPARK_TRACK = 24;
+const SPARK_MIN = 3;
+
 function Sparkline({ buckets, flagged }: { buckets: number[] | undefined; flagged: number }) {
   if (!buckets?.length) {
     return <span className="spark-none">{flagged || "—"}</span>;
   }
+  // Scale to the tallest bar in THIS series rather than a fixed pixels-per-flag.
+  // A fixed scale (n * 6) has no ceiling: eight flags in one period drew a 48px
+  // bar inside a 24px track, and it ran straight through the rows underneath.
+  // Normalising also keeps the shape readable — with a fixed scale a busy repo
+  // was just a wall of clipped bars.
+  const peak = Math.max(...buckets, 1);
   return (
     <span
       className="spark"
@@ -639,8 +651,11 @@ function Sparkline({ buckets, flagged }: { buckets: number[] | undefined; flagge
       {buckets.map((n, i) => (
         <span
           key={i}
+          title={`${n} flagged`}
           className={"spark-bar" + (n > 1 ? " many" : n === 1 ? " one" : "")}
-          style={{ height: Math.max(3, n * 6) }}
+          // Heights are relative to the busiest period, so the tallest bar
+          // fills the track exactly and none can exceed it.
+          style={{ height: n === 0 ? SPARK_MIN : Math.round(SPARK_MIN + (n / peak) * (SPARK_TRACK - SPARK_MIN)) }}
         />
       ))}
     </span>
