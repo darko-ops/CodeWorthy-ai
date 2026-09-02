@@ -88,3 +88,25 @@ describe("drift, judged against the repo's own mode", () => {
     expect(detectRulesetDrift(live({ mode: "shared" }), { mode: "shared" })).toEqual([]);
   });
 });
+
+describe("requiring an approval only where one can be given", () => {
+  it("never requires an approval the repo has no approver for", async () => {
+    // The trap: approvalRequired was global. The moment APPROVER_APP_ID was
+    // set, every shared repo would demand an approving review on its next
+    // protection apply — including repos the approver App was never installed
+    // on, which then had nothing able to merge. The costs are not symmetric:
+    // wrongly not requiring an approval is one unapproved merge; wrongly
+    // requiring one is a repository nobody can merge to.
+    const { approvalRequired } = await import("./enforce.js");
+    // No APPROVER_APP_ID in the test environment -> always false, never a
+    // required approval that cannot be satisfied.
+    expect(await approvalRequired("dana/anything")).toBe(false);
+  });
+
+  it("builds a shared ruleset with zero required approvals when there is no approver", () => {
+    const pr = desiredRuleset({ mode: "shared", requireApproval: false }).rules.find(
+      (r) => (r as { type: string }).type === "pull_request"
+    ) as any;
+    expect(pr.parameters.required_approving_review_count).toBe(0);
+  });
+});

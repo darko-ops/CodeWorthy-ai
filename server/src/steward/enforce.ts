@@ -25,6 +25,7 @@ import { STEWARD_CHECK, configureProtection, detectProtectionDrift } from "./pro
 import { applyRuleset, detectRulesetDrift, inspectProtection, RULESET_NAME, type RulesetShape } from "./rulesets.js";
 import { getRepoMode, type RepoMode } from "./repoMode.js";
 import { config } from "../config.js";
+import { approverClientFor } from "../approver/client.js";
 
 export interface EnsureOptions {
   defaultBranch?: string;
@@ -35,13 +36,29 @@ export interface EnsureOptions {
 
 /**
  * An approval can only be required when an independent approver exists to give
- * it. Requiring one otherwise hands the user a repository nothing can merge —
- * the same failure as requiring a check nobody posts, which is the bug this
- * whole tier was built to fix. So this follows the approver's configuration,
- * never an aspiration.
+ * it — ON THIS REPOSITORY.
+ *
+ * This was global: "is an approver configured anywhere?" The moment the
+ * operator set APPROVER_APP_ID, every shared repo would get
+ * required_approving_review_count: 1 on its next protection apply — including
+ * repos the approver App was never installed on, which have nobody able to
+ * approve and therefore nothing that can ever merge. That is the same failure
+ * as requiring a check nobody posts, which is the bug this entire tier exists
+ * to fix, reintroduced one layer up.
+ *
+ * So the question is asked per repository, by actually resolving the approver's
+ * own installation there. If that lookup fails for any reason, the answer is
+ * NO: the cost of wrongly not requiring an approval is one unapproved merge,
+ * and the cost of wrongly requiring one is a repository nobody can merge to.
+ * Those are not symmetric.
  */
-export function approvalRequired(): boolean {
-  return Boolean(config.approver.appId);
+export async function approvalRequired(repo: string): Promise<boolean> {
+  if (!config.approver.appId) return false;
+  try {
+    return (await approverClientFor(repo)) != null;
+  } catch {
+    return false;
+  }
 }
 
 export interface EnsureResult {
@@ -64,7 +81,7 @@ export async function ensureProtection(
 ): Promise<EnsureResult> {
   const checkName = opts.checkName ?? STEWARD_CHECK;
   const mode = opts.mode ?? (await getRepoMode(pool, repo));
-  const shape: RulesetShape = { checkName, mode, requireApproval: approvalRequired() };
+  const shape: RulesetShape = { checkName, mode, requireApproval: await approvalRequired(repo) };
   try {
     const applied = await applyRuleset(client, pool, repo, installationId, shape);
     return { mechanism: "ruleset", action: applied.action };
@@ -137,7 +154,7 @@ export async function enforceProtection(
   // sweep would read every solo repo as weakened and re-impose shared rules on
   // it every hour — overriding a deliberate choice, on a schedule.
   const mode = await getRepoMode(pool, repo);
-  const shape: RulesetShape = { checkName, mode, requireApproval: approvalRequired() };
+  const shape: RulesetShape = { checkName, mode, requireApproval: await approvalRequired(repo) };
 
   // Reading the live state has three outcomes, and conflating any two of them is
   // how a guardrail does damage: (a) the rule is there — diff it; (b) the rule
