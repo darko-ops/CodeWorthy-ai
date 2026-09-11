@@ -32,6 +32,14 @@ import { approvalRequired, ensureProtection } from "../steward/enforce.js";
 import { getRepoMode, isRepoMode, setRepoMode } from "../steward/repoMode.js";
 import { getRepoRules, parseRules, setRepoRules } from "../steward/repoRules.js";
 import { appendAuditEvent } from "../audit/audit.js";
+import { getThread, listThreads, MAIN_THREAD_KEY } from "../threads/threads.js";
+import {
+  approveAsUser,
+  commentAsUser,
+  mergeAsUser,
+  userRepoPermissions,
+  type MergeMethod,
+} from "./userActions.js";
 
 export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
   // --- CORS: allow the dashboard SPA origins to call /api/* with a bearer. ---
@@ -459,4 +467,230 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       return buildHealthReport(pool, { repo: fullName, windowDays });
     });
   });
+
+  // ── threads: the repository's conversation ────────────────────────────────
+  //
+  // Read through the INSTALLATION client (the App's doctrine-checked read
+  // surface), written through the user's own token (userActions.ts). That split
+  // is the whole security model of this section: CodeWorthy reads everything it
+  // is installed to read, and the three things a human can do to a pull request
+  // happen as that human, with their permissions, under their name.
+
+  /** Shared preamble: prove access, then hand back everything both halves need. */
+  async function threadContext(
+    req: FastifyRequest,
+    reply: FastifyReply
+  ): Promise<{ session: UserSession; repo: string; installationId: number } | null> {
+    const s = await requireSession(req, reply);
+    if (!s) return null;
+    const p = req.params as { owner: string; repo: string };
+    const repo = `${p.owner}/${p.repo}`;
+    // One lookup, not two. `userCanAccessRepo` and `installationForRepo` compute
+    // the same predicate over the same paged GitHub calls — and this endpoint is
+    // POLLED, so asking twice doubles the rate-limit cost of every tick for an
+    // answer we already have. A null id IS "no access": the repo is not in any
+    // installation this user can see.
+    const installationId = await installationForRepo(s.token, repo);
+    if (installationId == null) {
+      reply.code(403).send({
+        error: "no_access",
+        message:
+          "You don't have access to this repository through your CodeWorthy installations — or CodeWorthy isn't installed on it.",
+      });
+      return null;
+    }
+    return { session: s, repo, installationId };
+  }
+
+  /** The thread list — one GitHub call and one query, whatever the repo size. */
+  app.get("/api/repos/:owner/:repo/threads", async (req, reply) => {
+    return withGitHub(reply, async () => {
+      const ctx = await threadContext(req, reply);
+      if (!ctx) return;
+      const sinceDays = windowFrom(req);
+      const client = await getInstallationClient(ctx.installationId);
+      const threads = await listThreads(client, pool, {
+        repo: ctx.repo,
+        sinceDays,
+        viewer: ctx.session.login,
+      });
+      return { repo: ctx.repo, windowDays: sinceDays, threads };
+    });
+  });
+
+  /** One thread in full. `key` is a PR number, or "branch" for the standing one. */
+  app.get("/api/repos/:owner/:repo/threads/:key", async (req, reply) => {
+    return withGitHub(reply, async () => {
+      const ctx = await threadContext(req, reply);
+      if (!ctx) return;
+      const key = (req.params as { key: string }).key;
+      const number = parseThreadKey(key);
+      if (number === undefined) {
+        reply.code(400).send({ error: "bad_thread", message: "That isn't a thread on this repository." });
+        return;
+      }
+      const client = await getInstallationClient(ctx.installationId);
+      // The merge button is only offered to someone GitHub would actually let
+      // merge. Asking first means the button is absent with a reason rather
+      // than present and failing.
+      const perms = number == null ? { push: false } : await userRepoPermissions(ctx.session.token, ctx.repo);
+      const thread = await getThread(client, pool, {
+        repo: ctx.repo,
+        number,
+        viewer: ctx.session.login,
+        sinceDays: windowFrom(req),
+        canPush: perms.push,
+      });
+      if (!thread) {
+        reply.code(404).send({ error: "no_thread", message: "That pull request isn't there any more." });
+        return;
+      }
+      return thread;
+    });
+  });
+
+  /** Say something in the thread. Posts as the user, on the pull request. */
+  app.post("/api/repos/:owner/:repo/threads/:key/reply", async (req, reply) => {
+    return withGitHub(reply, async () => {
+      const ctx = await threadContext(req, reply);
+      if (!ctx) return;
+      const number = parseThreadKey((req.params as { key: string }).key);
+      if (number == null) {
+        reply.code(400).send({
+          error: "no_pull_request",
+          message: "There's no pull request here to reply on.",
+        });
+        return;
+      }
+      const body = jsonBody<{ body?: unknown }>(req);
+      const text = typeof body.body === "string" ? body.body.trim() : "";
+      if (!text) {
+        reply.code(400).send({ error: "empty", message: "Write something first." });
+        return;
+      }
+      if (text.length > 60_000) {
+        reply.code(400).send({ error: "too_long", message: "That's longer than GitHub will accept for one comment." });
+        return;
+      }
+      const posted = await commentAsUser(ctx.session.token, ctx.repo, number, text);
+      await appendAuditEvent(pool, {
+        installationId: ctx.installationId,
+        repo: ctx.repo,
+        eventType: "human.commented",
+        actor: ctx.session.login,
+        payload: { number, commentId: posted.id },
+        plainEnglish: `${ctx.session.login} replied on PR #${number} in ${ctx.repo} from the CodeWorthy dashboard.`,
+      });
+      return { ok: true, url: posted.html_url };
+    });
+  });
+
+  /** The user's own approving review. Their identity, their judgement. */
+  app.post("/api/repos/:owner/:repo/threads/:key/approve", async (req, reply) => {
+    return withGitHub(reply, async () => {
+      const ctx = await threadContext(req, reply);
+      if (!ctx) return;
+      const number = parseThreadKey((req.params as { key: string }).key);
+      if (number == null) {
+        reply.code(400).send({ error: "no_pull_request", message: "There's no pull request here to approve." });
+        return;
+      }
+      const body = jsonBody<{ body?: unknown }>(req);
+      const note = typeof body.body === "string" ? body.body.trim() : "";
+      const res = await approveAsUser(ctx.session.token, ctx.repo, number, note);
+      await appendAuditEvent(pool, {
+        installationId: ctx.installationId,
+        repo: ctx.repo,
+        eventType: "human.approved",
+        actor: ctx.session.login,
+        payload: { number, reviewId: res.id },
+        plainEnglish: `${ctx.session.login} approved PR #${number} in ${ctx.repo} from the CodeWorthy dashboard.`,
+      });
+      return { ok: true, url: res.html_url };
+    });
+  });
+
+  /**
+   * Merge — the one act CodeWorthy itself cannot perform.
+   *
+   * It runs on the user's token, it requires the head SHA the dashboard showed
+   * them (so a commit that landed since cannot be merged unseen), and it is on
+   * the record with their login before this returns. The App's own clients
+   * still have no merge capability and never will — see userActions.ts.
+   */
+  app.post("/api/repos/:owner/:repo/threads/:key/merge", async (req, reply) => {
+    return withGitHub(reply, async () => {
+      const ctx = await threadContext(req, reply);
+      if (!ctx) return;
+      const number = parseThreadKey((req.params as { key: string }).key);
+      if (number == null) {
+        reply.code(400).send({ error: "no_pull_request", message: "There's no pull request here to merge." });
+        return;
+      }
+      const body = jsonBody<{ sha?: unknown; method?: unknown }>(req);
+      const sha = typeof body.sha === "string" ? body.sha : "";
+      if (!/^[0-9a-f]{7,40}$/i.test(sha)) {
+        reply.code(400).send({
+          error: "no_sha",
+          message: "The dashboard didn't say which commit it was merging. Reload the thread and try again.",
+        });
+        return;
+      }
+      const method: MergeMethod =
+        body.method === "merge" || body.method === "rebase" || body.method === "squash" ? body.method : "squash";
+      const perms = await userRepoPermissions(ctx.session.token, ctx.repo);
+      if (!perms.push) {
+        reply.code(403).send({
+          error: "no_write_access",
+          message: "You don't have write access to this repository, so GitHub won't let you merge here.",
+        });
+        return;
+      }
+      const res = await mergeAsUser(ctx.session.token, ctx.repo, number, { sha, method });
+      await appendAuditEvent(pool, {
+        installationId: ctx.installationId,
+        repo: ctx.repo,
+        eventType: "human.merged",
+        actor: ctx.session.login,
+        payload: { number, headSha: sha, mergeSha: res.sha ?? null, method },
+        plainEnglish: `${ctx.session.login} merged PR #${number} in ${ctx.repo} from the CodeWorthy dashboard (${method}).`,
+      });
+      return { ok: true, sha: res.sha ?? null, message: res.message ?? "Merged." };
+    });
+  });
+}
+
+/** The look-back window, clamped. A junk `?days=` must not become NaN and be
+ *  echoed back to the client as the window it used. */
+function windowFrom(req: FastifyRequest): number {
+  const raw = parseInt((req.query as { days?: string }).days ?? "", 10);
+  if (!Number.isFinite(raw)) return 30;
+  return Math.min(Math.max(raw, 1), 365);
+}
+
+/**
+ * A thread key is a pull request number, or the standing default-branch thread.
+ *
+ * Three-valued on purpose: `null` is "the branch thread" (a real thread with no
+ * pull request), `undefined` is "that isn't a thread at all". Collapsing them
+ * would make a typo in the URL silently render the branch thread.
+ */
+export function parseThreadKey(key: string): number | null | undefined {
+  if (key === MAIN_THREAD_KEY) return null;
+  const m = /^(?:pr-)?(\d{1,9})$/.exec(key);
+  if (!m) return undefined;
+  const n = Number(m[1]);
+  return n > 0 ? n : undefined;
+}
+
+/**
+ * The parsed JSON body.
+ *
+ * A global content-type parser (steward/routes.ts) wraps every JSON body as
+ * { raw, json } so the webhook can verify its signature over the exact bytes
+ * GitHub sent. Every other JSON route has to unwrap it.
+ */
+function jsonBody<T extends object>(req: FastifyRequest): T {
+  const raw = req.body as { json?: unknown } | undefined;
+  return ((raw && "json" in raw ? raw.json : raw) ?? {}) as T;
 }

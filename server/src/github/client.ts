@@ -37,16 +37,27 @@ async function gh(token: string, method: string, path: string, body?: unknown): 
 export class GitHubHttpError extends Error {
   readonly rateLimited: boolean;
   readonly retryAfter: string | null;
+  /**
+   * GitHub's own sentence, when the caller bothered to read the body.
+   *
+   * For the refusals a human triggers on purpose — merging something that
+   * isn't mergeable, approving your own pull request — GitHub's message is
+   * better than anything we would write in its place ("At least 1 approving
+   * review is required by reviewers with write access"). Carrying it means the
+   * dashboard can say what actually happened instead of guessing from a status.
+   */
+  readonly detail: string | null;
   constructor(
     readonly status: number,
     readonly method: string,
     readonly path: string,
-    meta: { rateLimited?: boolean; retryAfter?: string | null } = {}
+    meta: { rateLimited?: boolean; retryAfter?: string | null; detail?: string | null } = {}
   ) {
     super(`GitHub ${method} ${path} -> ${status}`);
     this.name = "GitHubHttpError";
     this.rateLimited = meta.rateLimited === true;
     this.retryAfter = meta.retryAfter ?? null;
+    this.detail = meta.detail ?? null;
   }
 }
 

@@ -1032,10 +1032,10 @@ tbody tr:hover {
 .rules-btn:hover { border-color: var(--on-dark-5); }
 .rules-btn.is-on { background: var(--on-dark-2); color: var(--ink-900); border-color: var(--on-dark-2); }
 
-.rules-panel {
-  background: var(--ink-800); border: 1px solid var(--border-dark);
-  border-radius: 14px; padding: 26px 28px; margin-bottom: 26px;
-}
+/* Flat since it became a tab. It was a bordered panel because it used to be a
+   popover over the repo screen; as a tab, a box inside a tab is a card, and
+   this dashboard doesn't have cards. */
+.rules-panel { background: transparent; border: 0; padding: 22px 0 26px; }
 .rules-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 8px; }
 .rules-title { font: 700 17px var(--sans); color: var(--on-dark-2); margin: 0 0 4px; }
 .rules-sub { font: 400 13px/1.6 var(--sans); color: var(--on-dark-4); margin: 0; }
@@ -1095,7 +1095,7 @@ tbody tr:hover {
 @media (max-width: 760px) {
   .rules-modes { grid-template-columns: 1fr; }
   .rules-gate { flex-direction: column; gap: 12px; }
-  .rules-panel { padding: 18px 16px; }
+  .rules-panel { padding: 18px 0; }
 }
 
 /* An option that sends you to GitHub can't know when you're done — this is how
@@ -1125,3 +1125,241 @@ tbody tr:hover {
 .private-note-mark { font-size: 14px; line-height: 1.5; flex: none; }
 .private-note p { margin: 0; font: 400 12.5px/1.65 var(--sans); color: var(--on-dark-4); max-width: 78ch; }
 .private-note strong { color: var(--on-dark-2); }
+
+/* ── Repo tabs ─────────────────────────────────────────────────────────────
+   Three questions, three tabs: what's happening (Thread), is this repo in good
+   shape (Repo), and what are the rules (Protection). The count beside a label
+   is the whole reason this is a visible strip and not a menu — leaving a tab
+   should never mean losing track of whether something over there wants you. */
+.repo-tabs {
+  display: flex; align-items: center; gap: 4px;
+  margin: 18px 0 0; border-bottom: 1px solid var(--line-dark);
+}
+.repo-tab {
+  position: relative; border: 0; background: transparent; cursor: pointer;
+  padding: 9px 2px 11px; margin-right: 22px;
+  display: inline-flex; align-items: center; gap: 7px;
+  font: 600 13px var(--sans); color: var(--on-dark-5);
+  transition: color 0.18s;
+}
+.repo-tab:hover { color: var(--on-dark-2); }
+.repo-tab.selected { color: #fff; }
+/* The selected tab is marked by a rule on the same hairline the strip sits on,
+   so nothing gains a box. */
+.repo-tab.selected::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--signal);
+}
+.repo-tab-count {
+  font: 600 10.5px var(--mono); color: var(--ink-900); background: var(--on-dark-4);
+  border-radius: 9px; padding: 1px 6px; font-variant-numeric: tabular-nums;
+}
+.repo-tab.selected .repo-tab-count { background: var(--signal); }
+
+/* ── Threads ───────────────────────────────────────────────────────────────
+   The one place in this dashboard with bubbles. Everywhere else a card makes a
+   number look more important than the sentence beside it; in a chat the
+   container IS the meaning — it says who is speaking — so the bubble stays, as
+   quiet as it can be: a fill, no border, no shadow.
+
+   The spine's own entries are NOT bubbles. A verdict, an exception, a merge is
+   not someone talking, it is the record, and it renders as a centred system
+   line the way a chat renders "X joined". */
+.threads {
+  display: grid; grid-template-columns: 262px minmax(0, 1fr);
+  gap: 0; margin-top: 20px;
+  border: 1px solid var(--line-dark); border-radius: 12px; overflow: hidden;
+  height: calc(100vh - 260px); min-height: 460px;
+}
+.th-loading { padding: 40px 0; }
+
+/* The list of conversations. */
+/* min-height: 0 on both columns and on the stream. Without it a grid/flex
+   child refuses to shrink below its content, the panes grow past the box, and
+   the header and the action bar are pushed out of sight — which is exactly the
+   two things that must never scroll away. */
+.th-list {
+  border-right: 1px solid var(--line-dark); background: var(--ink-900);
+  overflow-y: auto; min-height: 0; padding: 4px 0 8px;
+}
+.th-list-head {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  padding: 14px 14px 8px;
+}
+.th-waiting { font: 500 10px var(--mono); color: var(--watch); letter-spacing: 0.04em; }
+.th-row {
+  width: 100%; display: flex; flex-direction: column; gap: 4px; text-align: left;
+  border: 0; border-top: 1px solid var(--line-dark); background: transparent;
+  padding: 11px 14px; cursor: pointer; transition: background 0.18s;
+}
+.th-row:hover { background: rgba(255,255,255,.03); }
+.th-row.selected { background: rgba(255,255,255,.06); }
+.th-row-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.th-row-title {
+  font: 600 12.5px var(--sans); color: var(--on-dark-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.th-row.selected .th-row-title { color: #fff; }
+.th-num { font: 600 11.5px var(--mono); color: var(--on-dark-6); margin-right: 6px; }
+.th-row-when { font: 500 10.5px var(--mono); color: var(--on-dark-6); flex: none; }
+/* Two lines of the last thing said — enough to know whether to open it. */
+.th-row-line {
+  font: 400 11.5px/1.5 var(--sans); color: var(--on-dark-5);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.th-row-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.th-state {
+  font: 500 9px var(--mono); letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--on-dark-6);
+}
+.th-needs {
+  display: inline-flex; align-items: center; gap: 5px; margin-left: auto;
+  font: 600 9.5px var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.th-needs-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; }
+
+/* Who is in the conversation. */
+.th-faces { display: inline-flex; align-items: center; }
+.th-face {
+  width: 20px; height: 20px; border-radius: 50%; flex: none; object-fit: cover;
+  background: var(--border-dark);
+}
+.th-face.sm { width: 15px; height: 15px; margin-right: -4px; box-shadow: 0 0 0 2px var(--ink-900); }
+.th-face.is-text {
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 8.5px var(--sans); color: var(--on-dark-2); letter-spacing: 0.02em;
+}
+.th-face.is-text:not(.sm) { font-size: 10px; }
+.th-face.kind-codeworthy { background: var(--signal); color: var(--signal-ink); }
+.th-face.kind-agent { background: #2f3a44; color: var(--on-dark-2); }
+.th-face.kind-you { background: var(--on-dark-4); color: var(--ink-900); }
+.th-face-more { font: 500 9.5px var(--mono); color: var(--on-dark-6); margin-left: 8px; }
+
+/* The open conversation. */
+.th-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--ink-900); }
+.th-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+  padding: 15px 20px 13px; border-bottom: 1px solid var(--line-dark); flex: none;
+}
+.th-title { font: 600 15px var(--sans); color: #fff; margin: 0; overflow-wrap: anywhere; }
+.th-sub { font: 400 11.5px var(--sans); color: var(--on-dark-5); margin: 4px 0 0; }
+.th-stream {
+  flex: 1; min-height: 0; overflow-y: auto; padding: 18px 20px 8px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.th-empty { max-width: 54ch; margin: 24px auto; text-align: center; }
+
+/* One message. */
+.th-msg { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; align-items: start; }
+/* A run of messages from the same speaker keeps the gutter but drops the name
+   and the face — the second thing someone says isn't a new speaker. */
+.th-msg.run { margin-top: -10px; }
+.th-msg.run .th-bubble { border-top-left-radius: 5px; }
+.th-msg-body { grid-column: 2; min-width: 0; }
+.th-msg-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.th-who { font: 600 12px var(--sans); color: var(--on-dark-2); }
+.th-msg.kind-codeworthy .th-who { color: var(--signal); }
+.th-via { font: 500 10px var(--mono); color: var(--on-dark-6); }
+a.th-when, .th-when { font: 500 10px var(--mono); color: var(--on-dark-6); }
+a.th-when:hover { color: var(--signal); text-decoration: none; }
+.th-bubble {
+  background: var(--ink-800); border-radius: 12px; border-top-left-radius: 4px;
+  padding: 10px 13px; max-width: 74ch;
+}
+.th-msg.kind-codeworthy .th-bubble { background: #1d2426; }
+/* Your own messages read as yours: a teal-tinted ground, right-aligned, the way
+   any group message does it. */
+.th-msg.mine { grid-template-columns: minmax(0, 1fr) 26px; }
+.th-msg.mine > .th-face { grid-column: 2; grid-row: 1; }
+.th-msg.mine .th-msg-body { grid-column: 1; grid-row: 1; }
+.th-msg.mine .th-msg-head { justify-content: flex-end; }
+.th-msg.mine .th-bubble {
+  background: rgba(76, 201, 192, 0.10); margin-left: auto;
+  border-top-left-radius: 12px; border-top-right-radius: 4px;
+}
+.th-msg.mine.run .th-bubble { border-top-left-radius: 12px; border-top-right-radius: 5px; }
+.th-bubble-tag {
+  display: block; margin-bottom: 5px;
+  font: 600 9px var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--on-dark-6);
+}
+.th-bubble.tone-ok .th-bubble-tag { color: var(--signal); }
+.th-bubble.tone-watch .th-bubble-tag { color: var(--watch); }
+.th-bubble.tone-risk .th-bubble-tag { color: var(--risk); }
+.th-text { font: 400 13px/1.6 var(--sans); color: var(--on-dark-3); margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.th-text + .th-text { margin-top: 8px; }
+.th-code {
+  margin: 8px 0 0; padding: 9px 11px; border-radius: 7px; background: rgba(0,0,0,.35);
+  font: 400 11.5px/1.65 var(--mono); color: var(--on-dark-3);
+  overflow-x: auto; white-space: pre;
+}
+.th-commits { margin: 0; padding-left: 16px; }
+.th-commits li { font: 400 12.5px/1.6 var(--mono); color: var(--on-dark-3); overflow-wrap: anywhere; }
+
+/* The record's own entries — not a speaker, so not a bubble. */
+.th-sys { display: flex; align-items: baseline; gap: 9px; padding: 2px 0; }
+.th-sys-dot { width: 5px; height: 5px; border-radius: 50%; flex: none; transform: translateY(-2px); }
+.th-sys-text { flex: 1; margin: 0; font: 400 12px/1.55 var(--sans); color: var(--on-dark-5); }
+.th-sys.tone-risk .th-sys-text { color: var(--on-dark-2); }
+.th-sys-meta { display: inline-flex; gap: 10px; flex: none; font: 500 10px var(--mono); color: var(--on-dark-6); }
+.th-sys.tone-risk .th-sys-type { color: var(--risk); }
+.th-sys.tone-ok .th-sys-type { color: var(--signal); }
+.th-sys.tone-watch .th-sys-type { color: var(--watch); }
+
+/* The end of the thread: the move only a human can make. */
+.th-actions { flex: none; border-top: 1px solid var(--line-dark); padding: 12px 20px 14px; background: var(--ink-900); }
+.th-needs-line {
+  display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+  font: 600 11px var(--mono); letter-spacing: 0.06em; text-transform: uppercase;
+}
+.th-needs-detail {
+  font: 400 12px/1.55 var(--sans); letter-spacing: 0; text-transform: none;
+  color: var(--on-dark-4); flex: 1 1 300px;
+}
+.th-compose { display: flex; gap: 10px; align-items: flex-end; }
+.th-input {
+  flex: 1; min-width: 0; resize: vertical;
+  background: var(--ink-800); color: #fff; border: 1px solid var(--border-dark);
+  border-radius: 9px; padding: 9px 12px; font: 400 13px/1.55 var(--sans);
+  transition: border-color 0.18s;
+}
+.th-input::placeholder { color: var(--on-dark-6); }
+.th-input:focus { outline: none; border-color: var(--signal); }
+.th-input:disabled { opacity: 0.55; }
+.th-send { flex: none; }
+.th-buttons { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 11px; }
+/* A refusal is a sentence, not a greyed-out button. A dead control with no
+   words is the most common way a working rule reads as a broken product. */
+.th-cant { font: 400 11.5px/1.5 var(--sans); color: var(--on-dark-5); max-width: 60ch; }
+.th-cant-label {
+  font: 600 9.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--on-dark-6); margin-right: 8px;
+}
+.th-doctrine { margin-left: auto; font: 400 11px var(--sans); color: var(--on-dark-6); }
+.th-done { font: 500 12px var(--sans); color: var(--signal); margin: 10px 0 0; }
+
+/* Merging asks twice, and names the commit — what you agree to merge has to be
+   the commit you were just reading. */
+.th-confirm { padding: 2px 0 0; }
+.th-confirm-text { font: 400 13px/1.6 var(--sans); color: var(--on-dark-3); margin: 0 0 12px; max-width: 70ch; }
+.th-confirm-text strong { color: #fff; }
+/* The global `code` chip is a light-surface token; on the dark shell it reads
+   as a highlighter pen over the one thing here you actually have to check. */
+.th-confirm-text code {
+  font: 500 12px var(--mono); color: var(--signal);
+  background: rgba(76, 201, 192, 0.10); padding: 1px 6px; border-radius: 4px;
+}
+.th-confirm-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+@media (max-width: 1000px) {
+  /* The list becomes a scroller above the conversation. */
+  .threads { grid-template-columns: 1fr; height: auto; }
+  .th-list {
+    border-right: 0; border-bottom: 1px solid var(--line-dark);
+    display: flex; overflow-x: auto; padding: 0;
+  }
+  .th-list-head { display: none; }
+  .th-row { width: 220px; flex: none; border-top: 0; border-right: 1px solid var(--line-dark); }
+  .th-stream { max-height: 60vh; }
+  .th-doctrine { margin-left: 0; flex-basis: 100%; }
+}

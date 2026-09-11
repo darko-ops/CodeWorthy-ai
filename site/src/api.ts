@@ -265,3 +265,79 @@ export interface OverviewReport {
   };
   integrity: { ok: boolean; headline: string; chain: string };
 }
+
+// --- Threads: the repo's conversation (you, your agents, CodeWorthy) ---
+export type ThreadState = "open" | "draft" | "merged" | "closed" | "standing";
+export type GateDecision = "passed" | "advise" | "blocked" | "unavailable" | "none";
+export type MessageTone = "ok" | "watch" | "risk" | "note";
+export type ParticipantKind = "you" | "human" | "agent" | "codeworthy";
+/** The standing thread for everything with no pull request of its own. */
+export const BRANCH_THREAD = "branch";
+
+export interface Participant {
+  login: string;
+  /** "Claude Code", "CodeWorthy", "@darko", "You". */
+  label: string;
+  kind: ParticipantKind;
+  agent: string | null;
+  avatar: string | null;
+}
+export interface NeedsYou {
+  reason: string;
+  detail: string;
+  tone: MessageTone;
+}
+export interface ThreadSummary {
+  key: string;
+  number: number | null;
+  title: string;
+  state: ThreadState;
+  author: Participant | null;
+  participants: Participant[];
+  gate: GateDecision;
+  flagged: number;
+  lastTs: string | null;
+  lastLine: string;
+  needsYou: NeedsYou | null;
+  url: string | null;
+  headSha: string | null;
+  base: string | null;
+}
+export interface ThreadMessage {
+  id: string;
+  ts: string;
+  author: Participant;
+  kind: "opened" | "commit" | "comment" | "review" | "verdict" | "event";
+  title: string | null;
+  body: string;
+  tone: MessageTone;
+  url: string | null;
+}
+/** Every "no" carries its reason — a dead button with no explanation reads as
+ *  a broken product when it is usually a working rule. */
+export interface ThreadActions {
+  canReply: boolean;
+  replyBlocked: string | null;
+  canApprove: boolean;
+  approveBlocked: string | null;
+  canMerge: boolean;
+  mergeBlocked: string | null;
+  youApproved: boolean;
+}
+export interface Thread extends ThreadSummary {
+  body: string;
+  messages: ThreadMessage[];
+  actions: ThreadActions;
+}
+export interface ThreadList {
+  repo: string;
+  windowDays: number;
+  threads: ThreadSummary[];
+}
+
+export function threadsUrl(repo: string, days: number): string {
+  return `/api/repos/${repo}/threads?days=${days}`;
+}
+export function threadUrl(repo: string, key: string, days: number): string {
+  return `/api/repos/${repo}/threads/${encodeURIComponent(key)}?days=${days}`;
+}

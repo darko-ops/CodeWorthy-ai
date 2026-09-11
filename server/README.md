@@ -265,3 +265,25 @@ The anchor is what makes the audit log's integrity provable to an auditor. One-t
 CodeWorthy never merges, force-pushes, or rewrites history. It gates, advises,
 and does safe reversible mechanics; the human owns every merge. `client.ts`
 makes that structural and `client.doctrine.test.ts` makes it CI-enforced.
+
+### …and the other half of that sentence
+
+If the human owns every merge, the human needs somewhere to perform one. Since
+the thread view (`src/threads/`, and the `/api/repos/:owner/:repo/threads*`
+routes) that place is the dashboard, and it is a **third actor**, kept apart
+from the two Apps:
+
+| Actor | Credential | May merge |
+|---|---|---|
+| Steward (reviewer) | its installation token | **no** — the capability is not on `github/client.ts` |
+| Approver | its own App's installation token | **no** — one review, nothing else |
+| The signed-in human | their own user-to-server token | yes, from `app/userActions.ts` |
+
+`userActions.ts` takes a token as its first argument, imports no App credential
+path, and is reachable only from a route holding a live session — so a merge
+cannot originate from a webhook, a job, or a schedule. It requires the head SHA
+the dashboard rendered, so a stale tab cannot land a commit nobody read. Every
+call appends to the spine (`human.commented`, `human.approved`, `human.merged`)
+with that person's login before it reports success.
+`app/userActions.doctrine.test.ts` asserts all of that, including that the two
+Apps still have no merge of their own.

@@ -3,17 +3,25 @@
 // states when the server is asleep (trial) or a repo has no history yet.
 //
 // Two screens on one plane. The overview is a table of every repository, worst
-// first. The repo screen puts the outstanding DECISIONS above the data, states
-// the verdict as a line rather than a headline, and keeps the tamper-evident
-// record permanently beside it — that record is the strongest thing CodeWorthy
-// has to say, and it used to be a card three sections down.
+// first. The repo screen is three tabs, because it was answering three separate
+// questions on one scrolling page with the rules hidden behind a toggle:
+//
+//   Thread      — what is happening here, and what does it need from me?
+//                 (the conversation between you, your agents, and CodeWorthy;
+//                 it is the default because it is where the work is)
+//   Repo        — is this repository in good shape? Decisions above the data,
+//                 the verdict as a line rather than a headline, and the
+//                 tamper-evident record permanently beside it.
+//   Protection  — what has to be true before a change lands.
 //
 // There are no cards here on purpose. A section is a mono label and a hairline;
 // a row never contains a box; and exactly one button per screen is filled — the
-// recommended next action. Everything else is an outline or plain text.
+// recommended next action. Everything else is an outline or plain text. The one
+// exception is the message bubble in the thread tab, and ThreadView.tsx says why.
 import { useEffect, useMemo, useState } from "react";
 import { FixPath, ModeSwitch } from "./FixPath";
 import { RulesPanel } from "./RulesPanel";
+import { poll, ThreadView } from "./ThreadView";
 import { Navigate } from "react-router-dom";
 import {
   apiGet,
@@ -29,7 +37,10 @@ import {
   type OverviewReport,
   type RepoOverview,
   type RepoSummary,
+  type ThreadList,
+  type ThreadSummary,
   type VitalStatus,
+  threadsUrl,
 } from "../../api";
 
 // Look-back windows offered by the control (days).
@@ -84,7 +95,14 @@ export function RepoDashboard() {
   // changed the world (protection applied, mode set, finding accepted); this is
   // what makes the page agree with it.
   const [healthNonce, setHealthNonce] = useState(0);
-  const [rulesOpen, setRulesOpen] = useState(false);
+  // The repo screen is three tabs, and the conversation is the first one: it is
+  // where the work is actually happening and where the only thing that needs a
+  // human is asked for. The other two are where you go to check and to set.
+  const [tab, setTab] = useState<RepoTab>("thread");
+  // The thread list lives here rather than in the thread tab, so the tab strip
+  // can say how many conversations are waiting on you whichever tab you're on.
+  const [threads, setThreads] = useState<ThreadSummary[] | null>(null);
+  const [threadsErr, setThreadsErr] = useState<ApiError | null>(null);
 
   // GitHub only allows branch protection on a PRIVATE repository on a paid
   // plan. We used to discover that by trying and being refused — the user
@@ -168,7 +186,9 @@ export function RepoDashboard() {
   // sentence and the user never sees the confirmation for what they just did.
   useEffect(() => {
     setHealth(null);
-    setRulesOpen(false);
+    setThreads(null);
+    setThreadsErr(null);
+    setTab("thread");
   }, [selectedRepo, windowDays]);
 
   // Load the selected repo's health checkup (vitals + integrity) over the chosen
@@ -183,6 +203,30 @@ export function RepoDashboard() {
       live = false;
     };
   }, [selectedRepo, windowDays, healthNonce]);
+
+  // The repo's conversation list, polled — the tab badge has to stay true while
+  // you are looking at a different tab, which is the whole reason it is here and
+  // not inside the thread view.
+  useEffect(() => {
+    if (!selectedRepo) return;
+    let live = true;
+    const stop = poll(() =>
+      apiGet<ThreadList>(threadsUrl(selectedRepo, windowDays))
+        .then((r) => {
+          if (!live) return;
+          setThreads(r.threads);
+          setThreadsErr(null);
+        })
+        .catch((e) => live && setThreadsErr(e instanceof ApiError ? e : new ApiError("server", String(e))))
+    );
+    return () => {
+      live = false;
+      stop();
+    };
+    // Deliberately NOT keyed on healthNonce: a refetch after a merge must not
+    // blank the list the user is looking at. The thread view refreshes itself,
+    // and this poll picks the change up on its next tick.
+  }, [selectedRepo, windowDays]);
 
   // Load the selected repo's activity over the chosen window.
   useEffect(() => {
@@ -336,15 +380,7 @@ export function RepoDashboard() {
             <header className="repo-header">
               <h1 className="repo-title">{selectedRepo.split("/").slice(1).join("/")}</h1>
               <div className="repo-header-right">
-                <button
-                  className={`btn-plain ${rulesOpen ? "is-on" : ""}`}
-                  onClick={() => setRulesOpen((o) => !o)}
-                  aria-expanded={rulesOpen}
-                  title="What has to be true before a change lands here"
-                >
-                  Rules
-                </button>
-                <div className="window-words" role="tablist" aria-label="Time window">
+                <div className="window-words" role="group" aria-label="Time window">
                   {WINDOWS.map((d) => (
                     <button
                       key={d}
@@ -368,55 +404,125 @@ export function RepoDashboard() {
               </div>
             </header>
 
-            {rulesOpen && (
-              <RulesPanel
+            <RepoTabs
+              tab={tab}
+              onTab={setTab}
+              waiting={(threads ?? []).filter((t) => t.needsYou).length}
+              decisions={health?.issues?.length ?? 0}
+            />
+
+            {tab === "thread" && (
+              <ThreadView
                 repo={selectedRepo}
-                onClose={() => setRulesOpen(false)}
-                onChanged={() => setHealthNonce((n) => n + 1)}
-              />
-            )}
-
-            {health && (
-              <RepoDetail
-                report={health}
                 windowDays={windowDays}
-                actor={user?.login ?? undefined}
+                threads={threads}
+                error={threadsErr}
                 onChanged={() => setHealthNonce((n) => n + 1)}
               />
             )}
 
-            <div className="section-head">
-              <span className="section-label">Change log</span>
-              {activity && (
-                <ChangeLogCounters activity={activity} flagged={health?.activity?.alerts?.length ?? 0} />
-              )}
-            </div>
-            {activityLoading && !activity && <Waking label="Reading the change log…" />}
-            {activityErr && <ActivityError err={activityErr} />}
-            {activity && activity.length === 0 && (
-              <div className="repo-blank">
-                <h2>No activity in the last {windowDays} days</h2>
-                <p className="hint">
-                  Steward is watching {selectedRepo}. Widen the window, or the next push, review,
-                  or protection change will appear here in plain language.
-                </p>
-              </div>
+            {tab === "protection" && (
+              <RulesPanel repo={selectedRepo} onChanged={() => setHealthNonce((n) => n + 1)} />
             )}
-            {activity && activity.length > 0 && (
-              <ol className="log">
-                {activity.map((e, i) => (
-                  <li key={i} className={"log-row tone-" + eventTone(e.event_type)}>
-                    <span className="log-time">{ago(e.ts)}</span>
-                    <p className="log-text">{e.plain_english}</p>
-                    <span className="log-type">{e.event_type}</span>
-                  </li>
-                ))}
-              </ol>
+
+            {tab === "repo" && (
+              <>
+                {health && (
+                  <RepoDetail
+                    report={health}
+                    windowDays={windowDays}
+                    actor={user?.login ?? undefined}
+                    onChanged={() => setHealthNonce((n) => n + 1)}
+                  />
+                )}
+
+                <div className="section-head">
+                  <span className="section-label">Change log</span>
+                  {activity && (
+                    <ChangeLogCounters activity={activity} flagged={health?.activity?.alerts?.length ?? 0} />
+                  )}
+                </div>
+                {activityLoading && !activity && <Waking label="Reading the change log…" />}
+                {activityErr && <ActivityError err={activityErr} />}
+                {activity && activity.length === 0 && (
+                  <div className="repo-blank">
+                    <h2>No activity in the last {windowDays} days</h2>
+                    <p className="hint">
+                      Steward is watching {selectedRepo}. Widen the window, or the next push, review,
+                      or protection change will appear here in plain language.
+                    </p>
+                  </div>
+                )}
+                {activity && activity.length > 0 && (
+                  <ol className="log">
+                    {activity.map((e, i) => (
+                      <li key={i} className={"log-row tone-" + eventTone(e.event_type)}>
+                        <span className="log-time">{ago(e.ts)}</span>
+                        <p className="log-text">{e.plain_english}</p>
+                        <span className="log-type">{e.event_type}</span>
+                      </li>
+                    ))}
+                  </ol>
+                )}
+              </>
             )}
           </section>
         </div>
       )}
     </DashShell>
+  );
+}
+
+/**
+ * The repo screen's three tabs.
+ *
+ * They are three different questions, and they were previously answered on one
+ * scrolling page with the rules hidden behind a toggle:
+ *
+ *   Thread      — what is happening, and what does it need from me?
+ *   Repo        — is this repository in good shape?
+ *   Protection  — what are the rules here?
+ *
+ * The counts on the strip are the reason it is a strip and not a dropdown: the
+ * point of leaving a tab is knowing whether anything over there wants you.
+ */
+export type RepoTab = "thread" | "repo" | "protection";
+
+const TAB_LABEL: Record<RepoTab, string> = {
+  thread: "Thread",
+  repo: "Repo",
+  protection: "Protection",
+};
+
+function RepoTabs({
+  tab,
+  onTab,
+  waiting,
+  decisions,
+}: {
+  tab: RepoTab;
+  onTab: (t: RepoTab) => void;
+  /** Threads asking for a human. */
+  waiting: number;
+  /** Findings on the repo still waiting on a decision. */
+  decisions: number;
+}) {
+  const count: Record<RepoTab, number> = { thread: waiting, repo: decisions, protection: 0 };
+  return (
+    <div className="repo-tabs" role="tablist" aria-label="Repository">
+      {(Object.keys(TAB_LABEL) as RepoTab[]).map((t) => (
+        <button
+          key={t}
+          role="tab"
+          aria-selected={tab === t}
+          className={"repo-tab" + (tab === t ? " selected" : "")}
+          onClick={() => onTab(t)}
+        >
+          {TAB_LABEL[t]}
+          {count[t] > 0 && <span className="repo-tab-count">{count[t]}</span>}
+        </button>
+      ))}
+    </div>
   );
 }
 
