@@ -267,12 +267,15 @@ export interface OverviewReport {
 }
 
 // --- Threads: the repo's conversation (you, your agents, CodeWorthy) ---
-export type ThreadState = "open" | "draft" | "merged" | "closed" | "standing";
+//
+// A thread is a BRANCH. An agent cuts a branch and pushes to it well before any
+// pull request exists, so keying on the branch means the thread starts when the
+// work does. `archived` is the one exception: a finished pull request whose
+// branch GitHub deleted on merge, kept readable while it is inside the window.
+export type ThreadState = "default" | "working" | "draft" | "open" | "merged" | "closed";
 export type GateDecision = "passed" | "advise" | "blocked" | "unavailable" | "none";
 export type MessageTone = "ok" | "watch" | "risk" | "note";
 export type ParticipantKind = "you" | "human" | "agent" | "codeworthy";
-/** The standing thread for everything with no pull request of its own. */
-export const BRANCH_THREAD = "branch";
 
 export interface Participant {
   login: string;
@@ -289,6 +292,8 @@ export interface NeedsYou {
 }
 export interface ThreadSummary {
   key: string;
+  /** The branch, or null once it has been deleted. */
+  branch: string | null;
   number: number | null;
   title: string;
   state: ThreadState;
@@ -338,6 +343,10 @@ export interface ThreadList {
 export function threadsUrl(repo: string, days: number): string {
   return `/api/repos/${repo}/threads?days=${days}`;
 }
+/** The key goes in the query string: branch names contain slashes. */
 export function threadUrl(repo: string, key: string, days: number): string {
-  return `/api/repos/${repo}/threads/${encodeURIComponent(key)}?days=${days}`;
+  return `/api/repos/${repo}/thread?key=${encodeURIComponent(key)}&days=${days}`;
+}
+export function threadActionUrl(repo: string, action: "reply" | "approve" | "merge"): string {
+  return `/api/repos/${repo}/thread/${action}`;
 }

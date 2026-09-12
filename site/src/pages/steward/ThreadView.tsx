@@ -25,6 +25,7 @@ import {
   apiAction,
   apiGet,
   ApiError,
+  threadActionUrl,
   threadUrl,
   type MessageTone,
   type Participant,
@@ -70,12 +71,16 @@ const TONE_COLOR: Record<MessageTone, string> = {
   note: "var(--on-dark-6)",
 };
 
+// A thread is a branch, so the state word describes the BRANCH, not a pull
+// request. "working" is the one the PR-keyed version could not express at all:
+// an agent has pushed commits and hasn't opened anything yet.
 const STATE_WORD: Record<ThreadSummary["state"], string> = {
-  open: "open",
+  default: "default branch",
+  working: "in progress",
   draft: "draft",
+  open: "open",
   merged: "merged",
   closed: "closed",
-  standing: "branch",
 };
 
 function ago(iso: string | null): string {
@@ -212,6 +217,10 @@ function ThreadRow({ thread, selected, onOpen }: { thread: ThreadSummary; select
         </span>
         <span className="th-row-when">{ago(thread.lastTs)}</span>
       </span>
+      {/* The branch is the thread's identity, and it is what you type at a
+          terminal — so it is on the row even when a pull request has given the
+          thread a friendlier title. */}
+      {thread.branch && <span className="th-row-branch">{thread.branch}</span>}
       <span className="th-row-line">{thread.lastLine}</span>
       <span className="th-row-foot">
         <Faces participants={thread.participants} />
@@ -292,6 +301,8 @@ function ThreadStream({ thread, repo, onChanged }: { thread: Thread; repo: strin
             {thread.title}
           </h2>
           <p className="th-sub">
+            {thread.branch ? <span className="th-sub-branch">{thread.branch}</span> : null}
+            {thread.branch ? " · " : ""}
             {thread.author ? `${thread.author.label} · ` : ""}
             {STATE_WORD[thread.state]}
             {thread.base ? ` → ${thread.base}` : ""}
@@ -443,7 +454,6 @@ function ActionBar({ thread, repo, onChanged }: { thread: Thread; repo: string; 
   const [confirming, setConfirming] = useState(false);
   const [method, setMethod] = useState<MergeMethod>("squash");
 
-  const key = thread.number != null ? String(thread.number) : thread.key;
   const n = thread.needsYou;
 
   async function act(kind: "reply" | "approve" | "merge") {
@@ -452,11 +462,12 @@ function ActionBar({ thread, repo, onChanged }: { thread: Thread; repo: string; 
     setDone(null);
     try {
       if (kind === "reply") {
-        await apiAction(`/api/repos/${repo}/threads/${key}/reply`, { body: text.trim() });
+        await apiAction(threadActionUrl(repo, "reply"), { key: thread.key, body: text.trim() });
         setText("");
         setDone("Posted on the pull request.");
       } else if (kind === "approve") {
-        await apiAction(`/api/repos/${repo}/threads/${key}/approve`, {
+        await apiAction(threadActionUrl(repo, "approve"), {
+          key: thread.key,
           // Whatever is in the box rides along as the review body, so the note
           // you were about to write isn't thrown away by pressing Approve.
           body: text.trim(),
@@ -464,7 +475,7 @@ function ActionBar({ thread, repo, onChanged }: { thread: Thread; repo: string; 
         setText("");
         setDone("Approved, as you, and on the record.");
       } else {
-        await apiAction(`/api/repos/${repo}/threads/${key}/merge`, { sha: thread.headSha, method });
+        await apiAction(threadActionUrl(repo, "merge"), { key: thread.key, sha: thread.headSha, method });
         setConfirming(false);
         setDone(`Merged. ${METHOD_WORD[method]} — recorded with your name.`);
       }
@@ -491,8 +502,8 @@ function ActionBar({ thread, repo, onChanged }: { thread: Thread; repo: string; 
       {confirming ? (
         <div className="th-confirm">
           <p className="th-confirm-text">
-            Merge <strong>{thread.title}</strong> into <strong>{thread.base}</strong> as yourself, at commit{" "}
-            <code>{thread.headSha?.slice(0, 7)}</code>? CodeWorthy records it; it can't undo it.
+            Merge <strong>{thread.branch ?? thread.title}</strong> into <strong>{thread.base}</strong> as yourself, at
+            commit <code>{thread.headSha?.slice(0, 7)}</code>? CodeWorthy records it; it can't undo it.
           </p>
           <div className="th-confirm-row">
             <div className="window-words" role="radiogroup" aria-label="Merge method">
@@ -539,36 +550,47 @@ function ActionBar({ thread, repo, onChanged }: { thread: Thread; repo: string; 
                 }
               }}
             />
-            <button
-              className="btn-outline th-send"
-              onClick={() => act("reply")}
-              disabled={!a.canReply || !text.trim() || busy !== null}
-            >
-              {busy === "reply" ? "Sending…" : "Send"}
-            </button>
+            {/* No Send when there is nowhere to send. A disabled outline button
+                looks exactly like an enabled one, so leaving it there reads as
+                a broken control rather than as "this branch has no pull
+                request" — which the box beside it already says. */}
+            {a.canReply && (
+              <button
+                className="btn-outline th-send"
+                onClick={() => act("reply")}
+                disabled={!text.trim() || busy !== null}
+              >
+                {busy === "reply" ? "Sending…" : "Send"}
+              </button>
+            )}
           </div>
 
-          <div className="th-buttons">
-            <Action
-              label="Approve"
-              can={a.canApprove}
-              why={a.approveBlocked}
-              filled={false}
-              busy={busy === "approve"}
-              onClick={() => act("approve")}
-            />
-            <Action
-              label="Merge"
-              can={a.canMerge}
-              why={a.mergeBlocked}
-              filled
-              busy={false}
-              onClick={() => setConfirming(true)}
-            />
-            <span className="th-doctrine">
-              CodeWorthy never merges. It reviews, it records, and it hands you the button.
-            </span>
-          </div>
+          {/* Nothing to show on a branch with no pull request: there is no
+              approve, no merge, and the line about who owns the merge is about
+              a button that isn't there. */}
+          {(a.canApprove || a.approveBlocked || a.canMerge || a.mergeBlocked) && (
+            <div className="th-buttons">
+              <Action
+                label="Approve"
+                can={a.canApprove}
+                why={a.approveBlocked}
+                filled={false}
+                busy={busy === "approve"}
+                onClick={() => act("approve")}
+              />
+              <Action
+                label="Merge"
+                can={a.canMerge}
+                why={a.mergeBlocked}
+                filled
+                busy={false}
+                onClick={() => setConfirming(true)}
+              />
+              <span className="th-doctrine">
+                CodeWorthy never merges. It reviews, it records, and it hands you the button.
+              </span>
+            </div>
+          )}
         </>
       )}
 

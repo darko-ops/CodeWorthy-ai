@@ -32,7 +32,7 @@ import { approvalRequired, ensureProtection } from "../steward/enforce.js";
 import { getRepoMode, isRepoMode, setRepoMode } from "../steward/repoMode.js";
 import { getRepoRules, parseRules, setRepoRules } from "../steward/repoRules.js";
 import { appendAuditEvent } from "../audit/audit.js";
-import { getThread, listThreads, MAIN_THREAD_KEY } from "../threads/threads.js";
+import { getThread, listThreads, parseThreadKey, type ThreadKey } from "../threads/threads.js";
 import {
   approveAsUser,
   commentAsUser,
@@ -518,50 +518,83 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     });
   });
 
-  /** One thread in full. `key` is a PR number, or "branch" for the standing one. */
-  app.get("/api/repos/:owner/:repo/threads/:key", async (req, reply) => {
+  /**
+   * One thread in full.
+   *
+   * The key travels in the query string, not a path segment: a branch name
+   * contains slashes (`feat/idempotent-checkout`), and encoding those into a
+   * path is a source of routing bugs that only show up on the branch names
+   * people actually use.
+   */
+  app.get("/api/repos/:owner/:repo/thread", async (req, reply) => {
     return withGitHub(reply, async () => {
       const ctx = await threadContext(req, reply);
       if (!ctx) return;
-      const key = (req.params as { key: string }).key;
-      const number = parseThreadKey(key);
-      if (number === undefined) {
-        reply.code(400).send({ error: "bad_thread", message: "That isn't a thread on this repository." });
-        return;
-      }
+      const key = threadKeyFrom((req.query as { key?: string }).key, reply);
+      if (!key) return;
       const client = await getInstallationClient(ctx.installationId);
       // The merge button is only offered to someone GitHub would actually let
       // merge. Asking first means the button is absent with a reason rather
       // than present and failing.
-      const perms = number == null ? { push: false } : await userRepoPermissions(ctx.session.token, ctx.repo);
+      const perms = await userRepoPermissions(ctx.session.token, ctx.repo);
       const thread = await getThread(client, pool, {
         repo: ctx.repo,
-        number,
+        key,
         viewer: ctx.session.login,
         sinceDays: windowFrom(req),
         canPush: perms.push,
       });
       if (!thread) {
-        reply.code(404).send({ error: "no_thread", message: "That pull request isn't there any more." });
+        reply.code(404).send({
+          error: "no_thread",
+          message: "That branch isn't there any more — it may have been merged and deleted, or renamed.",
+        });
         return;
       }
       return thread;
     });
   });
 
+  /**
+   * The three things a human can do to a pull request.
+   *
+   * Each needs a LIVE pull request, so they share a preamble that resolves the
+   * thread key to a number and refuses with the reason when there isn't one —
+   * a branch nobody has opened a PR on has nowhere to post.
+   */
+  async function pullRequestFor(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    ctx: { repo: string; installationId: number },
+    verb: string
+  ): Promise<number | null> {
+    const body = jsonBody<{ key?: unknown }>(req);
+    const key = threadKeyFrom(typeof body.key === "string" ? body.key : undefined, reply);
+    if (!key) return null;
+    if (key.kind === "archived") return key.number;
+
+    const client = await getInstallationClient(ctx.installationId);
+    const pulls = (await client
+      .listPullRequests(ctx.repo, { state: "open", head: `${ctx.repo.split("/")[0]}:${key.branch}`, per_page: "1" })
+      .catch(() => [])) as Array<{ number?: number }>;
+    const number = pulls[0]?.number;
+    if (number == null) {
+      reply.code(409).send({
+        error: "no_pull_request",
+        message: `There's no open pull request on ${key.branch} to ${verb}. Open one and the conversation moves there.`,
+      });
+      return null;
+    }
+    return number;
+  }
+
   /** Say something in the thread. Posts as the user, on the pull request. */
-  app.post("/api/repos/:owner/:repo/threads/:key/reply", async (req, reply) => {
+  app.post("/api/repos/:owner/:repo/thread/reply", async (req, reply) => {
     return withGitHub(reply, async () => {
       const ctx = await threadContext(req, reply);
       if (!ctx) return;
-      const number = parseThreadKey((req.params as { key: string }).key);
-      if (number == null) {
-        reply.code(400).send({
-          error: "no_pull_request",
-          message: "There's no pull request here to reply on.",
-        });
-        return;
-      }
+      const number = await pullRequestFor(req, reply, ctx, "reply on");
+      if (number == null) return;
       const body = jsonBody<{ body?: unknown }>(req);
       const text = typeof body.body === "string" ? body.body.trim() : "";
       if (!text) {
@@ -586,15 +619,12 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
   });
 
   /** The user's own approving review. Their identity, their judgement. */
-  app.post("/api/repos/:owner/:repo/threads/:key/approve", async (req, reply) => {
+  app.post("/api/repos/:owner/:repo/thread/approve", async (req, reply) => {
     return withGitHub(reply, async () => {
       const ctx = await threadContext(req, reply);
       if (!ctx) return;
-      const number = parseThreadKey((req.params as { key: string }).key);
-      if (number == null) {
-        reply.code(400).send({ error: "no_pull_request", message: "There's no pull request here to approve." });
-        return;
-      }
+      const number = await pullRequestFor(req, reply, ctx, "approve");
+      if (number == null) return;
       const body = jsonBody<{ body?: unknown }>(req);
       const note = typeof body.body === "string" ? body.body.trim() : "";
       const res = await approveAsUser(ctx.session.token, ctx.repo, number, note);
@@ -618,15 +648,12 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
    * the record with their login before this returns. The App's own clients
    * still have no merge capability and never will — see userActions.ts.
    */
-  app.post("/api/repos/:owner/:repo/threads/:key/merge", async (req, reply) => {
+  app.post("/api/repos/:owner/:repo/thread/merge", async (req, reply) => {
     return withGitHub(reply, async () => {
       const ctx = await threadContext(req, reply);
       if (!ctx) return;
-      const number = parseThreadKey((req.params as { key: string }).key);
-      if (number == null) {
-        reply.code(400).send({ error: "no_pull_request", message: "There's no pull request here to merge." });
-        return;
-      }
+      const number = await pullRequestFor(req, reply, ctx, "merge");
+      if (number == null) return;
       const body = jsonBody<{ sha?: unknown; method?: unknown }>(req);
       const sha = typeof body.sha === "string" ? body.sha : "";
       if (!/^[0-9a-f]{7,40}$/i.test(sha)) {
@@ -660,27 +687,22 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
   });
 }
 
+/** Parse a thread key, or reply 400 and return null. */
+function threadKeyFrom(raw: string | undefined, reply: FastifyReply): ThreadKey | null {
+  const key = raw ? parseThreadKey(raw) : null;
+  if (!key) {
+    reply.code(400).send({ error: "bad_thread", message: "That isn't a thread on this repository." });
+    return null;
+  }
+  return key;
+}
+
 /** The look-back window, clamped. A junk `?days=` must not become NaN and be
  *  echoed back to the client as the window it used. */
 function windowFrom(req: FastifyRequest): number {
   const raw = parseInt((req.query as { days?: string }).days ?? "", 10);
   if (!Number.isFinite(raw)) return 30;
   return Math.min(Math.max(raw, 1), 365);
-}
-
-/**
- * A thread key is a pull request number, or the standing default-branch thread.
- *
- * Three-valued on purpose: `null` is "the branch thread" (a real thread with no
- * pull request), `undefined` is "that isn't a thread at all". Collapsing them
- * would make a typo in the URL silently render the branch thread.
- */
-export function parseThreadKey(key: string): number | null | undefined {
-  if (key === MAIN_THREAD_KEY) return null;
-  const m = /^(?:pr-)?(\d{1,9})$/.exec(key);
-  if (!m) return undefined;
-  const n = Number(m[1]);
-  return n > 0 ? n : undefined;
 }
 
 /**

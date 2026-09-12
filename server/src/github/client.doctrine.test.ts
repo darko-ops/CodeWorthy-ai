@@ -65,6 +65,21 @@ describe("GitHub client doctrine", () => {
     expect(posters.map((f) => f.pathname.split("/steward/")[1])).toEqual(["gate/check.ts"]);
   });
 
+  it("uses GraphQL only to read — the client sends queries, never writes", () => {
+    // A GraphQL endpoint can write as easily as read, and the forbidden-VERB
+    // test above cannot see inside a document string. So the rule for this
+    // transport is textual — with comments stripped first, because prose about
+    // the rule must not be able to trip the rule. (It did, the first time.)
+    const code = readFileSync(new URL("./client.ts", import.meta.url), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/\/\/.*$/gm, "");
+    expect(/\bmutation\b/.test(code), "a GraphQL write operation in client.ts").toBe(false);
+    // And there is exactly ONE call site, so "the only caller is listBranchRefs"
+    // stays true. (Counting the string "/graphql" would also count the labels
+    // on its error paths — this counts the fetch.)
+    expect(code.match(/fetch\(`\$\{API\}\/graphql`/g)?.length ?? 0).toBe(1);
+  });
+
   it("can create refs but never file contents — no code-write capability", () => {
     // The manifest requests contents:write (GitHub has no refs-only scope, and
     // POST /git/refs requires it). The doctrine therefore lives HERE: the
