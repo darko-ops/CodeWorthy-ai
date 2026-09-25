@@ -15,7 +15,7 @@
 // ranking, no lines-of-code-as-goodness. Every vital shows its finding.
 import type { Pool } from "pg";
 import { buildDigest, type DigestEntry } from "../digest/digest.js";
-import { verifyAuditChain, verifyAgainstAnchor, makeAnchor, type Anchor } from "../audit/tamper.js";
+import { verifyAuditChain, verifyAgainstAnchor, makeAnchor, describeChain, type Anchor } from "../audit/tamper.js";
 import { config } from "../config.js";
 import { DEFAULT_MODE, getRepoMode, type RepoMode } from "../steward/repoMode.js";
 import { buildIssues, type RepoIssue } from "./remediation.js";
@@ -347,15 +347,22 @@ async function integrityVitalAndSection(pool: Pool, deps: HealthDeps): Promise<{
       prescription: "Investigate who has write access to the database; the audit log is append-only by design and should never fail this check." };
   } else {
     const anchored = anchorResult.status === "consistent" ? " and matches its external write-once anchor" : "";
+    // A fork is not tampering, but it is not nothing either: the younger
+    // sibling is a leaf no later entry commits to, so it lacks the protection
+    // the rest of the chain has. Saying so here is the difference between a
+    // record that reports itself honestly and one that only reports failures.
+    const forked = chain.forks?.length
+      ? ` ${chain.forks.length} point${chain.forks.length === 1 ? "" : "s"} in the log ${chain.forks.length === 1 ? "has" : "have"} entries recorded concurrently (${chain.forks.map((f) => `${f.childSeqs.join(" and ")} onto ${f.parentSeq}`).join("; ")}) — every hash verifies and nothing was altered, but an entry nothing later commits to is not protected the way the rest are.`
+      : "";
     vital = { id: "integrity", label: "Record integrity", status: "healthy",
-      finding: `The change log verifies intact${anchored} — ${chain.checked} entr${chain.checked === 1 ? "y" : "ies"} checked. This is the change-control evidence a SOC 2 auditor asks for.`,
+      finding: `The change log verifies intact${anchored} — ${chain.checked} entr${chain.checked === 1 ? "y" : "ies"} checked. This is the change-control evidence a SOC 2 auditor asks for.${forked}`,
       prescription: anchorResult.status === "no-anchor" ? "Configure a write-once anchor (S3 Object Lock) to make integrity provable even against an insider." : "Nothing to do — the record is verifiably untampered." };
   }
 
   const section: HealthReport["integrity"] = {
     ok,
     headline: ok ? "Verified — the record hasn't been tampered with." : "Failed — the record may have been altered.",
-    chain: chain.intact ? `intact (${chain.checked} entries)` : `broken at entry ${chain.brokenAtSeq} (${chain.reason})`,
+    chain: describeChain(chain),
     anchor: anchorResult.status,
   };
   return { vital, section };

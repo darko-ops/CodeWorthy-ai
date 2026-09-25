@@ -21,6 +21,10 @@ export async function runAnchorJob(
   // 1. Recompute the in-DB chain and check the prior anchor first. Anchoring a
   //    head we haven't verified would launder tampering into the record.
   const chain = await verifyAuditChain(pool);
+  // Refuses on tampering only. A concurrency fork reports intact:true (see
+  // tamper.ts) and must NOT block anchoring — while it did, the external root
+  // of trust could never be established, which left the record protected by
+  // strictly less than it was designed to have.
   if (!chain.intact) {
     return { status: "tampered", detail: `hash chain broken at seq ${chain.brokenAtSeq} (${chain.reason})` };
   }

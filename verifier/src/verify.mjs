@@ -111,25 +111,61 @@ export function verifyPackage(files, opts = {}) {
   }
 
   // ── 2. chain recomputation ───────────────────────────────────────────────
+  //
+  // Two kinds of wrong, kept apart on purpose.
+  //
+  //   FATAL   a row's prev_hash names a hash no row in the segment carries.
+  //           Something was removed, reordered, or altered. The record is not
+  //           trustworthy and the check fails.
+  //
+  //   FINDING two rows chain onto the same parent. Every hash is valid and
+  //           nothing was edited; the appends were concurrent and the chain
+  //           branches. Reported by name (exit 3, "verified with findings"),
+  //           because an auditor must see it — the younger sibling is a leaf
+  //           nothing later commits to — but calling it tampering taught people
+  //           to ignore the one alarm that matters.
+  //
+  // Linkage is resolved against the SET of hashes in the segment rather than by
+  // walking forward with a running predecessor. A forward walk cannot resolve a
+  // branch: the exporter's writer picks its predecessor by highest id, so a
+  // concurrently-recorded row carries a LOWER id than the row it chains onto
+  // and its parent appears LATER in the file.
   if (rows) {
-    const findings = [];
+    const fatal = [];
+    const notes = [];
     let binding = null;
     try { binding = JSON.parse((files.get("chain-binding.json") ?? Buffer.from("null")).toString("utf8")); } catch { binding = null; }
-    if (!binding) findings.push("chain-binding.json missing or unparseable — segment boundary unverifiable");
+    if (!binding) fatal.push("chain-binding.json missing or unparseable — segment boundary unverifiable");
 
-    let prev = binding ? binding.opening_prev_hash : rows[0]?.prev_hash ?? null;
+    const opening = binding ? binding.opening_prev_hash : rows[0]?.prev_hash ?? null;
+    const byHash = new Map();
+    for (const r of rows) byHash.set(r.row_hash, r);
+    const children = new Map();
+    for (const r of rows) {
+      if (!r.prev_hash) continue;
+      const kids = children.get(r.prev_hash) ?? [];
+      kids.push(r);
+      children.set(r.prev_hash, kids);
+    }
+
     let v1Rows = 0;
     let lastId = null;
+    let lastRowHash = null;
     for (const r of rows) {
       if (lastId !== null && BigInt(r.id) <= BigInt(lastId)) {
-        findings.push(`row ${r.id}: ids not strictly increasing`);
+        fatal.push(`row ${r.id}: ids not strictly increasing`);
         break;
       }
       lastId = r.id;
-      if (r.prev_hash !== prev) {
-        findings.push(`row ${r.id}: linkage broken — a row was removed, reordered, or altered before this point`);
+
+      // Linkage: the predecessor this row names must exist — in the segment, or
+      // as the segment's opening boundary.
+      const resolves = r.prev_hash === null ? opening === null : r.prev_hash === opening || byHash.has(r.prev_hash);
+      if (!resolves) {
+        fatal.push(`row ${r.id}: linkage broken — a row was removed, reordered, or altered before this point`);
         break;
       }
+
       if (r.canon_version === 2) {
         let recomputed;
         try {
@@ -144,33 +180,64 @@ export function verifyPackage(files, opts = {}) {
             plainEnglish: r.plain_english,
           });
         } catch (err) {
-          findings.push(`row ${r.id}: ${err.message}`);
+          fatal.push(`row ${r.id}: ${err.message}`);
           break;
         }
         if (recomputed !== r.row_hash) {
-          findings.push(`row ${r.id}: content hash mismatch — a field of this row was altered after recording`);
+          fatal.push(`row ${r.id}: content hash mismatch — a field of this row was altered after recording`);
           break;
         }
         // payload_text must itself be JSON (spec §2.2) — it is what control
         // conclusions parse.
-        try { JSON.parse(r.payload_text); } catch { findings.push(`row ${r.id}: payload_text is not valid JSON`); }
+        try { JSON.parse(r.payload_text); } catch { fatal.push(`row ${r.id}: payload_text is not valid JSON`); }
       } else if (r.canon_version === 1) {
         v1Rows++; // integrity-inherited: linkage checked, content recompute is v2-only (spec §3)
       } else {
-        findings.push(`row ${r.id}: unknown canon_version ${r.canon_version} — refusing (spec §5)`);
+        fatal.push(`row ${r.id}: unknown canon_version ${r.canon_version} — refusing (spec §5)`);
         break;
       }
-      prev = r.row_hash;
+      lastRowHash = r.row_hash;
     }
-    if (binding && rows.length && findings.length === 0) {
-      if (prev !== binding.closing_row_hash) findings.push("segment does not close at the stated closing_row_hash");
-      if (binding.row_count !== rows.length) findings.push(`row_count mismatch: binding says ${binding.row_count}, package has ${rows.length}`);
+
+    // Branches, reported AT THE PARENT with every child named.
+    //
+    // Not "all but the highest-id child", which is what this did first: that
+    // picks a continuation, and when both children are leaves the pick is
+    // arbitrary. A verifier must not report an arbitrary choice as a finding.
+    // The fact is that the parent has more than one child; which of them the
+    // record went on to extend is visible from the data, not from a guess here.
+    let branchCount = 0;
+    if (fatal.length === 0) {
+      for (const [parentHash, kids] of children) {
+        if (kids.length < 2) continue;
+        branchCount++;
+        const parent = byHash.get(parentHash);
+        const named = kids.map((k) => `row ${k.id}`).join(" and ");
+        const extended = new Set(kids.filter((k) => children.has(k.row_hash)).map((k) => k.id));
+        const leaves = kids.filter((k) => !extended.has(k.id)).map((k) => `row ${k.id}`);
+        notes.push(
+          `${named} were recorded concurrently — both chain onto ` +
+          `${parent ? `row ${parent.id}` : "the segment boundary"}. Every hash verifies and no content was ` +
+          `altered; the chain simply branches here. ` +
+          (leaves.length
+            ? `${leaves.join(" and ")} ${leaves.length === 1 ? "is a leaf" : "are leaves"} no later row commits to, so ` +
+              `${leaves.length === 1 ? "it does" : "they do"} not carry the append-only protection the rest of the chain does.`
+            : `Both branches are extended by later rows.`)
+        );
+      }
     }
-    add("chain", findings.length ? "fail" : "pass",
-      findings.length
-        ? findings[0]
-        : `${rows.length} row(s) recomputed and chained end to end${v1Rows ? ` (${v1Rows} v1 row(s): linkage verified, content integrity inherited from the surrounding v2 chain)` : ""}`,
-      findings);
+
+    if (binding && rows.length && fatal.length === 0) {
+      if (lastRowHash !== binding.closing_row_hash) fatal.push("segment does not close at the stated closing_row_hash");
+      if (binding.row_count !== rows.length) fatal.push(`row_count mismatch: binding says ${binding.row_count}, package has ${rows.length}`);
+    }
+
+    const detail = fatal.length
+      ? fatal[0]
+      : `${rows.length} row(s) recomputed and chained end to end` +
+        (v1Rows ? ` (${v1Rows} v1 row(s): linkage verified, content integrity inherited from the surrounding v2 chain)` : "") +
+        (branchCount ? `; the chain branches at ${branchCount} point(s) where rows were recorded concurrently — see findings` : "");
+    add("chain", fatal.length ? "fail" : "pass", detail, [...fatal, ...notes]);
   }
 
   // ── 3. anchors ───────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@
 // top, not per repo.
 import type { Pool } from "pg";
 import { config } from "../config.js";
-import { verifyAuditChain, verifyAgainstAnchor, makeAnchor } from "../audit/tamper.js";
+import { verifyAuditChain, verifyAgainstAnchor, makeAnchor, describeChain } from "../audit/tamper.js";
 import { flaggedCountsByRepo, flaggedBucketsByRepo, FLAGGED_BUCKETS } from "../digest/digest.js";
 import { buildIssues } from "./remediation.js";
 import { getRepoModes, DEFAULT_MODE } from "../steward/repoMode.js";
@@ -110,7 +110,7 @@ export async function buildOverview(
     headline: integrityOk
       ? "The change record is intact and tamper-evident."
       : "The change record failed verification — open a repo's Details to review.",
-    chain: chain.intact ? `intact (${chain.checked} entries)` : `broken at entry ${chain.brokenAtSeq} (${chain.reason})`,
+    chain: describeChain(chain),
   };
 
   if (!uniq.length) {

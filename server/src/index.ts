@@ -8,7 +8,7 @@ import { registerApi } from "./api/health.js";
 import { registerAnchors } from "./api/anchors.js";
 import { registerSteward } from "./steward/routes.js";
 import { recentChangelog } from "./audit/audit.js";
-import { verifyAuditChain, verifyAgainstAnchor, makeAnchor } from "./audit/tamper.js";
+import { verifyAuditChain, verifyAgainstAnchor, makeAnchor, describeChain } from "./audit/tamper.js";
 import { buildDigest } from "./digest/digest.js";
 import { renderDigestHtml, renderDigestText } from "./digest/render.js";
 import { buildHealthReport } from "./health/health.js";
@@ -84,7 +84,10 @@ export function buildServer(pool: Pool) {
       ? await verifyAgainstAnchor(pool, sink)
       : { status: "no-anchor" as const, detail: "no WORM anchor configured" };
     const ok = chain.intact && anchor.status !== "tampered";
-    return { ok, chain, anchor };
+    // `summary` so a reader gets the answer without reconstructing it from the
+    // parts — and so a fork is stated in words rather than inferred from an
+    // array nobody reads.
+    return { ok, summary: describeChain(chain), chain, anchor };
   });
 
   // The repo health page (tier 3) — one pull-up chart. Folds the Steward's
