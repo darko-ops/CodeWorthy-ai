@@ -5,6 +5,7 @@ import { appendAuditEvent } from "./audit.js";
 import {
   anchorAuditHead,
   chainHead,
+  describeChain,
   InMemoryAnchor,
   verifyAgainstAnchor,
   verifyAuditChain,
@@ -30,6 +31,38 @@ async function seed(n: number) {
       actor: `user${i}`, payload: { i }, plainEnglish: `event ${i}`,
     });
   }
+}
+
+// Build the exact shape production produced: a second row chaining onto a
+// parent that already has a child. Done by inserting with the chain trigger off
+// and then computing the hashes with the DB's OWN functions — so the fork's
+// hashes are genuinely valid, which is the whole point. A fork is a real hash
+// tree; only its shape is unexpected.
+async function forkFrom(parentId: string | number): Promise<string> {
+  await pool.query("ALTER TABLE audit_events DISABLE TRIGGER audit_events_chain");
+  let id: string;
+  try {
+    const r = await pool.query(
+      `INSERT INTO audit_events (installation_id, repo, event_type, actor, payload, plain_english, canon_version)
+       VALUES (1, 'acme/app', 'push.direct_to_default', 'racer', '{}'::jsonb, 'concurrent sibling', 2)
+       RETURNING id`
+    );
+    id = String(r.rows[0].id);
+  } finally {
+    await pool.query("ALTER TABLE audit_events ENABLE TRIGGER audit_events_chain");
+  }
+  await withImmutabilityOff(async () => {
+    await pool.query(
+      `UPDATE audit_events a
+          SET prev_hash = p.row_hash,
+              row_hash = digest(p.row_hash || audit_canonical_v2(
+                a.id, a.ts, a.installation_id, a.repo, a.event_type, a.actor, a.payload, a.plain_english), 'sha256')
+         FROM audit_events p
+        WHERE p.id = $1 AND a.id = $2`,
+      [parentId, id]
+    );
+  });
+  return id;
 }
 
 describe("M1.5 hash chain — tamper evidence", () => {
@@ -74,6 +107,62 @@ describe("M1.5 hash chain — tamper evidence", () => {
     const mid = (await pool.query("SELECT id FROM audit_events ORDER BY id OFFSET 2 LIMIT 1")).rows[0].id;
     await withImmutabilityOff(async () => {
       await pool.query("DELETE FROM audit_events WHERE id = $1", [mid]);
+    });
+    const v = await verifyAuditChain(pool);
+    expect(v.intact).toBe(false);
+    expect(v.reason).toBe("linkage");
+  });
+
+  // ── forks: valid hashes, non-linear shape ────────────────────────────────
+  //
+  // Production hit this and both verifiers called it tampering. It is not: no
+  // content was altered and every pointer resolves. Reporting it as an attack
+  // taught an auditor to ignore the one alarm that matters.
+
+  it("a concurrency fork verifies as intact, and is NAMED rather than hidden", async () => {
+    await seed(3);
+    const [, parent] = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
+    const sibling = await forkFrom(parent!);
+
+    const v = await verifyAuditChain(pool);
+    expect(v.intact).toBe(true);          // nothing was altered
+    expect(v.reason).toBeUndefined();
+    expect(v.forks).toHaveLength(1);
+    expect(v.forks?.[0]).toEqual({ seq: sibling, parentSeq: parent });
+  });
+
+  it("describeChain says so in words, with the entry named", async () => {
+    await seed(3);
+    const [, parent] = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
+    const sibling = await forkFrom(parent!);
+    const text = describeChain(await verifyAuditChain(pool));
+    expect(text).toContain("intact");
+    expect(text).toContain("concurrency fork");
+    expect(text).toContain(sibling);
+    expect(text).toContain("no content altered");
+  });
+
+  it("a fork does NOT mask a real edit elsewhere", async () => {
+    // The risk of tolerating forks is that tolerance leaks into the checks that
+    // must stay strict. It must not.
+    await seed(4);
+    const ids = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
+    await forkFrom(ids[1]!);
+    await withImmutabilityOff(async () => {
+      await pool.query("UPDATE audit_events SET actor = 'tampered' WHERE id = $1", [ids[3]]);
+    });
+    const v = await verifyAuditChain(pool);
+    expect(v.intact).toBe(false);
+    expect(v.reason).toBe("content");
+    expect(v.brokenAtSeq).toBe(ids[3]);
+  });
+
+  it("a fork does NOT mask a deletion", async () => {
+    await seed(5);
+    const ids = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
+    await forkFrom(ids[0]!);
+    await withImmutabilityOff(async () => {
+      await pool.query("DELETE FROM audit_events WHERE id = $1", [ids[3]]);
     });
     const v = await verifyAuditChain(pool);
     expect(v.intact).toBe(false);

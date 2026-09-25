@@ -23,14 +23,33 @@ Every audit event is one row. Each row commits to its predecessor:
 row_hash = SHA-256( prev_row_hash_bytes ‖ canonical_bytes(row) )
 ```
 
-- `prev_row_hash_bytes` — the raw 32 hash bytes of the previous row by `id`
-  order; the **empty byte string** for the genesis row (or the first row after
-  an authorized truncation).
-- Appends are serialized (Postgres advisory lock), so the chain is strictly
-  linear — no forks.
-- Editing any hashed field breaks that row's recomputation (**content**);
-  removing or reordering rows breaks the `prev_hash` linkage (**linkage**).
-  A verifier reports the first broken row and which kind.
+- `prev_row_hash_bytes` — the raw 32 hash bytes of the row the writer saw as
+  the newest at the moment it appended; the **empty byte string** for the
+  genesis row (or the first row after an authorized truncation).
+- Appends are serialized, so in the normal case that predecessor is the previous
+  row by `id` and the chain is strictly linear.
+- **A verifier MUST NOT assume it.** Two rows may chain onto the same parent — a
+  **branch**. This is what concurrent appends produced before the writer
+  serialized id assignment as well as hashing, and such rows exist in records
+  already exported. Every hash in a branch is valid and no content is altered;
+  the shape is simply not a line. Note that the younger sibling is a leaf no
+  later row commits to, so it does **not** carry the append-only protection the
+  rest of the chain does.
+- Resolve `prev_hash` against the **set** of row hashes in the segment, not by
+  walking forward with a running predecessor. A branch's younger sibling carries
+  a LOWER `id` than the row it chains onto (the writer picks its predecessor by
+  highest id), so its parent appears LATER in `id` order.
+- Three outcomes, and a verifier MUST keep them distinct:
+  | Observation | Meaning | Verdict |
+  |---|---|---|
+  | A row's hash ≠ its recomputation from its own stored `prev_hash` | a hashed field was edited (**content**) | **fail**, naming the row |
+  | A row's `prev_hash` names a hash no row in the segment carries | a row was removed or reordered (**linkage**) | **fail**, naming the row |
+  | Two rows share a `prev_hash`, all hashes valid | concurrent append (**branch**) | **finding**, naming the rows — never a failure |
+
+  Reporting a branch as tampering is a conformance defect: it trains a reader to
+  discount the alarm that means something. A wholesale recomputation of the
+  chain remains outside what this structure can detect on its own — that is what
+  external anchoring is for (`evidence-conformance.md` C3).
 
 ## 2. Canonical bytes — v2
 

@@ -28,6 +28,7 @@ findings to sample.
 | Demonstrate | `codeworthy-verify report PKG` → `✓ chain: N row(s) recomputed and chained end to end` |
 | Negative test | Alter any field of any exported row → the same command fails naming the row and the failure mode (content vs linkage). |
 | Notes | The verifier RECOMPUTES every hash from raw fields per the published spec; claimed hashes are checked, never believed. |
+| Branches | Two rows sharing a `prev_hash` (a concurrent append) is a **finding**, not an integrity failure: every hash verifies and no content was altered. It is reported by name, with the caveat that the younger sibling is a leaf no later row commits to. A verifier that fails on a branch does not satisfy C1 — it cannot distinguish an edit from a race, so its "fail" carries no information. See `canonical-encoding.md` §1. |
 
 ## C2 — Independence: verification requires nothing from the vendor
 

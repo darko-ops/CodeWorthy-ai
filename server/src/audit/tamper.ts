@@ -22,11 +22,21 @@ export interface ChainHead {
   count: number; // total rows, so a truncation-and-rebuild changes the head
 }
 
+/** A branch in the chain: `seq` and `parentSeq`'s other child share a parent. */
+export interface ChainFork {
+  seq: string;        // the row whose prev_hash has a sibling pointing at it too
+  parentSeq: string;  // the row they both chain onto
+}
+
 export interface ChainVerification {
+  /** Content verified AND every link resolves to a real row. A fork does not
+   *  make the record un-intact — see the note on verifyAuditChain. */
   intact: boolean;
   checked: number;
   brokenAtSeq?: string; // first row that fails; absent when intact
   reason?: "content" | "linkage"; // content = a field was altered; linkage = a row was removed/reordered
+  /** Concurrency branches: valid hashes, non-linear shape. Reported, not failed. */
+  forks?: ChainFork[];
 }
 
 // Recompute every row's hash from its content + the ACTUAL previous row's hash,
@@ -36,43 +46,78 @@ export interface ChainVerification {
 // truth so the recompute matches the trigger exactly, and a canonical upgrade
 // never orphans existing history.
 export async function verifyAuditChain(pool: Pool): Promise<ChainVerification> {
-  const { rows } = await pool.query(
-    `WITH chain AS (
-       SELECT id, row_hash, prev_hash,
-              lag(row_hash) OVER (ORDER BY id) AS actual_prev,
-              digest(
-                coalesce(lag(row_hash) OVER (ORDER BY id), '\\x'::bytea) ||
-                CASE canon_version
-                  WHEN 2 THEN audit_canonical_v2(id, ts, installation_id, repo, event_type, actor, payload, plain_english)
-                  ELSE audit_canonical(id, ts, installation_id, repo, event_type, actor, payload, plain_english)
-                END,
-                'sha256'
-              ) AS recomputed
-       FROM audit_events
-     ), total AS (SELECT count(*)::int AS n FROM audit_events)
-     SELECT id::text AS seq,
-            (row_hash IS DISTINCT FROM recomputed) AS content_broken,
-            (prev_hash IS DISTINCT FROM actual_prev) AS link_broken,
-            (SELECT n FROM total) AS checked
-     FROM chain
-     WHERE row_hash IS DISTINCT FROM recomputed OR prev_hash IS DISTINCT FROM actual_prev
-     ORDER BY id
-     LIMIT 1`
+  // ── 1. CONTENT: was any field altered after it was recorded? ──────────────
+  //
+  // Recomputed from each row's OWN stored prev_hash. The earlier version used
+  // the positional `lag(row_hash) OVER (ORDER BY id)` instead, which silently
+  // assumed id order IS chain order — so when a concurrent append branched the
+  // chain, every row past the branch looked content-altered as well as
+  // mis-linked, and the endpoint reported tampering where none had occurred.
+  // Using the stored prev_hash asks the one question that is actually about
+  // content, and answers it whatever shape the chain is in.
+  const content = await pool.query(
+    `SELECT id::text AS seq FROM audit_events a
+      WHERE a.row_hash IS DISTINCT FROM digest(
+        coalesce(a.prev_hash, '\\x'::bytea) ||
+        CASE a.canon_version
+          WHEN 2 THEN audit_canonical_v2(a.id, a.ts, a.installation_id, a.repo, a.event_type, a.actor, a.payload, a.plain_english)
+          ELSE        audit_canonical   (a.id, a.ts, a.installation_id, a.repo, a.event_type, a.actor, a.payload, a.plain_english)
+        END, 'sha256')
+      ORDER BY a.id LIMIT 1`
   );
-  if (rows.length === 0) {
-    const c = await pool.query(`SELECT count(*)::int AS n FROM audit_events`);
-    return { intact: true, checked: c.rows[0].n };
+  const { rows: totalRows } = await pool.query(`SELECT count(*)::int AS n FROM audit_events`);
+  const checked: number = totalRows[0].n;
+  if (content.rowCount) {
+    return { intact: false, checked, brokenAtSeq: content.rows[0].seq, reason: "content" };
   }
-  const r = rows[0];
+
+  // ── 2. STRUCTURE: does every link land on a row that exists? ──────────────
+  //
+  // This is what separates an attack from a race, and the distinction is
+  // rigorous rather than convenient. Removing or reordering rows leaves some
+  // prev_hash pointing at a hash no row carries — nothing can forge that
+  // without recomputing everything after it (which is the anchor layer's job to
+  // catch). A concurrent append, by contrast, produces a perfectly valid hash
+  // tree that merely branches: every pointer still resolves.
+  const dangling = await pool.query(
+    `SELECT a.id::text AS seq FROM audit_events a
+      WHERE a.prev_hash IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM audit_events p WHERE p.row_hash = a.prev_hash)
+      ORDER BY a.id LIMIT 1`
+  );
+  if (dangling.rowCount) {
+    return { intact: false, checked, brokenAtSeq: dangling.rows[0].seq, reason: "linkage" };
+  }
+
+  // ── 3. FORKS: valid, but not linear. Named, never hidden. ─────────────────
+  //
+  // Two rows chaining onto the same parent. Reported so an auditor sees it —
+  // the younger sibling is a leaf nothing commits to, so it does NOT enjoy the
+  // "can't be changed without breaking a later link" property the rest of the
+  // chain has, and saying so is the honest position.
+  const forks = await pool.query(
+    `SELECT a.id::text AS seq, p.id::text AS parent_seq
+       FROM audit_events a
+       JOIN audit_events p ON p.row_hash = a.prev_hash
+      WHERE a.prev_hash IS NOT NULL
+        AND (SELECT count(*) FROM audit_events s WHERE s.prev_hash = a.prev_hash) > 1
+        AND a.id < (SELECT max(s.id) FROM audit_events s WHERE s.prev_hash = a.prev_hash)
+      ORDER BY a.id`
+  );
   return {
-    intact: false,
-    checked: r.checked,
-    brokenAtSeq: r.seq,
-    // A broken physical link (stored prev_hash no longer matches the actual
-    // predecessor) means a row was removed or reordered; otherwise a field on
-    // this row was altered.
-    reason: r.link_broken ? "linkage" : "content",
+    intact: true,
+    checked,
+    ...(forks.rowCount ? { forks: forks.rows.map((r) => ({ seq: r.seq, parentSeq: r.parent_seq })) } : {}),
   };
+}
+
+/** One sentence about the chain, for the places that render it to a human. */
+export function describeChain(c: ChainVerification): string {
+  if (!c.intact) return `broken at entry ${c.brokenAtSeq} (${c.reason})`;
+  if (!c.forks?.length) return `intact (${c.checked} entries)`;
+  const n = c.forks.length;
+  return `intact (${c.checked} entries; ${n} concurrency ${n === 1 ? "fork" : "forks"} at ` +
+    `${n === 1 ? "entry" : "entries"} ${c.forks.map((f) => f.seq).join(", ")}, no content altered)`;
 }
 
 export async function chainHead(pool: Pool): Promise<ChainHead | null> {

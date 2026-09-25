@@ -82,11 +82,34 @@ const sha256 = (b: Buffer) => createHash("sha256").update(b).digest("hex");
 // them; we never rely on dynamic key insertion for hashed content.
 const jsonBuf = (v: unknown) => Buffer.from(JSON.stringify(v, null, 2) + "\n", "utf8");
 
+/**
+ * The exported segment: a contiguous id range covering the requested window.
+ *
+ * `last_id` is widened past the window when a row inside it chains onto a row
+ * just outside. That happens where two events were recorded concurrently: the
+ * writer picks its predecessor by highest id, so the younger sibling carries a
+ * LOWER id than the row it chains onto, and a window boundary landing between
+ * them would ship a segment whose last row names a hash the package does not
+ * contain. A verifier can only read that as "a row was removed" — a false
+ * tampering alarm on a genuine package, which is the worst thing an evidence
+ * format can produce. Slightly over-including is the honest trade, and
+ * first_seq/last_seq in chain-binding.json state exactly what shipped.
+ */
 async function fetchSegment(pool: Pool, from: string, to: string): Promise<ExportedRow[]> {
   const { rows } = await pool.query(
     `WITH b AS (
        SELECT (SELECT min(id) FROM audit_events WHERE ts >= $1) AS first_id,
               (SELECT max(id) FROM audit_events WHERE ts <  $2) AS last_id
+     ), closed AS (
+       -- Pull in any parent referenced from inside the range but sitting above
+       -- it, so the segment is self-contained.
+       SELECT b.first_id,
+              greatest(b.last_id, coalesce((
+                SELECT max(p.id) FROM audit_events a
+                  JOIN audit_events p ON p.row_hash = a.prev_hash
+                 WHERE a.id >= b.first_id AND a.id <= b.last_id
+              ), b.last_id)) AS last_id
+         FROM b
      )
      SELECT id::text AS id,
             to_char(ts AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS ts,
@@ -98,7 +121,7 @@ async function fetchSegment(pool: Pool, from: string, to: string): Promise<Expor
             canon_version,
             encode(prev_hash, 'hex') AS prev_hash,
             encode(row_hash, 'hex') AS row_hash
-     FROM audit_events, b
+     FROM audit_events, closed b
      WHERE b.first_id IS NOT NULL AND id >= b.first_id AND id <= b.last_id
      ORDER BY id`,
     [from, to]
@@ -140,7 +163,7 @@ export async function buildEvidencePackage(pool: Pool, params: ExportParams): Pr
     last_seq: last?.id ?? null,
     closing_row_hash: last?.row_hash ?? null,
     row_count: segment.length,
-    note: "The verifier walks the segment: each row's recomputed hash must chain from the previous row, opening at opening_prev_hash and closing at closing_row_hash.",
+    note: "Each row's recomputed hash must chain from a row in this segment (or from opening_prev_hash at the boundary), and the segment closes at closing_row_hash. Rows recorded concurrently may chain onto a row other than their predecessor by id — that is a branch, reported as a finding, not a failure.",
   };
 
   // Anchors covering the segment — plus the independent source, because an
