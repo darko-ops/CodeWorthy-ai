@@ -13,6 +13,7 @@
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { Pool } from "pg";
 import { migrate } from "../../db/migrate.js";
+import { createHash, createCipheriv, randomBytes } from "node:crypto";
 import { createSession, deleteSession, getSession } from "./session.js";
 
 const url = process.env.DATABASE_URL ?? "postgres://acme@localhost:55432/steward_test";
@@ -61,6 +62,28 @@ describe("session secrets at rest", () => {
     const id = await createSession(pool, user);
     await deleteSession(pool, id);
     expect(await getSession(pool, id)).toBeNull();
+    expect((await pool.query("SELECT count(*)::int AS n FROM user_sessions")).rows[0].n).toBe(0);
+  });
+
+  it("a session encrypted under a different key is signed out, not 500'd", async () => {
+    // Rotation, simulated by writing a row this process cannot read. The point
+    // is that changing STEWARD_TOKEN_KEY needs no DELETE pass and no
+    // re-encryption: stale sessions evict themselves when next presented.
+    const id = "a-bearer-from-before-the-rotation";
+    const iv = randomBytes(12);
+    const c = createCipheriv("aes-256-gcm", randomBytes(32), iv);
+    const body = Buffer.concat([c.update("ghu_old", "utf8"), c.final()]);
+    const foreign = ["v1", iv.toString("base64url"), c.getAuthTag().toString("base64url"), body.toString("base64url")].join(".");
+    await pool.query(
+      `INSERT INTO user_sessions (id_sha256, gh_login, gh_name, gh_avatar, gh_token_enc, expires_at)
+       VALUES ($1, 'old-user', null, null, $2, now() + interval '7 days')`,
+      [createHash("sha256").update(id, "utf8").digest("hex"), foreign]
+    );
+
+    const logged: string[] = [];
+    expect(await getSession(pool, id, (m) => logged.push(m))).toBeNull();
+    expect(logged.join(" ")).toMatch(/could not be decrypted/);
+    // Evicted, so it is not retried on every subsequent request.
     expect((await pool.query("SELECT count(*)::int AS n FROM user_sessions")).rows[0].n).toBe(0);
   });
 

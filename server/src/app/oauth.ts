@@ -13,13 +13,22 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { config } from "../config.js";
 import { signingSecret } from "./secret.js";
+import { tokenKeyConfigured } from "./tokenCrypto.js";
 import { GitHubHttpError } from "../github/client.js";
 
 const GH = "https://github.com";
 const API = "https://api.github.com";
 
+/**
+ * Can anyone actually sign in?
+ *
+ * Includes the token key, because a session cannot be created without it (see
+ * session.ts). Checking here means /auth/github/login redirects to
+ * `?error=not_configured` — a state the SPA already renders — instead of the
+ * user completing a GitHub round trip and hitting a failure at the callback.
+ */
 export function oauthConfigured(): boolean {
-  return Boolean(config.github.clientId && config.github.clientSecret);
+  return Boolean(config.github.clientId && config.github.clientSecret) && tokenKeyConfigured();
 }
 
 // One key for everything this process signs — see secret.ts. Share tokens are

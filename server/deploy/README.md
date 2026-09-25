@@ -40,6 +40,11 @@ fly secrets set STEWARD_SMTP_URL='smtps://user:pass@smtp.host:465' \
   STEWARD_MAIL_FROM='CodeWorthy <steward@yourdomain>' \
   STEWARD_DIGEST_TO='founder@acme.com'
 
+# REQUIRED for dashboard sign-in. Encrypts the GitHub token in user_sessions, so
+# a database disclosure yields nothing usable. Set this BEFORE deploying the
+# release that adds it, or sign-in is disabled until you do.
+fly secrets set STEWARD_TOKEN_KEY="$(openssl rand -base64 32)"
+
 # WORM anchor (optional; S3 Object Lock — see ../README.md "WORM anchor setup")
 fly secrets set STEWARD_ANCHOR_S3_BUCKET='my-codeworthy-audit' \
   STEWARD_ANCHOR_S3_REGION='us-east-1' \
