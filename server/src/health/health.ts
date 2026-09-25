@@ -352,7 +352,7 @@ async function integrityVitalAndSection(pool: Pool, deps: HealthDeps): Promise<{
     // the rest of the chain has. Saying so here is the difference between a
     // record that reports itself honestly and one that only reports failures.
     const forked = chain.forks?.length
-      ? ` ${chain.forks.length} entr${chain.forks.length === 1 ? "y was" : "ies were"} recorded concurrently and sit on a branch (${chain.forks.map((f) => f.seq).join(", ")}) — their contents verify, but nothing later commits to them.`
+      ? ` ${chain.forks.length} point${chain.forks.length === 1 ? "" : "s"} in the log ${chain.forks.length === 1 ? "has" : "have"} entries recorded concurrently (${chain.forks.map((f) => `${f.childSeqs.join(" and ")} onto ${f.parentSeq}`).join("; ")}) — every hash verifies and nothing was altered, but an entry nothing later commits to is not protected the way the rest are.`
       : "";
     vital = { id: "integrity", label: "Record integrity", status: "healthy",
       finding: `The change log verifies intact${anchored} — ${chain.checked} entr${chain.checked === 1 ? "y" : "ies"} checked. This is the change-control evidence a SOC 2 auditor asks for.${forked}`,

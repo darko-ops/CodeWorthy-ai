@@ -22,10 +22,18 @@ export interface ChainHead {
   count: number; // total rows, so a truncation-and-rebuild changes the head
 }
 
-/** A branch in the chain: `seq` and `parentSeq`'s other child share a parent. */
+/**
+ * A branch: more than one row chains onto the same parent.
+ *
+ * Reported at the PARENT, listing its children, because "which child is the
+ * real continuation and which is the stray" has no order-independent answer —
+ * when both are leaves it is a coin toss, and a verifier must not report a coin
+ * toss as a finding. The fact that matters is that the parent has more than one
+ * child, and every one of them that nothing chains onto is unprotected.
+ */
 export interface ChainFork {
-  seq: string;        // the row whose prev_hash has a sibling pointing at it too
-  parentSeq: string;  // the row they both chain onto
+  parentSeq: string;    // the row they all chain onto
+  childSeqs: string[];  // the rows that chain onto it, by id
 }
 
 export interface ChainVerification {
@@ -96,18 +104,21 @@ export async function verifyAuditChain(pool: Pool): Promise<ChainVerification> {
   // "can't be changed without breaking a later link" property the rest of the
   // chain has, and saying so is the honest position.
   const forks = await pool.query(
-    `SELECT a.id::text AS seq, p.id::text AS parent_seq
+    `SELECT p.id::text AS parent_seq,
+            array_agg(a.id::text ORDER BY a.id) AS child_seqs
        FROM audit_events a
        JOIN audit_events p ON p.row_hash = a.prev_hash
       WHERE a.prev_hash IS NOT NULL
-        AND (SELECT count(*) FROM audit_events s WHERE s.prev_hash = a.prev_hash) > 1
-        AND a.id < (SELECT max(s.id) FROM audit_events s WHERE s.prev_hash = a.prev_hash)
-      ORDER BY a.id`
+      GROUP BY p.id
+     HAVING count(*) > 1
+      ORDER BY p.id`
   );
   return {
     intact: true,
     checked,
-    ...(forks.rowCount ? { forks: forks.rows.map((r) => ({ seq: r.seq, parentSeq: r.parent_seq })) } : {}),
+    ...(forks.rowCount
+      ? { forks: forks.rows.map((r) => ({ parentSeq: r.parent_seq, childSeqs: r.child_seqs as string[] })) }
+      : {}),
   };
 }
 
@@ -116,8 +127,8 @@ export function describeChain(c: ChainVerification): string {
   if (!c.intact) return `broken at entry ${c.brokenAtSeq} (${c.reason})`;
   if (!c.forks?.length) return `intact (${c.checked} entries)`;
   const n = c.forks.length;
-  return `intact (${c.checked} entries; ${n} concurrency ${n === 1 ? "fork" : "forks"} at ` +
-    `${n === 1 ? "entry" : "entries"} ${c.forks.map((f) => f.seq).join(", ")}, no content altered)`;
+  const where = c.forks.map((f) => `${f.childSeqs.join(" and ")} both chain onto ${f.parentSeq}`).join("; ");
+  return `intact (${c.checked} entries; ${n} concurrency ${n === 1 ? "fork" : "forks"} — ${where}; no content altered)`;
 }
 
 export async function chainHead(pool: Pool): Promise<ChainHead | null> {

@@ -121,24 +121,31 @@ describe("M1.5 hash chain — tamper evidence", () => {
 
   it("a concurrency fork verifies as intact, and is NAMED rather than hidden", async () => {
     await seed(3);
-    const [, parent] = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
-    const sibling = await forkFrom(parent!);
+    const ids = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
+    const parent = ids[1]!;            // its natural child is ids[2]
+    const sibling = await forkFrom(parent);
 
     const v = await verifyAuditChain(pool);
-    expect(v.intact).toBe(true);          // nothing was altered
+    expect(v.intact).toBe(true);       // nothing was altered
     expect(v.reason).toBeUndefined();
     expect(v.forks).toHaveLength(1);
-    expect(v.forks?.[0]).toEqual({ seq: sibling, parentSeq: parent });
+    // Reported at the parent with BOTH children, so the answer doesn't depend on
+    // guessing which sibling was "meant" to be the continuation.
+    // Numeric sort: array_agg orders by the bigint id, which a string sort only
+    // matches until the ids cross a digit boundary.
+    const expected = [ids[2]!, sibling].sort((a, b) => Number(a) - Number(b));
+    expect(v.forks?.[0]).toEqual({ parentSeq: parent, childSeqs: expected });
   });
 
-  it("describeChain says so in words, with the entry named", async () => {
+  it("describeChain says so in words, naming the parent and both children", async () => {
     await seed(3);
-    const [, parent] = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
-    const sibling = await forkFrom(parent!);
+    const ids = (await pool.query("SELECT id FROM audit_events ORDER BY id")).rows.map((r) => String(r.id));
+    const sibling = await forkFrom(ids[1]!);
     const text = describeChain(await verifyAuditChain(pool));
     expect(text).toContain("intact");
     expect(text).toContain("concurrency fork");
-    expect(text).toContain(sibling);
+    expect(text).toContain(ids[1]!);   // the parent
+    expect(text).toContain(sibling);   // the injected child
     expect(text).toContain("no content altered");
   });
 

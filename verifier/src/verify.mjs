@@ -199,23 +199,31 @@ export function verifyPackage(files, opts = {}) {
       lastRowHash = r.row_hash;
     }
 
-    // Branches, named. All but the highest-id child of a shared parent are the
-    // leaves nothing commits to.
+    // Branches, reported AT THE PARENT with every child named.
+    //
+    // Not "all but the highest-id child", which is what this did first: that
+    // picks a continuation, and when both children are leaves the pick is
+    // arbitrary. A verifier must not report an arbitrary choice as a finding.
+    // The fact is that the parent has more than one child; which of them the
+    // record went on to extend is visible from the data, not from a guess here.
     let branchCount = 0;
     if (fatal.length === 0) {
       for (const [parentHash, kids] of children) {
         if (kids.length < 2) continue;
+        branchCount++;
         const parent = byHash.get(parentHash);
-        const continuation = kids.reduce((a, b) => (BigInt(a.id) > BigInt(b.id) ? a : b));
-        for (const kid of kids) {
-          if (kid === continuation) continue;
-          branchCount++;
-          notes.push(
-            `row ${kid.id}: recorded concurrently with row ${continuation.id} — both chain onto ` +
-            `row ${parent ? parent.id : "the segment boundary"}. Every hash verifies and no content was altered, ` +
-            `but no later row commits to row ${kid.id}, so it does not carry the append-only protection the rest of the chain does.`
-          );
-        }
+        const named = kids.map((k) => `row ${k.id}`).join(" and ");
+        const extended = new Set(kids.filter((k) => children.has(k.row_hash)).map((k) => k.id));
+        const leaves = kids.filter((k) => !extended.has(k.id)).map((k) => `row ${k.id}`);
+        notes.push(
+          `${named} were recorded concurrently — both chain onto ` +
+          `${parent ? `row ${parent.id}` : "the segment boundary"}. Every hash verifies and no content was ` +
+          `altered; the chain simply branches here. ` +
+          (leaves.length
+            ? `${leaves.join(" and ")} ${leaves.length === 1 ? "is a leaf" : "are leaves"} no later row commits to, so ` +
+              `${leaves.length === 1 ? "it does" : "they do"} not carry the append-only protection the rest of the chain does.`
+            : `Both branches are extended by later rows.`)
+        );
       }
     }
 
@@ -228,7 +236,7 @@ export function verifyPackage(files, opts = {}) {
       ? fatal[0]
       : `${rows.length} row(s) recomputed and chained end to end` +
         (v1Rows ? ` (${v1Rows} v1 row(s): linkage verified, content integrity inherited from the surrounding v2 chain)` : "") +
-        (branchCount ? `; ${branchCount} concurrently-recorded row(s) sit on a branch — see findings` : "");
+        (branchCount ? `; the chain branches at ${branchCount} point(s) where rows were recorded concurrently — see findings` : "");
     add("chain", fatal.length ? "fail" : "pass", detail, [...fatal, ...notes]);
   }
 
