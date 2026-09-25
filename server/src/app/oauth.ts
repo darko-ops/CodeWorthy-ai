@@ -12,6 +12,7 @@
 //   4. getUser / listInstallations / listRepositories use that token
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { config } from "../config.js";
+import { signingSecret } from "./secret.js";
 import { GitHubHttpError } from "../github/client.js";
 
 const GH = "https://github.com";
@@ -21,12 +22,11 @@ export function oauthConfigured(): boolean {
   return Boolean(config.github.clientId && config.github.clientSecret);
 }
 
-function secret(): string {
-  // A boot-time fallback keeps a single instance working without config; set
-  // STEWARD_SESSION_SECRET in prod so state/sessions survive restarts.
-  return config.sessionSecret || BOOT_SECRET;
-}
-const BOOT_SECRET = randomBytes(32).toString("hex");
+// One key for everything this process signs — see secret.ts. Share tokens are
+// signed with it too, and two modules each keeping their own boot fallback
+// would have meant a share link minted before a restart silently outliving the
+// key that could verify it.
+const secret = signingSecret;
 
 // The OAuth redirect target GitHub is configured to call back.
 export function callbackUrl(): string {
@@ -141,8 +141,9 @@ export async function listRepositories(token: string, installationId: number): P
 }
 
 // Gate helper: does this user have access to owner/name through some
-// installation? Used before returning a repo's Steward activity so the
-// (currently public) changelog is only served to someone who can see the repo.
+// installation? This is the predicate the whole read surface rests on — see
+// readScope.ts, which uses it to answer "may this session see this repo?" and
+// "which repos may it see at all?".
 /** Which installation covers this repo, so we can act on it. Null if none. */
 export async function installationForRepo(token: string, fullName: string): Promise<number | null> {
   const insts = await listInstallations(token);

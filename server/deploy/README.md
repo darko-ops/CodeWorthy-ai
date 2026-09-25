@@ -94,5 +94,8 @@ fly machine run . --schedule weekly --command "node dist/digest/digest-job.js"
 
 - `GET /health` → `{ ok: true }`
 - `GET /steward/integrity` → chain + anchor status
-- `GET /steward/health.html?repo=owner/name` → the repo health page
+- `GET /steward/health.html?repo=owner/name&t=<share token>` → the repo health page.
+  The token comes from the dashboard's "Share summary" link (or the check run's
+  Details link); without one the page needs a signed-in session. Set
+  `STEWARD_SESSION_SECRET` or those links stop verifying after every restart.
 - Share `https://<your-app>.fly.dev/steward/install` to onboard a repo.

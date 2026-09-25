@@ -4,14 +4,20 @@
 //   /steward/install            — what CodeWorthy will do, and the disclosures,
 //                                 then an "Install on GitHub" button.
 //   /steward/setup              — GitHub sends the user here AFTER they install.
-//                                 Confirms it's on, and asks the one real
-//                                 consent: "protect your default branch now?"
-//   POST /steward/setup/protect — applies branch protection to the installation's
-//                                 repos ONLY because the human just clicked yes.
+//                                 Confirms it's on, and hands off to the signed-in
+//                                 dashboard for the one real consent.
 //
-// The install-screen grants the permissions; this flow is where CodeWorthy earns
-// the one privileged action (changing repo settings) with an explicit click,
-// never silently. Everything else it does is additive and reversible.
+// The consent itself used to live here, as an unauthenticated POST carrying the
+// installation id in its body — which meant the only thing between a stranger
+// and another customer's branch-protection settings was guessing a small
+// integer. It now lives at POST /api/installations/:id/protect, behind a
+// session that has proven, with its own GitHub token, that the installation is
+// theirs. These pages are anonymous by nature (GitHub redirects here before
+// anyone has signed in), so no privileged action may live on them at all.
+//
+// The install-screen grants the permissions; the dashboard is where CodeWorthy
+// earns the one privileged action (changing repo settings) with an explicit
+// click, never silently. Everything else it does is additive and reversible.
 import type { Pool } from "pg";
 import { getInstallationClient } from "../github/auth.js";
 import type { GitHubClient } from "../github/client.js";
@@ -70,34 +76,25 @@ ${cta}
 <div class="foot">You'll pick which repositories on the next screen. You can uninstall any time.</div>`);
 }
 
-export function renderSetupPage(o: { installationId: number | null; setupAction: string | null }): string {
+export function renderSetupPage(o: { installationId: number | null; setupAction: string | null; webBaseUrl: string }): string {
   const installed = o.setupAction !== "update";
-  const consent = o.installationId != null
-    ? `<form method="post" action="/steward/setup/protect">
-         <input type="hidden" name="installation_id" value="${esc(o.installationId)}">
-         <button class="btn" type="submit">Protect my default branch →</button>
-       </form>
-       <p class="muted">This requires a pull request for changes to your default branch, requires CodeWorthy's review check to pass, and blocks force-pushes and deletions. <b>CodeWorthy will also keep it on:</b> if the rule is later weakened, it puts it back and records both the change and the fix. Reversible any time — turn the rule off in your GitHub settings and CodeWorthy records that choice instead of fighting it.</p>`
-    : `<p class="muted">Couldn't read the installation id from GitHub — you can still turn on protection later from the digest.</p>`;
+  // The hand-off, not the action. Changing someone's repository settings needs
+  // to know WHO is asking, and this page — which GitHub redirects to, with no
+  // session and no way to get one — structurally cannot know.
+  const next = o.installationId != null
+    ? `<a class="btn" href="${esc(`${o.webBaseUrl}/dashboard?installed=${o.installationId}`)}">Open your dashboard →</a>
+       <p class="muted">You'll sign in with GitHub, then turn on branch protection there — one click, for the repositories you just selected. Protection requires a pull request for changes to your default branch, requires CodeWorthy's review check to pass, and blocks force-pushes and deletions. <b>CodeWorthy will also keep it on:</b> if the rule is later weakened, it puts it back and records both the change and the fix. Reversible any time — turn the rule off in your GitHub settings and CodeWorthy records that choice instead of fighting it.</p>`
+    : `<a class="btn" href="${esc(`${o.webBaseUrl}/dashboard`)}">Open your dashboard →</a>
+       <p class="muted">Couldn't read the installation id from GitHub — sign in to the dashboard and turn protection on per repository from there.</p>`;
   return page("CodeWorthy is set up", `
 <h1>✅ CodeWorthy is ${installed ? "installed" : "updated"}</h1>
 <div class="sub">It's now watching your selected repositories. From here on, it logs what happens and can guard your main branch.</div>
 <div class="card">
   <h2>One decision — the only setting that changes your repo</h2>
   <p>Turn on branch protection so changes to your default branch go through a reviewable pull request. Nothing else CodeWorthy does changes your settings.</p>
-  ${consent}
+  ${next}
 </div>
-<div class="foot">You'll get a weekly digest. Your live repo chart is always at <code>/steward/health.html?repo=owner/name</code>.</div>`);
-}
-
-export function renderProtectDonePage(results: Array<{ repo: string; ok: boolean; error?: string }>): string {
-  const rows = results.map((r) => `<li>${r.ok ? "🟢" : "🔴"} <b>${esc(r.repo)}</b>${r.ok ? " — protected" : ` — couldn't protect${r.error ? ` (${esc(r.error)})` : ""}`}</li>`).join("");
-  const anyOk = results.some((r) => r.ok);
-  return page("Protection turned on", `
-<h1>${anyOk ? "🛡️ Your default branch is protected" : "⚠️ Nothing was changed"}</h1>
-<div class="sub">${anyOk ? "Changes now go through a reviewable pull request that CodeWorthy has to pass. Force-pushes and deletions are blocked, and if the rule is weakened CodeWorthy puts it back." : "No repositories were updated."}</div>
-<div class="card"><h2>Repositories</h2><ul>${rows || "<li class='muted'>No repositories found for this installation.</li>"}</ul></div>
-<div class="foot">Every change from here is logged in plain language. You own every merge.</div>`);
+<div class="foot">You'll get a weekly digest. Your repo's live chart is on the dashboard, and every "Share summary" link there works without a login.</div>`);
 }
 
 // One-click App registration: a form that POSTs the manifest to GitHub's

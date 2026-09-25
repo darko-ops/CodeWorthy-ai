@@ -29,7 +29,21 @@ import {
 import { type StewardConfig } from "./stewardConfig.js";
 import { getRepoRules, toStewardConfig } from "./repoRules.js";
 import { getAnthropicClient, type LlmClient } from "./llm/anthropic.js";
+import { shareUrlFor } from "../app/shareToken.js";
 import { reviewPullRequest } from "./llm/reviewer.js";
+
+/**
+ * The "Details" link on the check run.
+ *
+ * Whoever clicks it is coming from GitHub's checks UI with no CodeWorthy
+ * session — often a reviewer who has never signed in — so the link has to carry
+ * its own authority. A share token scoped to this repo is exactly that, and it
+ * is why the health page could be closed to anonymous callers without the check
+ * run's link going dead.
+ */
+function healthLink(repo: string): string {
+  return shareUrlFor(config.baseUrl, repo, 30, "/steward/health.html");
+}
 
 export interface ActionDeps {
   client?: GitHubClient; // injected in tests
@@ -71,7 +85,7 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
         author: pr.user?.login ?? null,
         installationId,
         config: repoConfig,
-        detailsUrl: `${config.baseUrl}/steward/health.html?repo=${encodeURIComponent(repo)}`,
+        detailsUrl: healthLink(repo),
       });
       // The approver runs AFTER the gate, because it decides on the gate's
       // verdict for this exact commit. It is a separate GitHub App with its own
@@ -131,7 +145,7 @@ export async function runActions(pool: Pool, eventName: string, payload: any, de
         author: null,
         installationId,
         config: repoConfig,
-        detailsUrl: `${config.baseUrl}/steward/health.html?repo=${encodeURIComponent(repo)}`,
+        detailsUrl: healthLink(repo),
       });
       await runApprover(pool, { repo, number: pr.number, headSha, author: null, installationId }).catch(() => {});
     }

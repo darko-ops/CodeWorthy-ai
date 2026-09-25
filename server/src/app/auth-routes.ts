@@ -12,8 +12,11 @@ import { mapGitHubError } from "./apiErrors.js";
 import { allowedWebOrigins } from "./webOrigins.js";
 import { recentChangelog } from "../audit/audit.js";
 import { buildHealthReport } from "../health/health.js";
-import { buildOverview, type OverviewRepoInput } from "../health/overview.js";
+import { buildOverview } from "../health/overview.js";
 import { flaggedCountsByRepo } from "../digest/digest.js";
+import { accessibleRepos } from "./readScope.js";
+import { shareUrlFor } from "./shareToken.js";
+import { applyProtectionConsent } from "./install.js";
 import {
   authorizeUrl,
   exchangeCode,
@@ -152,22 +155,6 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       }));
     });
   });
-
-  // Every repo this user can see through their installations. The overview
-  // needs more than the name — visibility and the default branch decide how a
-  // row reads and which branch a decision names — so the GitHub payload is
-  // carried through rather than flattened to strings here.
-  async function accessibleRepos(token: string): Promise<OverviewRepoInput[]> {
-    const insts = await listInstallations(token);
-    const out: OverviewRepoInput[] = [];
-    for (const inst of insts) {
-      const rs = await listRepositories(token, inst.id);
-      for (const r of rs) {
-        out.push({ full_name: r.full_name, private: r.private, default_branch: r.default_branch });
-      }
-    }
-    return out;
-  }
 
   // Flagged-event counts for every repo the user can see, in one call — so the
   // rail can badge problem repos without a health report per repo.
@@ -464,7 +451,62 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
       }
       const q = req.query as { days?: string };
       const windowDays = q.days ? parseInt(q.days, 10) : undefined;
-      return buildHealthReport(pool, { repo: fullName, windowDays });
+      const report = await buildHealthReport(pool, { repo: fullName, windowDays });
+      // The forwardable link, minted here because this is the one place that
+      // has already proven the caller may see this repo. The dashboard renders
+      // it as "Share summary" and hands it to a teammate or an auditor; the
+      // token in it is what lets the digest page answer them without a login,
+      // now that it no longer answers everyone.
+      return { ...report, shareUrl: shareUrlFor(config.baseUrl, fullName, report.activity.windowDays) };
+    });
+  });
+
+  /**
+   * Protect every repository in one installation — the post-install "yes".
+   *
+   * This replaces an unauthenticated POST that took an installation id in its
+   * body and applied branch protection to whatever that id named. Installation
+   * ids are small integers, so the only thing standing between a stranger and
+   * another customer's repository settings was not guessing one; the response
+   * also listed every repo in the installation, which made it a private-repo
+   * name oracle on top.
+   *
+   * The fix is the one this codebase already uses everywhere else: prove, with
+   * the caller's OWN GitHub token, that the installation is theirs. The check
+   * is `listInstallations` — the same call the dashboard's repo list is built
+   * from — so a caller can only reach an installation GitHub already shows them.
+   */
+  app.post("/api/installations/:id/protect", async (req, reply) => {
+    const s = await requireSession(req, reply);
+    if (!s) return;
+    const installationId = parseInt((req.params as { id: string }).id, 10);
+    if (!Number.isFinite(installationId)) {
+      reply.code(400).send({ error: "bad_installation", message: "That isn't an installation id." });
+      return;
+    }
+    return withGitHub(reply, async () => {
+      const mine = await listInstallations(s.token);
+      if (!mine.some((i) => i.id === installationId)) {
+        // Same answer whether the installation belongs to someone else or does
+        // not exist. Telling those apart is the oracle all over again.
+        reply.code(403).send({
+          error: "no_access",
+          message: "That CodeWorthy installation isn't one of yours.",
+        });
+        return;
+      }
+      const results = await applyProtectionConsent(pool, installationId);
+      await appendAuditEvent(pool, {
+        installationId,
+        repo: results[0]?.repo ?? "",
+        eventType: "protection.consented",
+        actor: s.login,
+        payload: { installationId, results },
+        plainEnglish:
+          `${s.login} turned on branch protection across installation ${installationId} from the CodeWorthy dashboard ` +
+          `(${results.filter((r) => r.ok).length} of ${results.length} repositories).`,
+      });
+      return { ok: true, results };
     });
   });
 

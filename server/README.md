@@ -251,13 +251,13 @@ The anchor is what makes the audit log's integrity provable to an auditor. One-t
 | GET | `/health` | liveness |
 | GET | `/api/health` | api module seam (DB check) |
 | POST | `/webhooks/github` | signed webhook intake → audit |
-| GET | `/steward/changelog?repo=&limit=` | plain-language change log |
+| GET | `/steward/changelog?repo=&limit=&t=` | plain-language change log — **scoped**: a share token, or a session (no `repo` = your repos only) |
 | GET | `/steward/integrity` | tamper-evidence check (M1.5) — verify the hash chain + WORM anchor |
-| GET | `/steward/digest[.html\|.txt]?repo=&days=` | weekly digest (M4) |
-| GET | `/steward/health[.html]?repo=&days=` | the repo health page — one pull-up chart (vitals + activity + integrity), no login |
+| GET | `/steward/digest[.html\|.txt]?repo=&days=&t=` | weekly digest (M4) — same scoping |
+| GET | `/steward/health[.html]?repo=&days=&t=` | the repo health page — one pull-up chart (vitals + activity + integrity). No login needed **with a share token**; `repo` is required |
 | GET | `/steward/install` | consent landing — what it will/won't do, then "Install on GitHub" |
 | GET | `/steward/setup` | post-install page — the one consented action (protect the default branch) |
-| POST | `/steward/setup/protect` | apply protection (ruleset, legacy fallback) to the installation's repos (on the click) |
+| POST | `/api/installations/:id/protect` | apply protection (ruleset, legacy fallback) to the installation's repos — **requires a session that owns the installation** |
 | GET | `/steward/app-manifest[/callback]` | one-click GitHub App registration (manifest create + credential exchange) |
 
 ## The invariant

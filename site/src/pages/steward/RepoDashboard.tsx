@@ -25,9 +25,10 @@ import { poll, ThreadView } from "./ThreadView";
 import { Navigate } from "react-router-dom";
 import {
   apiGet,
+  apiAction,
   ApiError,
-  digestUrl,
-  estateDigestUrl,
+  digestShareUrl,
+  openEstateDigest,
   installUrl,
   type ActivityEvent,
   type HealthReport,
@@ -125,6 +126,35 @@ export function RepoDashboard() {
   // here because the input and the rows it filters are in different components.
   const [query, setQuery] = useState("");
   const [overview, setOverview] = useState<OverviewReport | null>(null);
+
+  // The post-install hand-off. GitHub's setup redirect used to end on a page
+  // that applied branch protection itself, from an unauthenticated POST holding
+  // an installation id — so the id, not the person, was the authorization. The
+  // consent now happens HERE, where there is a signed-in user whose own GitHub
+  // token can be asked whether the installation is theirs.
+  const [handoffInstall, setHandoffInstall] = useState<number | null>(() => {
+    const raw = new URLSearchParams(window.location.search).get("installed");
+    const id = raw ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(id) ? id : null;
+  });
+  const [handoffState, setHandoffState] = useState<"idle" | "working" | "done" | "failed">("idle");
+  const [handoffNote, setHandoffNote] = useState<string | null>(null);
+
+  async function protectInstallation(id: number) {
+    setHandoffState("working");
+    try {
+      const res = await apiAction<{ results: Array<{ repo: string; ok: boolean }> }>(
+        `/api/installations/${id}/protect`
+      );
+      const ok = res.results.filter((r) => r.ok).length;
+      setHandoffState("done");
+      setHandoffNote(`Protected ${ok} of ${res.results.length} ${res.results.length === 1 ? "repository" : "repositories"}.`);
+      setHealthNonce((n) => n + 1);
+    } catch (err) {
+      setHandoffState("failed");
+      setHandoffNote(err instanceof ApiError ? err.message : "Couldn't turn protection on.");
+    }
+  }
 
   // Load installations once authed.
   useEffect(() => {
@@ -283,6 +313,34 @@ export function RepoDashboard() {
       // repositories for finding one to be work.
       search={onOverview && (overview?.repos.length ?? 0) > 6 ? { value: query, onChange: setQuery } : undefined}
     >
+      {handoffInstall != null && (
+        <div className="handoff">
+          <div className="handoff-text">
+            <b>CodeWorthy is installed.</b>{" "}
+            {handoffState === "done"
+              ? handoffNote
+              : handoffState === "failed"
+                ? handoffNote
+                : "Turn on branch protection for the repositories you just selected — changes go through a reviewable pull request, and CodeWorthy puts the rule back if it's weakened."}
+          </div>
+          {handoffState === "done" ? (
+            <button className="btn-quiet" type="button" onClick={() => setHandoffInstall(null)}>Done</button>
+          ) : (
+            <>
+              <button
+                className="btn-filled"
+                type="button"
+                disabled={handoffState === "working"}
+                onClick={() => void protectInstallation(handoffInstall)}
+              >
+                {handoffState === "working" ? "Turning on…" : "Protect my default branches"}
+              </button>
+              <button className="btn-quiet" type="button" onClick={() => setHandoffInstall(null)}>Not now</button>
+            </>
+          )}
+        </div>
+      )}
+
       {onOverview ? (
         allRepos.length === 0 && installs ? (
           <div className="overview">
@@ -393,14 +451,19 @@ export function RepoDashboard() {
                     </button>
                   ))}
                 </div>
-                <a
-                  className="link-signal"
-                  href={digestUrl(selectedRepo, windowDays)}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Share summary ↗
-                </a>
+                {/* The link the server minted on this repo's health report.
+                    Absent until that report loads — and absent for good if the
+                    caller can't see the repo, which is the point. */}
+                {digestShareUrl(health) && (
+                  <a
+                    className="link-signal"
+                    href={digestShareUrl(health)}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Share summary ↗
+                  </a>
+                )}
               </div>
             </header>
 
@@ -430,7 +493,6 @@ export function RepoDashboard() {
                 {health && (
                   <RepoDetail
                     report={health}
-                    windowDays={windowDays}
                     actor={user?.login ?? undefined}
                     onChanged={() => setHealthNonce((n) => n + 1)}
                   />
@@ -572,13 +634,18 @@ function RecordStrip({
   title,
   body,
   href,
+  onLink,
   linkLabel,
   stacked = false,
 }: {
   ok: boolean;
   title: string;
   body: string;
+  /** A shareable link, when there is one to hand out. */
   href?: string;
+  /** An action instead — for the estate export, which needs the session
+   *  bearer and so cannot be a URL anyone could follow. */
+  onLink?: () => void;
   linkLabel: string;
   stacked?: boolean;
 }) {
@@ -596,11 +663,15 @@ function RecordStrip({
           <span className="record-body">{body}</span>
         </>
       )}
-      {href && (
+      {href ? (
         <a className="record-link" href={href} target="_blank" rel="noreferrer">
           {linkLabel}
         </a>
-      )}
+      ) : onLink ? (
+        <button className="record-link" type="button" onClick={onLink}>
+          {linkLabel}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -661,7 +732,7 @@ function OverviewPanel({
               : report.integrity.headline
             : report.integrity.headline
         }
-        href={estateDigestUrl(windowDays)}
+        onLink={() => void openEstateDigest(windowDays)}
         linkLabel="Export log ↓"
       />
 
@@ -771,12 +842,10 @@ function Sparkline({ buckets, flagged }: { buckets: number[] | undefined; flagge
 // The repo's verdict band, its vitals, and the decisions between them.
 function RepoDetail({
   report,
-  windowDays,
   actor,
   onChanged,
 }: {
   report: HealthReport;
-  windowDays: number;
   /** Whose name goes on whatever gets decided here. */
   actor?: string;
   onChanged: () => void;
@@ -824,7 +893,7 @@ function RepoDetail({
               ? `${report.integrity.chain} · ${ANCHOR_WORD[report.integrity.anchor] ?? report.integrity.anchor}`
               : report.integrity.headline
           }
-          href={report.repoFilter ? digestUrl(report.repoFilter, windowDays) : undefined}
+          href={digestShareUrl(report)}
           linkLabel="Export ↓"
         />
       </div>

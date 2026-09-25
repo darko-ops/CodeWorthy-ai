@@ -41,11 +41,21 @@ describe("install flow — manifest & pages", () => {
     expect(html).toContain("https://github.com/apps/codeworthy-steward/installations/new");
   });
 
-  it("the setup page offers the one consent (protect) tied to the installation id", () => {
-    const html = renderSetupPage({ installationId: 555, setupAction: "install" });
-    expect(html).toContain('action="/steward/setup/protect"');
-    expect(html).toContain('value="555"');
-    expect(html).toMatch(/protect my default branch/i);
+  it("the setup page hands off to the signed-in dashboard — it never acts itself", () => {
+    const html = renderSetupPage({ installationId: 555, setupAction: "install", webBaseUrl: "https://codeworthy.ai" });
+    expect(html).toContain("https://codeworthy.ai/dashboard?installed=555");
+    expect(html).toMatch(/open your dashboard/i);
+    // The point of the hand-off: this page is reached with no session (GitHub
+    // redirects here), so it must contain no form that changes anything. A
+    // POST target here is a privileged action nobody can be identified for.
+    expect(html).not.toMatch(/<form/i);
+    expect(html).not.toContain("/steward/setup/protect");
+  });
+
+  it("the setup page still works when GitHub omits the installation id", () => {
+    const html = renderSetupPage({ installationId: null, setupAction: "install", webBaseUrl: "https://codeworthy.ai" });
+    expect(html).toContain("https://codeworthy.ai/dashboard");
+    expect(html).not.toMatch(/<form/i);
   });
 
   it("the manifest form posts to GitHub's app-creation endpoint", () => {
