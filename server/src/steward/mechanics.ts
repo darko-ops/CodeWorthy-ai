@@ -23,9 +23,19 @@ export interface DirectPushContext {
   installationId: number | null;
 }
 
+/**
+ * The namespace CodeWorthy creates branches in.
+ *
+ * Exported because the thread list has to be able to recognise them: these are
+ * bookmarks pointing at a commit, not conversations, and one is created per
+ * direct push forever. A repo with sixteen pushes to main had sixteen of them —
+ * enough to bury every branch a person actually worked on.
+ */
+export const STEWARD_BRANCH_PREFIX = "steward/";
+
 export async function retroactiveReview(client: GitHubClient, pool: Pool, ctx: DirectPushContext): Promise<void> {
   const short = ctx.headSha.slice(0, 12);
-  const branch = `steward/edit-${short}`;
+  const branch = `${STEWARD_BRANCH_PREFIX}edit-${short}`;
 
   // Preserve a named branch at the commit (idempotent — ignore "already exists").
   try {

@@ -6,12 +6,10 @@ import type { Pool } from "pg";
 import { config } from "../config.js";
 import { buildAppManifest, buildApproverManifest } from "./manifest.js";
 import {
-  applyProtectionConsent,
   page,
   renderInstallPage,
   renderManifestCredentials,
   renderManifestForm,
-  renderProtectDonePage,
   renderSetupPage,
   renderApproverPage,
   renderApproverCredentials,
@@ -40,23 +38,14 @@ export function registerAppRoutes(app: FastifyInstance, pool: Pool) {
   app.get("/steward/setup", async (req, reply) => {
     const q = req.query as { installation_id?: string; setup_action?: string };
     const installationId = q.installation_id ? parseInt(q.installation_id, 10) : null;
-    html(reply, renderSetupPage({ installationId, setupAction: q.setup_action ?? null }));
-  });
-
-  // The one consented action: turn on branch protection for the installation.
-  app.post("/steward/setup/protect", async (req, reply) => {
-    const body = req.body as { installation_id?: string };
-    const installationId = body?.installation_id ? parseInt(body.installation_id, 10) : NaN;
-    if (!Number.isFinite(installationId)) {
-      return html(reply.code(400), page("Missing installation", "<h1>Missing installation id</h1><p class='muted'>Re-open the setup link from GitHub.</p>"));
-    }
-    try {
-      const results = await applyProtectionConsent(pool, installationId);
-      html(reply, renderProtectDonePage(results));
-    } catch (err) {
-      app.log.error({ err }, "protection consent failed");
-      html(reply.code(502), page("Couldn't reach GitHub", "<h1>⚠️ Couldn't turn on protection</h1><p class='muted'>GitHub didn't respond as expected. You can retry from the digest, or set it in your repo settings.</p>"));
-    }
+    html(
+      reply,
+      renderSetupPage({
+        installationId: Number.isFinite(installationId) ? installationId : null,
+        setupAction: q.setup_action ?? null,
+        webBaseUrl: config.webBaseUrl,
+      })
+    );
   });
 
   // One-click App registration (manifest flow).

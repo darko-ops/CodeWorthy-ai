@@ -33,17 +33,30 @@ export async function appendAuditEvent(pool: Pool, ev: StewardEvent): Promise<st
   return String(res.rows[0].id);
 }
 
-/** The plain-language change log — founder digest and auditor evidence, one query. */
+/**
+ * The plain-language change log — founder digest and auditor evidence, one query.
+ *
+ * `repos` is the scoped form: the repositories the caller may actually see.
+ * It is NOT interchangeable with omitting the filter — an empty list means
+ * "this caller can see nothing", and must return nothing. Reading an empty
+ * scope as "no WHERE clause" is exactly how this endpoint came to serve every
+ * tenant's record to anyone who asked, so the empty case is handled first and
+ * explicitly rather than falling through to the unfiltered query below.
+ */
 export async function recentChangelog(
   pool: Pool,
-  opts: { repo?: string; limit?: number; sinceDays?: number } = {}
+  opts: { repo?: string; repos?: string[]; limit?: number; sinceDays?: number } = {}
 ): Promise<ChangelogRow[]> {
-  const limit = Math.min(opts.limit ?? 50, 500);
+  if (opts.repos && opts.repos.length === 0) return [];
+  const limit = Math.min(Math.max(opts.limit ?? 50, 1), 500);
   const conds: string[] = [];
   const params: unknown[] = [];
   if (opts.repo) {
     params.push(opts.repo);
     conds.push(`repo = $${params.length}`);
+  } else if (opts.repos) {
+    params.push(opts.repos);
+    conds.push(`repo = ANY($${params.length})`);
   }
   if (opts.sinceDays && opts.sinceDays > 0) {
     params.push(String(Math.min(opts.sinceDays, 365)));

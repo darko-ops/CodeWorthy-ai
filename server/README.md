@@ -251,13 +251,13 @@ The anchor is what makes the audit log's integrity provable to an auditor. One-t
 | GET | `/health` | liveness |
 | GET | `/api/health` | api module seam (DB check) |
 | POST | `/webhooks/github` | signed webhook intake → audit |
-| GET | `/steward/changelog?repo=&limit=` | plain-language change log |
+| GET | `/steward/changelog?repo=&limit=&t=` | plain-language change log — **scoped**: a share token, or a session (no `repo` = your repos only) |
 | GET | `/steward/integrity` | tamper-evidence check (M1.5) — verify the hash chain + WORM anchor |
-| GET | `/steward/digest[.html\|.txt]?repo=&days=` | weekly digest (M4) |
-| GET | `/steward/health[.html]?repo=&days=` | the repo health page — one pull-up chart (vitals + activity + integrity), no login |
+| GET | `/steward/digest[.html\|.txt]?repo=&days=&t=` | weekly digest (M4) — same scoping |
+| GET | `/steward/health[.html]?repo=&days=&t=` | the repo health page — one pull-up chart (vitals + activity + integrity). No login needed **with a share token**; `repo` is required |
 | GET | `/steward/install` | consent landing — what it will/won't do, then "Install on GitHub" |
 | GET | `/steward/setup` | post-install page — the one consented action (protect the default branch) |
-| POST | `/steward/setup/protect` | apply protection (ruleset, legacy fallback) to the installation's repos (on the click) |
+| POST | `/api/installations/:id/protect` | apply protection (ruleset, legacy fallback) to the installation's repos — **requires a session that owns the installation** |
 | GET | `/steward/app-manifest[/callback]` | one-click GitHub App registration (manifest create + credential exchange) |
 
 ## The invariant
@@ -265,3 +265,25 @@ The anchor is what makes the audit log's integrity provable to an auditor. One-t
 CodeWorthy never merges, force-pushes, or rewrites history. It gates, advises,
 and does safe reversible mechanics; the human owns every merge. `client.ts`
 makes that structural and `client.doctrine.test.ts` makes it CI-enforced.
+
+### …and the other half of that sentence
+
+If the human owns every merge, the human needs somewhere to perform one. Since
+the thread view (`src/threads/`, and the `/api/repos/:owner/:repo/threads*`
+routes) that place is the dashboard, and it is a **third actor**, kept apart
+from the two Apps:
+
+| Actor | Credential | May merge |
+|---|---|---|
+| Steward (reviewer) | its installation token | **no** — the capability is not on `github/client.ts` |
+| Approver | its own App's installation token | **no** — one review, nothing else |
+| The signed-in human | their own user-to-server token | yes, from `app/userActions.ts` |
+
+`userActions.ts` takes a token as its first argument, imports no App credential
+path, and is reachable only from a route holding a live session — so a merge
+cannot originate from a webhook, a job, or a schedule. It requires the head SHA
+the dashboard rendered, so a stale tab cannot land a commit nobody read. Every
+call appends to the spine (`human.commented`, `human.approved`, `human.merged`)
+with that person's login before it reports success.
+`app/userActions.doctrine.test.ts` asserts all of that, including that the two
+Apps still have no merge of their own.

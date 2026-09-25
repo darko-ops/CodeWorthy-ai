@@ -123,9 +123,20 @@ export async function flaggedBucketsByRepo(
   return out;
 }
 
+/**
+ * The digest over a scope.
+ *
+ * Three scopes, and the difference between the last two is load-bearing:
+ *   - `repo`  : one repository.
+ *   - `repos` : the caller's own repositories. An EMPTY list returns an empty
+ *               digest — it never widens to "all repositories".
+ *   - neither : every repository. Only an operator job (digest-job.ts) has any
+ *               business asking for this; no HTTP route may reach it, because
+ *               this is the query that served one tenant's record to another.
+ */
 export async function buildDigest(
   pool: Pool,
-  opts: { repo?: string; periodDays?: number } = {}
+  opts: { repo?: string; repos?: string[]; periodDays?: number } = {}
 ): Promise<Digest> {
   const periodDays = Math.min(Math.max(opts.periodDays ?? 7, 1), 90);
   const rows = opts.repo
@@ -134,11 +145,19 @@ export async function buildDigest(
          WHERE ts >= now() - make_interval(days => $1) AND repo = $2 ORDER BY ts DESC`,
         [periodDays, opts.repo]
       )).rows
-    : (await pool.query(
-        `SELECT ts, repo, actor, event_type, plain_english FROM audit_events
-         WHERE ts >= now() - make_interval(days => $1) ORDER BY ts DESC`,
-        [periodDays]
-      )).rows;
+    : opts.repos
+      ? opts.repos.length === 0
+        ? []
+        : (await pool.query(
+            `SELECT ts, repo, actor, event_type, plain_english FROM audit_events
+             WHERE ts >= now() - make_interval(days => $1) AND repo = ANY($2) ORDER BY ts DESC`,
+            [periodDays, opts.repos]
+          )).rows
+      : (await pool.query(
+          `SELECT ts, repo, actor, event_type, plain_english FROM audit_events
+           WHERE ts >= now() - make_interval(days => $1) ORDER BY ts DESC`,
+          [periodDays]
+        )).rows;
 
   const timeline: DigestEntry[] = rows.map((r) => ({
     ts: r.ts instanceof Date ? r.ts.toISOString() : String(r.ts),

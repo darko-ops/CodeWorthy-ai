@@ -68,6 +68,24 @@ export function mapGitHubError(err: unknown): ApiErrorResponse | null {
     };
   }
 
+  // The refusals a human asks for on purpose: a merge GitHub won't do (405), a
+  // head commit that moved since the page rendered (409), an invalid review
+  // (422). These are not outages and not bugs — they are the answer to a
+  // question the user asked, and GitHub's own sentence is the best available
+  // rendering of it. Falling through to "couldn't reach GitHub" below would
+  // report a working refusal as an infrastructure failure.
+  if (err.status === 405 || err.status === 409 || err.status === 422) {
+    return {
+      status: err.status === 409 ? 409 : 422,
+      body: {
+        error: "github_refused",
+        message:
+          err.detail ??
+          "GitHub wouldn't do that. Nothing changed — reload for this pull request's current state.",
+      },
+    };
+  }
+
   // 5xx and anything else upstream: GitHub's problem, not the user's, and not
   // ours to claim as an internal error.
   return {

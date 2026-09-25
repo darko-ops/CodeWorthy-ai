@@ -40,17 +40,54 @@ export const loginUrl = `${API_BASE}/auth/github/login`;
 // / repo-selection screen for the App).
 export const installUrl = "https://github.com/apps/codeworthy-steward/installations/new";
 
-// The rendered, shareable weekly summary (digest) page for a repo. Public by
-// design — the same no-login artifact as the health page — so the link can be
-// forwarded to a teammate or auditor.
-export function digestUrl(repo: string, days = 7): string {
-  return `${API_BASE}/steward/digest.html?repo=${encodeURIComponent(repo)}&days=${days}`;
+/**
+ * The rendered, shareable weekly summary for ONE repo.
+ *
+ * Still forwardable to a teammate or an auditor with no login — but the link is
+ * a capability now rather than an address. The SERVER mints it, on the health
+ * report, because that response is the one place that has already proven the
+ * caller may see this repo; the token in it is signed, repo-scoped and expiring.
+ *
+ * Building the URL here from a repo name is exactly what made every repository
+ * readable by anyone who could type one, so there is deliberately no function
+ * left that does that.
+ */
+export function digestShareUrl(report: Pick<HealthReport, "shareUrl"> | null | undefined): string | undefined {
+  return report?.shareUrl ?? undefined;
 }
 
-/** The same rendered summary across every repo in the record — what the
- *  overview's "Export log" offers, where there is no single repo to name. */
-export function estateDigestUrl(days = 30): string {
-  return `${API_BASE}/steward/digest.html?days=${days}`;
+/**
+ * The same summary across the repos YOU can see — the overview's "Export log".
+ *
+ * No shareable link for this one, on purpose: "every repo in the record" is not
+ * something anyone can hold a capability for, and the whole-estate form used to
+ * return every tenant's repositories to whoever asked. So it goes out with the
+ * session bearer and opens as a local document.
+ *
+ * The tab is opened BEFORE the await — a browser blocks a window opened after
+ * one, and a silently-missing export reads as a broken button.
+ */
+export async function openEstateDigest(days = 30): Promise<void> {
+  const tab = window.open("", "_blank", "noreferrer");
+  const id = getSessionId();
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/steward/digest.html?days=${days}`, {
+      headers: id ? { authorization: `Bearer ${id}` } : {},
+    });
+  } catch {
+    tab?.close();
+    throw new ApiError("offline", "Can't reach Steward right now.");
+  }
+  if (!res.ok) {
+    tab?.close();
+    if (res.status === 401) throw new ApiError("unauthenticated", "Session expired.", 401);
+    throw new ApiError("server", `Steward returned ${res.status}.`, res.status);
+  }
+  const html = await res.text();
+  if (!tab) throw new ApiError("server", "Your browser blocked the export tab — allow pop-ups for this site.");
+  tab.document.write(html);
+  tab.document.close();
 }
 
 export type ApiErrorKind = "unauthenticated" | "offline" | "forbidden" | "server";
@@ -220,6 +257,9 @@ export interface RepoIssue {
 
 export interface HealthReport {
   repoFilter: string | null;
+  /** Signed, repo-scoped, expiring link to the rendered digest — safe to hand
+   *  to someone with no CodeWorthy login. Absent on an older server build. */
+  shareUrl?: string | null;
   mode: RepoMode;
   issues: RepoIssue[];
   generatedAt: string;
@@ -264,4 +304,89 @@ export interface OverviewReport {
     flagged: number;
   };
   integrity: { ok: boolean; headline: string; chain: string };
+}
+
+// --- Threads: the repo's conversation (you, your agents, CodeWorthy) ---
+//
+// A thread is a BRANCH. An agent cuts a branch and pushes to it well before any
+// pull request exists, so keying on the branch means the thread starts when the
+// work does. `archived` is the one exception: a finished pull request whose
+// branch GitHub deleted on merge, kept readable while it is inside the window.
+export type ThreadState = "default" | "working" | "draft" | "open" | "merged" | "closed";
+export type GateDecision = "passed" | "advise" | "blocked" | "unavailable" | "none";
+export type MessageTone = "ok" | "watch" | "risk" | "note";
+export type ParticipantKind = "you" | "human" | "agent" | "codeworthy";
+
+export interface Participant {
+  login: string;
+  /** "Claude Code", "CodeWorthy", "@darko", "You". */
+  label: string;
+  kind: ParticipantKind;
+  agent: string | null;
+  avatar: string | null;
+}
+export interface NeedsYou {
+  reason: string;
+  detail: string;
+  tone: MessageTone;
+}
+export interface ThreadSummary {
+  key: string;
+  /** The branch, or null once it has been deleted. */
+  branch: string | null;
+  number: number | null;
+  title: string;
+  state: ThreadState;
+  author: Participant | null;
+  participants: Participant[];
+  gate: GateDecision;
+  flagged: number;
+  lastTs: string | null;
+  lastLine: string;
+  needsYou: NeedsYou | null;
+  url: string | null;
+  headSha: string | null;
+  base: string | null;
+}
+export interface ThreadMessage {
+  id: string;
+  ts: string;
+  author: Participant;
+  kind: "opened" | "commit" | "comment" | "review" | "verdict" | "event";
+  title: string | null;
+  body: string;
+  tone: MessageTone;
+  url: string | null;
+}
+/** Every "no" carries its reason — a dead button with no explanation reads as
+ *  a broken product when it is usually a working rule. */
+export interface ThreadActions {
+  canReply: boolean;
+  replyBlocked: string | null;
+  canApprove: boolean;
+  approveBlocked: string | null;
+  canMerge: boolean;
+  mergeBlocked: string | null;
+  youApproved: boolean;
+}
+export interface Thread extends ThreadSummary {
+  body: string;
+  messages: ThreadMessage[];
+  actions: ThreadActions;
+}
+export interface ThreadList {
+  repo: string;
+  windowDays: number;
+  threads: ThreadSummary[];
+}
+
+export function threadsUrl(repo: string, days: number): string {
+  return `/api/repos/${repo}/threads?days=${days}`;
+}
+/** The key goes in the query string: branch names contain slashes. */
+export function threadUrl(repo: string, key: string, days: number): string {
+  return `/api/repos/${repo}/thread?key=${encodeURIComponent(key)}&days=${days}`;
+}
+export function threadActionUrl(repo: string, action: "reply" | "approve" | "merge"): string {
+  return `/api/repos/${repo}/thread/${action}`;
 }

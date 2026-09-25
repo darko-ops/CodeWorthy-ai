@@ -44,7 +44,7 @@ const GATES: Array<{ key: keyof RepoRules["gates"]; title: string; detail: strin
   },
 ];
 
-export function RulesPanel({ repo, onClose, onChanged }: { repo: string; onClose: () => void; onChanged: () => void }) {
+export function RulesPanel({ repo, onClose, onChanged }: { repo: string; onClose?: () => void; onChanged: () => void }) {
   const [state, setState] = useState<RulesResponse | null>(null);
   const [draft, setDraft] = useState<RepoRules | null>(null);
   const [mode, setMode] = useState<RepoMode>("shared");
@@ -97,10 +97,15 @@ export function RulesPanel({ repo, onClose, onChanged }: { repo: string; onClose
     <section className="rules-panel">
       <header className="rules-head">
         <div>
-          <h3 className="rules-title">Rules for {repo}</h3>
-          <p className="rules-sub">What has to be true before a change lands. Saved to the change record, with who changed it.</p>
+          <h3 className="rules-title">What has to be true before a change lands</h3>
+          <p className="rules-sub">
+            These are the rules CodeWorthy enforces on <span className="th-num">{repo}</span>. Saved to the change
+            record, with who changed them and when.
+          </p>
         </div>
-        <button className="btn-outline" onClick={onClose}>Close</button>
+        {/* Optional: this panel is a tab on the repo screen, where there is
+            nothing to close, and a popover nowhere else yet. */}
+        {onClose && <button className="btn-outline" onClick={onClose}>Close</button>}
       </header>
 
       <div className="rules-group">

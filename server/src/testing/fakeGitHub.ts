@@ -12,7 +12,7 @@
 // payload is the one we intended.
 //
 // Not part of the production build (excluded in tsconfig.build.json).
-import type { CheckRunInput, GitHubClient } from "../github/client.js";
+import type { BranchRef, CheckRunInput, GitHubClient } from "../github/client.js";
 
 export class FakeGitHub implements GitHubClient {
   calls: Array<{ m: string; args: unknown[] }> = [];
@@ -30,6 +30,8 @@ export class FakeGitHub implements GitHubClient {
   pullRequest: unknown = {};
   commitDiff: unknown = { files: [] };
   commitPulls: unknown[] = [];
+  branchRefs: BranchRef[] = [];
+  comparison: unknown = { commits: [] };
 
   protected rec<T>(m: string, args: unknown[], ret: T): Promise<T> {
     this.calls.push({ m, args });
@@ -45,6 +47,7 @@ export class FakeGitHub implements GitHubClient {
   getPullRequest(...a: any[]): Promise<unknown> { return this.rec("getPullRequest", a, this.pullRequest); }
   getCommitDiff(...a: any[]): Promise<unknown> { return this.rec("getCommitDiff", a, this.commitDiff); }
   listPullRequestsForCommit(...a: any[]): Promise<unknown> { return this.rec("listPullRequestsForCommit", a, this.commitPulls); }
+  compareCommits(...a: any[]): Promise<unknown> { return this.rec("compareCommits", a, this.comparison); }
   listPullRequests(...a: any[]): Promise<unknown> { return this.rec("listPullRequests", a, [] as unknown[]); }
   getBranch(...a: any[]): Promise<unknown> { return this.rec("getBranch", a, {}); }
   getBranchProtection(...a: any[]): Promise<unknown> { return this.rec("getBranchProtection", a, this.protection); }
@@ -52,6 +55,7 @@ export class FakeGitHub implements GitHubClient {
   getRepoRuleset(...a: any[]): Promise<unknown> { return this.rec("getRepoRuleset", a, this.ruleset); }
   listCommits(...a: any[]): Promise<unknown> { return this.rec("listCommits", a, [] as unknown[]); }
   listInstallationRepositories(...a: any[]) { return this.rec("listInstallationRepositories", a, this.repos); }
+  listBranchRefs(...a: any[]): Promise<BranchRef[]> { return this.rec("listBranchRefs", a, this.branchRefs); }
 
   // ── writes (additive + reversible only) ──
   createBranch(...a: any[]): Promise<unknown> { return this.rec("createBranch", a, {}); }

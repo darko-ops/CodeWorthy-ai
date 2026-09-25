@@ -71,9 +71,19 @@ export const config = {
   // www forms of webBaseUrl are always allowed — see app/webOrigins.ts for why
   // that mattered. Use this for a preview deployment or a second domain.
   webOriginsExtra: process.env.STEWARD_WEB_ORIGINS ?? "",
-  // Secret used to (a) HMAC-sign the OAuth `state` (CSRF) and (b) derive session
-  // ids. Any long random string. Unset -> a boot-time random, which is fine for
-  // a single instance but means sessions don't survive a restart.
+  // The one HMAC key this process signs with (app/secret.ts). Two things use it:
+  // the OAuth `state` (CSRF, 10-minute lifetime) and share tokens (the
+  // capability in a forwardable digest/health link, 30 days).
+  //
+  // It does NOT derive session ids — those are their own randomBytes(32), held
+  // in Postgres (app/session.ts). Worth being precise about, because it sets the
+  // blast radius of a rotation: rotating this invalidates outstanding SHARE
+  // LINKS and any sign-in mid-flight. It does not sign anybody out.
+  //
+  // Unset -> a boot-time random. Fine for one instance in dev, wrong in prod:
+  // every share link dies at each deploy, for no reason its holder can see.
+  //   fly secrets set --app codeworthy-steward \
+  //     STEWARD_SESSION_SECRET="$(openssl rand -hex 32)"
   sessionSecret: process.env.STEWARD_SESSION_SECRET ?? "",
   // Digest email delivery. No SMTP URL -> a console mailer (dev): the digest is
   // rendered and logged, never silently dropped. Precedence: SMTP > console.
