@@ -221,13 +221,37 @@ the email instead of dropping it, so dev shows you exactly what would send. With
 
 The anchor is what makes the audit log's integrity provable to an auditor. One-time:
 
-1. **Create an S3 bucket with Object Lock enabled** (must be enabled at creation).
-   A default retention isn't required — the app sets per-object COMPLIANCE
-   retention on each PUT.
-2. **Grant the service's role** `s3:PutObject`, `s3:GetObject`, and
-   `s3:ListBucket` on that bucket. No delete permission is needed or wanted.
-   Credentials resolve from the default AWS chain (instance/task role) — don't
-   put keys in env.
+1. **Create an S3 bucket with Object Lock enabled.** It can only be enabled at
+   creation — an existing bucket cannot be converted. A default retention isn't
+   required; the app sets per-object COMPLIANCE retention on each PUT.
+
+   ```bash
+   aws s3api create-bucket --bucket my-codeworthy-audit --region us-east-1 \
+     --object-lock-enabled-for-bucket
+   aws s3api put-public-access-block --bucket my-codeworthy-audit \
+     --public-access-block-configuration \
+     "BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true"
+   ```
+
+   > **COMPLIANCE mode is irreversible.** An object written under it cannot be
+   > deleted or overwritten until its retain-until date — not by you, not by the
+   > account root, not by AWS support. That is precisely what makes the anchor
+   > worth having, and it also means `STEWARD_ANCHOR_RETENTION_DAYS` (default
+   > 3650) is a ten-year storage commitment you cannot shorten later. Anchors are
+   > a few hundred bytes each and one is written per run, so the cost is
+   > negligible — but decide the number deliberately, because you only decide it
+   > once. Test against a throwaway bucket with `RETENTION_DAYS=1` first.
+
+2. **Grant `s3:PutObject`, `s3:GetObject`, `s3:ListBucket`** on that bucket, plus
+   `s3:PutObjectRetention`. No delete permission is needed or wanted.
+
+   Credentials resolve from the default AWS credential chain. **On Fly there is
+   no instance role**, so the chain resolves to environment variables and
+   `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` as Fly secrets is the only
+   option — see `deploy/README.md`. Use an IAM user scoped to just this bucket
+   and just those actions; it is a weaker posture than a role, so the narrow
+   scope is what limits the damage if the key leaks. On a platform that does
+   offer a task role (ECS, EKS), prefer it and set no keys.
 3. **Point the service at it:**
 
    ```bash

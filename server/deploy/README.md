@@ -40,10 +40,16 @@ fly secrets set STEWARD_SMTP_URL='smtps://user:pass@smtp.host:465' \
   STEWARD_MAIL_FROM='CodeWorthy <steward@yourdomain>' \
   STEWARD_DIGEST_TO='founder@acme.com'
 
-# WORM anchor (optional; S3 Object Lock — see ../README.md "WORM anchor setup")
+# WORM anchor (S3 Object Lock). Read ../README.md "WORM anchor setup" FIRST:
+# COMPLIANCE-mode retention cannot be shortened or removed once written.
+# Fly has no AWS instance role, so the SDK's credential chain resolves to these
+# env vars — that is expected here. Scope the IAM user to this one bucket and to
+# Put/Get/List/PutObjectRetention only.
 fly secrets set STEWARD_ANCHOR_S3_BUCKET='my-codeworthy-audit' \
   STEWARD_ANCHOR_S3_REGION='us-east-1' \
   AWS_ACCESS_KEY_ID='…' AWS_SECRET_ACCESS_KEY='…'
+# Without a bucket, /steward/integrity still verifies the in-DB chain and reports
+# anchor: no-anchor — which is the state this deployment is in today.
 ```
 
 `GITHUB_PRIVATE_KEY` uses literal `\n` for newlines — the app restores them.
