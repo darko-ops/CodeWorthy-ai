@@ -85,6 +85,21 @@ export const config = {
   //   fly secrets set --app codeworthy-steward \
   //     STEWARD_SESSION_SECRET="$(openssl rand -hex 32)"
   sessionSecret: process.env.STEWARD_SESSION_SECRET ?? "",
+  // Secrets this service stores on someone else's behalf — currently just the
+  // GitHub user-to-server token in user_sessions.
+  session: {
+    // 32 bytes, base64:  openssl rand -base64 32
+    //
+    // Separate from sessionSecret above on purpose. That one SIGNS things that
+    // are re-issued freely (OAuth state, share links), so rotating it costs
+    // nothing. This one DECRYPTS stored data, so rotating it invalidates every
+    // live session — which is cheap here (7-day TTL, re-login is one click) but
+    // is a different decision, and coupling the two would hide that.
+    //
+    // Unset -> sign-in is disabled with a clear reason rather than silently
+    // storing plaintext. The enforcement spine keeps running either way.
+    tokenKey: process.env.STEWARD_TOKEN_KEY ?? "",
+  },
   // Digest email delivery. No SMTP URL -> a console mailer (dev): the digest is
   // rendered and logged, never silently dropped. Precedence: SMTP > console.
   mail: {

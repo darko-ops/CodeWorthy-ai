@@ -17,6 +17,8 @@ import { registerAppRoutes } from "./app/routes.js";
 import { registerAuthRoutes } from "./app/auth-routes.js";
 import { intParam, resolveReadScope, resolveRepoScope, scopeFilter } from "./app/readScope.js";
 import { startScheduler } from "./scheduler.js";
+import { tokenKeyConfigured } from "./app/tokenCrypto.js";
+import { signingSecretIsPersistent } from "./app/secret.js";
 
 export function buildServer(pool: Pool) {
   const app = Fastify({ logger: true });
@@ -126,9 +128,37 @@ export function buildServer(pool: Pool) {
   return app;
 }
 
+/**
+ * What is not configured, said once at boot.
+ *
+ * Deliberately warnings, not a refusal to start. Refusing would take the
+ * ENFORCEMENT SPINE offline — protection restoration, the merge gate, webhook
+ * logging — over what are dashboard and evidence-layer config gaps. The spine is
+ * the guarantee; the dashboard is a client of it.
+ *
+ * This exists because STEWARD_SESSION_SECRET sat unset in production for an
+ * unknown length of time and nothing ever said so. A silent default that only
+ * matters at 3am is worth one line in the log at boot.
+ */
+function auditConfiguration(warn: (msg: string) => void): void {
+  if (!tokenKeyConfigured()) {
+    warn("STEWARD_TOKEN_KEY is not set — sign-in is DISABLED (the dashboard will say so). " +
+      "Generate one with: openssl rand -base64 32");
+  }
+  if (!signingSecretIsPersistent()) {
+    warn("STEWARD_SESSION_SECRET is not set — using a boot-time random. Share links and " +
+      "sign-ins in flight stop verifying at every restart.");
+  }
+  if (!config.anchor.s3Bucket && !config.anchor.file) {
+    warn("No WORM anchor configured (STEWARD_ANCHOR_S3_BUCKET) — the audit chain is verified " +
+      "in-DB only, so a wholesale rewrite would not be detectable.");
+  }
+}
+
 async function main() {
   const pool = new Pool({ connectionString: config.databaseUrl });
   const app = buildServer(pool);
+  auditConfiguration((msg) => app.log.warn({ config: true }, msg));
   await app.listen({ port: config.port, host: "0.0.0.0" });
   // Periodic jobs (anchor nightly, digest weekly) run in-process when enabled —
   // on exactly one instance, so a job never double-fires.
