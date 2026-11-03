@@ -32,6 +32,8 @@ sense.
 | **Checkup** | The health report CodeWorthy already shows you. It has a row of **vitals**, each green, yellow, or red. |
 | **The record** | The permanent, tamper-proof diary CodeWorthy keeps of everything that happens to your app. |
 | **A safe copy** | A throwaway copy of your app that runs somewhere private, with none of your passwords or keys. If it breaks, nothing real breaks. |
+| **Publish** | The button in Lovable or Bolt that puts your app in front of real people. For most AI builders, *this* is the moment a change ships, not a merge on GitHub. |
+| **Sync** | Lovable and Bolt copy every edit to GitHub as you go. One copy in the tool, one on GitHub, kept the same. |
 
 ---
 
@@ -131,17 +133,114 @@ protecting apps, and teaching.
 
 ---
 
+## Seeing it run, without CodeWorthy hosting anything
+
+Reading "your app still starts" is good. Seeing it is better. CodeWorthy can
+show you the change running in three ways, and none of them need CodeWorthy to
+host your app.
+
+**1. The preview you already have.** Lovable and Bolt show your app live inside
+their editor, and give you a link once you publish. CodeWorthy does not replace
+that. It puts the link next to its own note, so the verdict and the view are in
+one place.
+
+**2. Pictures from the safe copy.** When the safe copy can start your app, it
+opens the pages the change touched, takes screenshots, and attaches them to the
+proposal. No link, no hosting, just pictures. You get a quick look without
+opening anything.
+
+**3. Run it on your own computer.** A small helper program on your machine. You
+click *Try it here*, and the helper:
+
+1. Grabs the proposal's version of your app.
+2. Starts it on your computer.
+3. Opens it in your browser so you can click around.
+4. Sends back a short report: did it start, what you looked at, screenshots if
+   you want them.
+
+This is the best way to *see* a change, because your computer already has your
+passwords and keys, so apps that cannot start in the safe copy will start here.
+Two cautions come with it:
+
+- **Your real keys are in play.** If the change talks to a payment service or
+  deletes data, it could do that for real. The helper warns you when it sees a
+  live key and uses test keys where it can.
+- **It only proves what happened on your computer.** In the record, that is a
+  different kind of entry from the safe copy. Both are kept. The note always
+  says which one happened.
+
+The helper is optional, and it is for people who already run their app on
+their own machine. If you build only in Lovable or Bolt, you never need it.
+Ways 1 and 2 cover you.
+
+---
+
+## Connecting Lovable or Bolt: three clicks, once
+
+Both tools already copy your app to GitHub as you work. CodeWorthy lives on
+GitHub. So GitHub is the bridge, and you already have it. There is nothing to
+install and nothing to paste.
+
+**Step 1. In Lovable or Bolt, click Connect to GitHub.** This is a button they
+provide. It makes a GitHub repository for your app and keeps it in sync with
+every edit. If you did this already, skip it.
+
+**Step 2. In CodeWorthy, click Connect my app and pick that repository.** GitHub
+asks you once to allow CodeWorthy to see it. Say yes.
+
+**Step 3. Tell CodeWorthy "I build with Lovable" or "I build with Bolt."** That
+one answer sets everything up correctly. In particular it sets CodeWorthy to
+*solo mode*, which lets your tool keep syncing straight to your main branch.
+(See the warning below for why that matters.)
+
+That's it. From then on:
+
+- Every time your tool syncs a change, CodeWorthy tries it in a safe copy.
+- Within a few minutes you see one of two verdicts on your checkup and in the
+  record: **Safe to publish** or **Hold off, here's why**, with pictures when
+  it can get them.
+- You check that before you press Publish in Lovable or Bolt. That is your
+  "before it ships" moment, and CodeWorthy never touches the Publish button.
+
+**One warning, and why Step 3 exists.** CodeWorthy can be set to *require a
+proposal* for every change to main. Do not use that setting with Lovable or
+Bolt. Those tools need to write to the synced branch directly, and if they are
+blocked, Lovable quietly pushes your edits to a side branch instead, where the
+next sync can overwrite them. Step 3 picks solo mode so this cannot happen.
+CodeWorthy still blocks force-pushes and branch deletion, still records
+everything, and still tries every change. It just reviews after the sync lands
+instead of before.
+
+**Optional, for people who deploy from GitHub.** If your live site is built from
+your GitHub main branch (for example by Vercel or Netlify) rather than by the
+Publish button, you can go one step further. Inside Lovable or Bolt, switch to a
+branch called `draft`. Both tools have a branch picker. Now every edit lands on
+`draft`, CodeWorthy opens a proposal from `draft` to `main`, tries it, and
+`main` only changes when you click merge. This is the full "try before it
+ships" loop. It is a one-time setting, and CodeWorthy walks you through it.
+
+---
+
 ## What we build first
 
 In this order. Each step is useful on its own.
 
-1. **Install, build, start, run existing checks.** Zero setup. One paragraph
+1. **The three-click connect for Lovable and Bolt.** Pick the tool, get solo
+   mode and the safe defaults, done.
+2. **Install, build, start, run existing checks.** Zero setup. One paragraph
    back. Test vital updates. Entry in the record.
-2. **Red then green** for proposals that say they fix something.
-3. **The Block setting**, off by default.
-4. **A note on what is not covered.** When the files you changed are checked by
+3. **Safe to publish / Hold off.** The verdict, shown where you'll see it
+   before you press Publish.
+4. **Pictures from the safe copy**, and the link to the preview you already
+   have.
+5. **Red then green** for changes that say they fix something.
+6. **The Block setting**, off by default, and the `draft` branch walkthrough
+   for people who deploy from GitHub.
+7. **A note on what is not covered.** When the files you changed are checked by
    nothing, say so.
-5. **A few smoke checks written from the change itself.** For example, if the
+8. **The helper for your own computer.** Optional, for people who already run
+   their app locally.
+9. **A few smoke checks written from the change itself.** For example, if the
    change touched the signup form, try submitting the signup form. These are
    AI-written and clearly labelled as best-effort.
 
@@ -166,6 +265,8 @@ first.
 CodeWorthy already keeps your app safe by organizing changes and holding them
 until you say go. Next, it will **try each change in a private throwaway copy**,
 with none of your secrets, and tell you in a few plain sentences whether your
-app still works and whether the fix is real. You stay in charge of the merge
-button. Everything it finds goes in the record. It will not host your app, will
-not use your passwords, and will not pretend to have tested what it has not.
+app still works and whether the fix is real. If you build with Lovable or Bolt, connecting takes three clicks and you check
+the verdict before you press Publish. You stay in charge of the merge button
+and the Publish button. Everything it finds goes in the record. It will not host
+your app, will not use your passwords, and will not pretend to have tested what
+it has not.
