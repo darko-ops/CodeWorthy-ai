@@ -67,7 +67,7 @@ What this buys, in order of value:
 1. **A credibility moat that is not code.** Everything in `checkup/` and
    `enforcement/` is reproducible in a weekend. A spec authored by the person who
    tests the control is not.
-2. **Steward becomes the reference implementation of your own spec** — the
+2. **SirCodyWorthington becomes the reference implementation of your own spec** — the
    strongest possible product framing, and one competitors have to answer on your
    terms.
 3. **Distribution.** Other auditors and vCISOs will cite it. That is the channel
@@ -130,7 +130,7 @@ surface.
 because it is now the pivotal GTM question, and because it is easy to build for
 six months before confronting it.*
 
-If you sell Steward to a company and then perform that company's SOC 2
+If you sell SirCodyWorthington to a company and then perform that company's SOC 2
 examination, the tool is operating inside — and producing the evidence for — a
 control you are testing. That is a self-review threat on its face, and there are
 adjacent concerns under the AICPA independence framework: nonattest services
@@ -217,7 +217,7 @@ partly by how their failures are handled. Capture and label as exceptions:
 - merge with a required check red;
 - force-push to a protected branch;
 - ruleset bypass actors used;
-- any Steward gate overridden — **with the logged reason**.
+- any SirCodyWorthington gate overridden — **with the logged reason**.
 
 The doctrine in `ai-senior-engineer-policy.md` already requires gates to be
 "overridable with a logged reason." That logged reason *is* the exception

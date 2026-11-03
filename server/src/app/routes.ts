@@ -105,7 +105,7 @@ export function registerAppRoutes(app: FastifyInstance, pool: Pool) {
 
 
 /** Exchange a one-time manifest code for an App's credentials. Shared by both
- *  App flows — the Steward and the Approver register the same way. */
+ *  App flows — SirCodyWorthington and the Approver register the same way. */
 async function convertManifestCode(code: string): Promise<{
   id: number; slug: string; html_url: string; pem: string; webhook_secret: string;
 }> {

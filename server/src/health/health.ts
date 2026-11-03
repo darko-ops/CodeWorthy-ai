@@ -2,11 +2,11 @@
 //
 // Folds three things into a single doctor's-chart the founder or an auditor can
 // open on demand, no login:
-//   1. Vitals — the health signals the Steward actually knows from the audit
+//   1. Vitals — the health signals SirCodyWorthington actually knows from the audit
 //      spine (branch protection, review discipline, record integrity). It does
 //      NOT run a filesystem checkup: the client doctrine is metadata-only, never
 //      execute customer code. The on-disk vitals (tests, secrets, deps) live in
-//      the CI Action, where the code already is; this is the Steward's chart of
+//      the CI Action, where the code already is; this is SirCodyWorthington's chart of
 //      *behavior over time*, which the Action can't see.
 //   2. Activity — the plain-language change log (reuses the weekly digest).
 //   3. Integrity — the tamper-evidence answer (hash chain + WORM anchor).

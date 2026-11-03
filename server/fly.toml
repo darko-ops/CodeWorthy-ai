@@ -1,4 +1,4 @@
-# CodeWorthy Steward on Fly.io — a single always-on Node service.
+# SirCodyWorthington on Fly.io — a single always-on Node service.
 # One machine serves the webhook, the API, the health page, and (with
 # STEWARD_SCHEDULER=1) the periodic anchor + digest jobs. Postgres is external
 # (Neon). See deploy/README.md for the full stand-up.

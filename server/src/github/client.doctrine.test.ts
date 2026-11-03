@@ -36,7 +36,7 @@ describe("GitHub client doctrine", () => {
     for (const name of banned) expect(methods).not.toContain(name);
   });
 
-  it("still provides the safe operations Steward needs", () => {
+  it("still provides the safe operations SirCodyWorthington needs", () => {
     for (const name of ["createBranch", "openDraftPullRequest", "createReviewComment", "setBranchProtection"]) {
       expect(methods).toContain(name);
     }

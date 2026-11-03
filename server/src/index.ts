@@ -87,7 +87,7 @@ export function buildServer(pool: Pool) {
     return { ok, chain, anchor };
   });
 
-  // The repo health page (tier 3) — one pull-up chart. Folds the Steward's
+  // The repo health page (tier 3) — one pull-up chart. Folds SirCodyWorthington's
   // vitals, the change log, and the integrity check into one view.
   //
   // One repository, always. The portfolio form used to be the default here and

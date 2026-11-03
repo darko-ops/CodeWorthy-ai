@@ -102,7 +102,7 @@ export function renderSetupPage(o: { installationId: number | null; setupAction:
 // redirects back to our callback with a temporary code.
 // The permission list shown here is DERIVED from the manifest being posted, not
 // written by hand beside it. It was hand-written once, and when the approver
-// flow reused this form it advertised the Steward's permissions — telling the
+// flow reused this form it advertised SirCodyWorthington's permissions — telling the
 // user they were granting Administration and Checks write on an App that asks
 // for neither. A consent screen that misstates the grant is worse than no
 // consent screen, and the only way to keep the two from drifting is to stop
@@ -254,7 +254,7 @@ export function renderApproverCredentials(o: { id: number; slug: string; htmlUrl
   ].join("\n");
   return page("Approver created — save these", `
 <h1>⚖️ Approver App created</h1>
-<div class="sub"><strong>Shown once.</strong> These are the approver's OWN credentials — separate from the Steward's on purpose. Sharing them would collapse the two actors into one.</div>
+<div class="sub"><strong>Shown once.</strong> These are the approver's OWN credentials — separate from SirCodyWorthington's on purpose. Sharing them would collapse the two actors into one.</div>
 <div class="card"><h2>One command</h2>
 <pre style="white-space:pre-wrap;word-break:break-all">${esc(flyCommand)}</pre>
 <p class="muted">Then redeploy, and install the App on the repositories you want it to approve.</p></div>

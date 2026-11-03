@@ -1,13 +1,34 @@
-# CodeWorthy Server — Steward App + API (M1)
+# CodeWorthy Server — SirCodyWorthington App + API (M1)
 
 The backend service. One deployment, two bounded modules (a **modular
 monolith**, per the approved architecture):
 
-- **`src/steward/`** — the Steward GitHub App: webhook handler + the audit
+- **`src/steward/`** — the SirCodyWorthington GitHub App: webhook handler + the audit
   spine. Auth: GitHub App installation tokens.
 - **`src/api/`** — the site's Phase 2 backend seed. Auth: user auth (to come).
   Separate schema; shares the process and the Postgres connection so the two
   can split cleanly later.
+
+## About the name
+
+The product used to be called **Steward**. People now see it as
+**SirCodyWorthington**: in the docs, the site, the messages it posts, and the
+plain-English lines it writes to the record. The old name survives on purpose
+wherever something outside this repo depends on it:
+
+| Still says `steward` | Why it stays |
+|---|---|
+| The GitHub App address (`codeworthy-steward`) and its bot login | Every install and install link uses it. Renaming the App on GitHub changes the address. |
+| The Fly app and host (`codeworthy-steward.fly.dev`) | The App's webhook and callback URLs point at it. |
+| Web routes (`/steward/...`) | Webhooks, sign-in callbacks, digest emails, and share links already sent use them. |
+| Settings (`STEWARD_*`, `VITE_STEWARD_API`) | They are set as secrets on the live deployment. |
+| `.steward.yml` | Users' repos may already contain it. |
+| `steward/edit-*` branches | Existing branches in users' repos use the prefix, and CI skips it. |
+| The audit actor `codeworthy-steward` and evidence generator name | They are inside the tamper-evident record. A second name for the same actor would split the history an auditor reads. |
+| Code paths and identifiers (`src/steward/`, `StewardConfig`, and so on) | Nobody outside the code reads them, and renaming them is churn with no user benefit. |
+
+A fresh App registered from the manifest now gets the new name, and the code
+recognises CodeWorthy's posts under either bot login.
 
 Recommended host: a single always-on Node service (Fly.io) + Neon Postgres —
 not serverless (LLM calls run 30–120s; the audit log wants a real connection).
@@ -275,7 +296,7 @@ from the two Apps:
 
 | Actor | Credential | May merge |
 |---|---|---|
-| Steward (reviewer) | its installation token | **no** — the capability is not on `github/client.ts` |
+| SirCodyWorthington (reviewer) | its installation token | **no** — the capability is not on `github/client.ts` |
 | Approver | its own App's installation token | **no** — one review, nothing else |
 | The signed-in human | their own user-to-server token | yes, from `app/userActions.ts` |
 

@@ -1,4 +1,4 @@
-// The Steward webhook route. Verifies the signature over the RAW body, then
+// The SirCodyWorthington webhook route. Verifies the signature over the RAW body, then
 // dispatches to the audit spine. In M1 that's observe-and-log; M2 adds actions.
 import type { FastifyInstance } from "fastify";
 import type { Pool } from "pg";

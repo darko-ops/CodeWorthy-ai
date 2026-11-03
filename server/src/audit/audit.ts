@@ -1,4 +1,4 @@
-// The audit spine's write + read surface. Every Steward action appends here.
+// The audit spine's write + read surface. Every SirCodyWorthington action appends here.
 //
 // There is intentionally NO update or delete function — the table is
 // append-only (enforced in-schema and by grant). Adding one here would be the

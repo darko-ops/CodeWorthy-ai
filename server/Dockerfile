@@ -1,4 +1,4 @@
-# CodeWorthy Steward — production image.
+# SirCodyWorthington — production image.
 # Multi-stage: build with the full toolchain, ship a lean runtime.
 
 # ── build ──────────────────────────────────────────────────────────────────

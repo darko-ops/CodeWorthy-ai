@@ -1,4 +1,4 @@
-// The ONLY way the Steward App talks to the GitHub REST API.
+// The ONLY way the SirCodyWorthington App talks to the GitHub REST API.
 //
 // Doctrine, enforced by construction: this wrapper exposes ONLY safe,
 // additive, reversible operations. There is deliberately no merge, no

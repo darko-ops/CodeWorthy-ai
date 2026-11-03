@@ -1,9 +1,9 @@
 // The approver's GitHub surface — deliberately its own, and deliberately tiny.
 //
-// This is not the Steward's client with an extra method. The whole value of an
+// This is not SirCodyWorthington's client with an extra method. The whole value of an
 // independent approver is that it is a different actor with different powers,
 // and the cheapest way to make that true rather than merely stated is to give
-// it a separate surface that CAN approve, while the Steward's surface CANNOT.
+// it a separate surface that CAN approve, while SirCodyWorthington's surface CANNOT.
 // A doctrine test asserts exactly that in both directions.
 //
 // What it may do: read a pull request's comments and files, and submit ONE
@@ -80,7 +80,7 @@ function approverJwt(nowSec: number = Math.floor(Date.now() / 1000)): string {
  * The approver App's own installation on this repo.
  *
  * It is a DIFFERENT app, so it has different installation ids — reusing the
- * Steward's would authenticate as the reviewer, quietly collapsing the two
+ * SirCodyWorthington's would authenticate as the reviewer, quietly collapsing the two
  * actors into one and making the approval worthless.
  */
 export async function approverClientFor(repo: string): Promise<ApproverClient | null> {

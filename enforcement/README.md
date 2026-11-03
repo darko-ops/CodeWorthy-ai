@@ -1,7 +1,7 @@
 # CodeWorthy Enforcement Tier
 
 Turns the checkup engine from "a report you run" into **a senior engineer that's
-always watching and blocks bad merges.** This is tier 3 of the Steward product
+always watching and blocks bad merges.** This is tier 3 of the SirCodyWorthington product
 (see [`../docs/ai-senior-engineer-policy.md`](../docs/ai-senior-engineer-policy.md)).
 
 ## Two ways to run the same policy

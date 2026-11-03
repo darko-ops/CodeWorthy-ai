@@ -61,8 +61,10 @@ export const AGENTS: AgentSignature[] = [
   },
 ];
 
-/** CodeWorthy's own logins — the reviewer App and the separate approver App. */
-const CODEWORTHY_LOGIN = /^codeworthy(-steward|-approver)?(\[bot\])?$/i;
+/** CodeWorthy's own logins — the reviewer App and the separate approver App.
+ *  The reviewer App was registered as codeworthy-steward; a fresh registration
+ *  under the SirCodyWorthington name posts as sircodyworthington[bot]. */
+const CODEWORTHY_LOGIN = /^(codeworthy(-steward|-approver)?|sircodyworthington)(\[bot\])?$/i;
 /** The HTML markers CodeWorthy stamps on everything it posts. */
 const CODEWORTHY_MARKER = /<!--\s*codeworthy-(gate|ai-review|approver|micro-defense)\s*-->/i;
 

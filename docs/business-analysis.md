@@ -1,7 +1,7 @@
 # CodeWorthy — Outside Business Analysis
 
 *Written as an outside read of the concept as it stands in this repo (August 2026):
-Steward as the front door, Assess as the heritage product. Market facts are cited;
+SirCodyWorthington as the front door, Assess as the heritage product. Market facts are cited;
 where a claim is judgment, it is labeled as judgment. This is deliberately less
 flattering than [`new-direction-report.md`](new-direction-report.md), which was
 written from inside the project.*
@@ -14,7 +14,7 @@ The repo currently carries **two products under one thesis**:
 
 | Surface | What it sells | Buyer | State in repo |
 |---|---|---|---|
-| **Steward** | A GitHub App that protects `main`, gates risky merges, explains itself in plain language, and keeps a hash-chained audit log | Solo builders → small startups | ~3.4k LOC server, deployed to Fly, install flow + digest + audit chain built |
+| **SirCodyWorthington** | A GitHub App that protects `main`, gates risky merges, explains itself in plain language, and keeps a hash-chained audit log | Solo builders → small startups | ~3.4k LOC server, deployed to Fly, install flow + digest + audit chain built |
 | **Assess** | A brownfield hiring assessment with hidden tests, AI defense, evidence-backed report | Startups hiring engineers | One polished simulation + full grading machinery |
 
 The landing page asks the visitor to pick a door ("Protect my repo" / "For hiring
@@ -112,7 +112,7 @@ branches](https://docs.github.com/en/repositories/configuring-branches-and-merge
 free](https://github.com/orgs/community/discussions/174400)).
 
 The target user — a solo builder with a private repo on the free plan — therefore
-**cannot have `main` protected at all**, no matter what Steward does. That breaks
+**cannot have `main` protected at all**, no matter what SirCodyWorthington does. That breaks
 step 2 of the landing page ("It protects main") for a meaningful share of the
 intended ICP, and `server/src/steward/protection.ts` contains no plan-tier
 handling or graceful degradation path. This needs verifying against current GitHub
@@ -134,7 +134,7 @@ channel.
 
 **(e) Two products, one pre-seed team.**
 
-Assess and Steward share a thesis but share no buyer, no motion, no sales cycle,
+Assess and SirCodyWorthington share a thesis but share no buyer, no motion, no sales cycle,
 and no pricing model. Running both halves the effort on each and makes the front
 door read as unfocused to both audiences. This is the highest-cost unforced error
 in the current setup, and unlike the others it costs nothing to fix.
@@ -317,7 +317,7 @@ Three conditions, in descending order of importance:
 - Cursor/Replit shipping "safe mode" as a default feature (Graphite's acquisition
   suggests they will).
 - Endor/Cycode launching a self-serve small-team tier.
-- Continuing to split effort across Assess and Steward.
+- Continuing to split effort across Assess and SirCodyWorthington.
 
 ### 3.6 Verdict
 
@@ -331,7 +331,7 @@ currently positioned as a supporting feature rather than the product.
 
 ## 4. Recommendation
 
-1. **Pick one surface.** Steward. Keep Assess alive as heritage/credibility
+1. **Pick one surface.** SirCodyWorthington. Keep Assess alive as heritage/credibility
    content ("the people who defined and graded production-readiness"), not as a
    second GTM.
 2. **Reframe the headline from guardrails to evidence.** Sell *change-control

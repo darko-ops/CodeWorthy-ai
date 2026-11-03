@@ -1,7 +1,7 @@
 // The bug this guards: CORS was one strict equality against the configured
 // dashboard URL. The site answers on BOTH the apex and www hosts, so a user on
 // the wrong one had every API call blocked by the browser — and because the SPA
-// reports a blocked fetch as `offline`, the dashboard sat on "Steward is waking
+// reports a blocked fetch as `offline`, the dashboard sat on "SirCodyWorthington is waking
 // up…" indefinitely while the backend was perfectly healthy.
 import { describe, expect, it } from "vitest";
 import { allowedWebOrigins } from "./webOrigins.js";

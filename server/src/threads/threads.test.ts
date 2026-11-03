@@ -57,6 +57,12 @@ describe("naming who is talking", () => {
     expect(p.label).toBe("CodeWorthy");
   });
 
+  it("knows CodeWorthy by either reviewer App login", () => {
+    for (const login of ["codeworthy-steward[bot]", "sircodyworthington[bot]", "codeworthy-approver[bot]"]) {
+      expect(identify({ login, type: "Bot" }).kind).toBe("codeworthy");
+    }
+  });
+
   it("reads the viewer's own messages as You", () => {
     expect(identify({ login: "darko", viewer: "DARKO" }).kind).toBe("you");
     expect(identify({ login: "darko", viewer: "sam" }).label).toBe("@darko");
