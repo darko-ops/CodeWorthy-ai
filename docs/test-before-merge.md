@@ -3,6 +3,10 @@
 *A plain-language plan for the next part of CodeWorthy. Written so that someone
 who has never written code can read the whole thing and understand it.*
 
+*The part of CodeWorthy that watches over your app is called
+**SirCodyWorthington**. Older pages in this folder and the code still call it
+"Steward." Same thing, new name.*
+
 ---
 
 ## The problem in one sentence
@@ -32,6 +36,8 @@ sense.
 | **Checkup** | The health report CodeWorthy already shows you. It has a row of **vitals**, each green, yellow, or red. |
 | **The record** | The permanent, tamper-proof diary CodeWorthy keeps of everything that happens to your app. |
 | **A safe copy** | A throwaway copy of your app that runs somewhere private, with none of your passwords or keys. If it breaks, nothing real breaks. |
+| **Solo mode** | The default. You are the only person changing this app, so changes go straight to main and SirCodyWorthington checks each one after it lands. |
+| **Group mode** | For apps with more than one person changing them. Every change becomes a proposal first, and nothing reaches main until someone clicks merge. (Called "shared mode" in the settings today.) |
 | **Publish** | The button in Lovable or Bolt that puts your app in front of real people. For most AI builders, *this* is the moment a change ships, not a merge on GitHub. |
 | **Sync** | Lovable and Bolt copy every edit to GitHub as you go. One copy in the tool, one on GitHub, kept the same. |
 
@@ -42,7 +48,7 @@ sense.
 This is the whole process from your point of view.
 
 1. **You make a change.** You ask your AI tool to add a feature or fix a bug. It edits the code.
-2. **CodeWorthy turns it into a proposal.** This already happens today. Your live app is untouched.
+2. **The change lands where your setup says.** In solo mode (the default) it goes to main, and your live app is untouched until you press Publish. In the full loop or group mode it becomes a proposal, and main waits for you.
 3. **CodeWorthy makes a safe copy of your app with the change in it.** The copy is private. It has no passwords, no keys, and no way to reach the internet. It is deleted when the check is done.
 4. **CodeWorthy tries the change.** In the safe copy it asks four simple questions:
    - Does the app still install?
@@ -52,7 +58,7 @@ This is the whole process from your point of view.
 5. **If the change claims to fix a problem, CodeWorthy proves it.** It shows the problem happening in the old version, and not happening in the new one. We call this *red then green*. Red means the problem is there. Green means it is gone.
 6. **You get one short paragraph.** Something like: *"Your app still starts. All 12 existing checks pass. Nothing checks the two files you changed, so I cannot promise those work. The bug you asked to fix is gone."*
 7. **The checkup updates.** The test vital goes green, yellow, or red based on what just happened.
-8. **You decide.** You read the paragraph and click merge, or you ask the AI to fix what broke. CodeWorthy advises. You own the decision.
+8. **You decide.** You read the paragraph and press Publish or click merge, or you ask the AI to fix what broke. SirCodyWorthington advises. You own the decision.
 9. **It goes in the record.** The result is written to the permanent diary. Later, you or an auditor can see that this change was tried before it shipped, and what happened.
 
 That is the whole thing. No setup. No test-writing. No new tools to learn.
@@ -95,6 +101,17 @@ CodeWorthy has always had two ways of acting, and this feature follows them.
 This follows CodeWorthy's one rule: **you own every merge.** The tool never
 merges, never deletes history, and never makes a one-way decision alone.
 
+**Solo mode is the default for everyone.** Most people connecting an app are
+the only person working on it, and making them open a proposal to themselves
+just gets protection turned off. So every new app starts in solo mode.
+SirCodyWorthington keeps watching, though. If it sees a second person pushing
+changes to the app, it says so and suggests switching to group mode:
+
+> *Two people have changed this app in the last week. Want to switch to group
+> mode, so every change is a proposal someone else can look at first?*
+
+You click yes or not now. It never switches by itself.
+
 ---
 
 ## What this is not
@@ -110,8 +127,8 @@ Being clear about this keeps the plan small and honest.
 - **It does not write a full set of tests for you.** AI-written tests that
   nobody reads give false comfort. CodeWorthy will run what exists, prove a fix
   when it can, and tell you clearly what is *not* checked.
-- **It is not a third product.** It is part of Steward, the thing that already
-  protects your app. There is no new door on the front page.
+- **It is not a third product.** It is part of SirCodyWorthington, the thing
+  that already protects your app. There is no new door on the front page.
 
 ---
 
@@ -188,36 +205,67 @@ every edit. If you did this already, skip it.
 **Step 2. In CodeWorthy, click Connect my app and pick that repository.** GitHub
 asks you once to allow CodeWorthy to see it. Say yes.
 
-**Step 3. Tell CodeWorthy "I build with Lovable" or "I build with Bolt."** That
-one answer sets everything up correctly. In particular it sets CodeWorthy to
-*solo mode*, which lets your tool keep syncing straight to your main branch.
-(See the warning below for why that matters.)
+**Step 3. Tell CodeWorthy "I build with Lovable" or "I build with Bolt," and
+answer one question: where does your app go live?**
+
+- **"I press Publish in Lovable or Bolt."** This is most people. Nothing else
+  to do. Your tool keeps syncing straight to main, and you check
+  SirCodyWorthington's verdict before you press Publish.
+- **"It goes live from GitHub"** (for example Vercel or Netlify builds it from
+  your main branch). CodeWorthy walks you through the full loop, described
+  below. It takes one more minute.
 
 That's it. From then on:
 
-- Every time your tool syncs a change, CodeWorthy tries it in a safe copy.
+- Every time your tool syncs a change, SirCodyWorthington tries it in a safe
+  copy.
 - Within a few minutes you see one of two verdicts on your checkup and in the
   record: **Safe to publish** or **Hold off, here's why**, with pictures when
   it can get them.
 - You check that before you press Publish in Lovable or Bolt. That is your
-  "before it ships" moment, and CodeWorthy never touches the Publish button.
+  "before it ships" moment, and SirCodyWorthington never touches the Publish
+  button.
 
-**One warning, and why Step 3 exists.** CodeWorthy can be set to *require a
-proposal* for every change to main. Do not use that setting with Lovable or
-Bolt. Those tools need to write to the synced branch directly, and if they are
-blocked, Lovable quietly pushes your edits to a side branch instead, where the
-next sync can overwrite them. Step 3 picks solo mode so this cannot happen.
-CodeWorthy still blocks force-pushes and branch deletion, still records
-everything, and still tries every change. It just reviews after the sync lands
-instead of before.
+**Why solo mode matters here.** Group mode requires a proposal for every change
+to main. Lovable and Bolt need to write to the synced branch directly, and if
+they are blocked, Lovable quietly pushes your edits to a side branch instead,
+where the next sync can overwrite them. Solo mode, the default, means this
+cannot happen. SirCodyWorthington still blocks force-pushes and branch
+deletion, still records everything, and still tries every change. It just
+reviews after the sync lands instead of before. If a second person starts
+working in the app, it will suggest group mode, and tell you to move your
+tool to a `draft` branch first so nothing gets sidelined.
 
-**Optional, for people who deploy from GitHub.** If your live site is built from
-your GitHub main branch (for example by Vercel or Netlify) rather than by the
-Publish button, you can go one step further. Inside Lovable or Bolt, switch to a
-branch called `draft`. Both tools have a branch picker. Now every edit lands on
-`draft`, CodeWorthy opens a proposal from `draft` to `main`, tries it, and
-`main` only changes when you click merge. This is the full "try before it
-ships" loop. It is a one-time setting, and CodeWorthy walks you through it.
+---
+
+## The full loop, for apps that go live from GitHub
+
+If your live site is built from your GitHub main branch rather than by the
+Publish button, main *is* the thing that ships. So the try should happen
+before main changes, not after. Here is the whole setup, done once:
+
+1. **In Lovable or Bolt, switch to a branch called `draft`.** Both tools have
+   a branch picker. CodeWorthy shows you where it is. From now on every edit
+   your tool makes lands on `draft`, never on main.
+2. **SirCodyWorthington opens a proposal from `draft` to `main`** the moment
+   `draft` changes, and keeps it up to date as you keep editing. You do not
+   open anything.
+3. **It tries the proposal** in the safe copy, same as always: install, build,
+   start, existing checks, red then green when a fix is claimed, pictures.
+4. **You read the verdict and click merge.** Main changes. Your site rebuilds.
+   Nothing reached it that was not tried first.
+
+Two things to know:
+
+- **Your tool's own preview still shows `draft`,** so you can see your work in
+  Lovable or Bolt the whole time. Main just waits for you.
+- **If you ever push to main some other way,** SirCodyWorthington notices and
+  tells you, and reminds you that `draft` is now behind. It never rewrites
+  either branch to fix that. It shows you the one safe step.
+
+This is the loop the rest of this page describes, with the tool's sync as the
+way code gets written. Once it is set up, you never think about branches
+again. You edit, you read the verdict, you click merge.
 
 ---
 
@@ -225,8 +273,8 @@ ships" loop. It is a one-time setting, and CodeWorthy walks you through it.
 
 In this order. Each step is useful on its own.
 
-1. **The three-click connect for Lovable and Bolt.** Pick the tool, get solo
-   mode and the safe defaults, done.
+1. **The three-click connect for Lovable and Bolt.** Pick the tool, answer
+   where it goes live, get solo mode and the safe defaults, done.
 2. **Install, build, start, run existing checks.** Zero setup. One paragraph
    back. Test vital updates. Entry in the record.
 3. **Safe to publish / Hold off.** The verdict, shown where you'll see it
@@ -234,13 +282,15 @@ In this order. Each step is useful on its own.
 4. **Pictures from the safe copy**, and the link to the preview you already
    have.
 5. **Red then green** for changes that say they fix something.
-6. **The Block setting**, off by default, and the `draft` branch walkthrough
-   for people who deploy from GitHub.
-7. **A note on what is not covered.** When the files you changed are checked by
+6. **The full loop**: the `draft` branch walkthrough and the proposal
+   SirCodyWorthington keeps open for apps that go live from GitHub.
+7. **The Block setting**, off by default, and the "switch to group mode?"
+   suggestion when a second person shows up.
+8. **A note on what is not covered.** When the files you changed are checked by
    nothing, say so.
-8. **The helper for your own computer.** Optional, for people who already run
+9. **The helper for your own computer.** Optional, for people who already run
    their app locally.
-9. **A few smoke checks written from the change itself.** For example, if the
+10. **A few smoke checks written from the change itself.** For example, if the
    change touched the signup form, try submitting the signup form. These are
    AI-written and clearly labelled as best-effort.
 
