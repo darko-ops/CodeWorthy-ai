@@ -4,8 +4,8 @@
 who has never written code can read the whole thing and understand it.*
 
 *The part of CodeWorthy that watches over your app is called
-**SirCodyWorthington**. Older pages in this folder and the code still call it
-"Steward." Same thing, new name.*
+**SirCodyWorthington**. It used to be called Steward, and a few web addresses
+and code names still say "steward." Same thing, new name.*
 
 ---
 
