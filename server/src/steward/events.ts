@@ -17,10 +17,10 @@ export function toStewardEvent(eventName: string, payload: Json): StewardEvent |
       const n = payload.repositories?.length ?? payload.installation?.repository_selection ?? "selected";
       if (payload.action === "created")
         return event(installationId, repo, "installation.created", payload.sender?.login,
-          { account, repositories: n }, `CodeWorthy Steward was installed on ${account}.`);
+          { account, repositories: n }, `SirCodyWorthington was installed on ${account}.`);
       if (payload.action === "deleted")
         return event(installationId, repo, "installation.deleted", payload.sender?.login,
-          { account }, `CodeWorthy Steward was uninstalled from ${account}.`);
+          { account }, `SirCodyWorthington was uninstalled from ${account}.`);
       return null;
     }
     case "installation_repositories": {
@@ -33,7 +33,7 @@ export function toStewardEvent(eventName: string, payload: Json): StewardEvent |
       if (added.length) bits.push(`now watching ${added.join(", ")}`);
       if (removed.length) bits.push(`no longer watching ${removed.join(", ")}`);
       return event(installationId, repo, "installation.repos_changed", payload.sender?.login,
-        { added, removed }, `CodeWorthy Steward coverage changed: ${bits.join("; ")}.`);
+        { added, removed }, `SirCodyWorthington coverage changed: ${bits.join("; ")}.`);
     }
     case "push": {
       const branch = (payload.ref ?? "").replace("refs/heads/", "");

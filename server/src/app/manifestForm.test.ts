@@ -1,6 +1,6 @@
 // The consent screen must describe the App it actually creates.
 //
-// It didn't: the approver flow reused the Steward's hand-written permission
+// It didn't: the approver flow reused SirCodyWorthington's hand-written permission
 // list, so the page told the user they were granting Administration and Checks
 // write on an App that asks for neither. Functionally the right App was
 // created; the screen where consent is given was simply wrong about it. This
@@ -15,7 +15,7 @@ const approver = buildApproverManifest("https://cw.example.com");
 describe("the App creation consent screen", () => {
   it("names the App it is about to create", () => {
     expect(renderManifestForm(approver)).toContain("CodeWorthy Approver");
-    expect(renderManifestForm(steward)).toContain("CodeWorthy Steward");
+    expect(renderManifestForm(steward)).toContain("SirCodyWorthington");
   });
 
   it("lists every permission the manifest actually asks for", () => {
@@ -44,8 +44,8 @@ describe("the App creation consent screen", () => {
     expect(html).toContain("post the check that gates a merge");
   });
 
-  it("does not tell the Steward's user it cannot do things it can", () => {
-    // The Steward DOES hold administration and checks; claiming otherwise
+  it("does not tell SirCodyWorthington's user it cannot do things it can", () => {
+    // SirCodyWorthington DOES hold administration and checks; claiming otherwise
     // would be the same lie in the other direction.
     const html = renderManifestForm(steward);
     expect(html).not.toContain("change your repository settings");

@@ -1,4 +1,4 @@
-// Turns logged events into Steward ACTIONS (M2+), including the enforcement
+// Turns logged events into SirCodyWorthington ACTIONS (M2+), including the enforcement
 // spine: the gate that posts the required check, and the protection that makes
 // that check mean something.
 //

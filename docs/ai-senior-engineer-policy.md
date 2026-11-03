@@ -92,7 +92,7 @@ irreversible happens without an explicit human "yes."
 
 Every row above traces to a competency in `docs/competency-model.md`. The rubric
 that defines *what a trustworthy engineer does* is literally the agent's rule
-set. Measure it → **Assess**. Enforce it → **Steward**. One IP, two products.
+set. Measure it → **Assess**. Enforce it → **SirCodyWorthington**. One IP, two products.
 
 ## What it will NOT do (guardrails on the guardrail)
 

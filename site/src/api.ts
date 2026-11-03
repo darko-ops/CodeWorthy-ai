@@ -1,4 +1,4 @@
-// The Steward backend client. All dashboard data comes from the Fly service.
+// The SirCodyWorthington backend client. All dashboard data comes from the Fly service.
 //
 // "Degrade gracefully": every call can fail (server asleep on the trial,
 // network, 401). Callers get a typed result and render a calm state rather than
@@ -77,12 +77,12 @@ export async function openEstateDigest(days = 30): Promise<void> {
     });
   } catch {
     tab?.close();
-    throw new ApiError("offline", "Can't reach Steward right now.");
+    throw new ApiError("offline", "Can't reach SirCodyWorthington right now.");
   }
   if (!res.ok) {
     tab?.close();
     if (res.status === 401) throw new ApiError("unauthenticated", "Session expired.", 401);
-    throw new ApiError("server", `Steward returned ${res.status}.`, res.status);
+    throw new ApiError("server", `SirCodyWorthington returned ${res.status}.`, res.status);
   }
   const html = await res.text();
   if (!tab) throw new ApiError("server", "Your browser blocked the export tab — allow pop-ups for this site.");
@@ -102,7 +102,7 @@ export class ApiError extends Error {
   }
 }
 
-// Authenticated GET against the Steward API. Throws ApiError with a kind the UI
+// Authenticated GET against the SirCodyWorthington API. Throws ApiError with a kind the UI
 // can branch on.
 export async function apiGet<T>(path: string): Promise<T> {
   const id = getSessionId();
@@ -113,11 +113,11 @@ export async function apiGet<T>(path: string): Promise<T> {
     });
   } catch {
     // Network error / server asleep / CORS unreachable.
-    throw new ApiError("offline", "Can't reach Steward right now.");
+    throw new ApiError("offline", "Can't reach SirCodyWorthington right now.");
   }
   if (res.status === 401) throw new ApiError("unauthenticated", "Session expired.", 401);
   if (res.status === 403) throw new ApiError("forbidden", "No access to that repository.", 403);
-  if (!res.ok) throw new ApiError("server", `Steward returned ${res.status}.`, res.status);
+  if (!res.ok) throw new ApiError("server", `SirCodyWorthington returned ${res.status}.`, res.status);
   return (await res.json()) as T;
 }
 
@@ -137,7 +137,7 @@ export async function apiAction<T = unknown>(path: string, body?: unknown): Prom
       ...(body ? { body: JSON.stringify(body) } : {}),
     });
   } catch {
-    throw new ApiError("offline", "Can't reach Steward right now.");
+    throw new ApiError("offline", "Can't reach SirCodyWorthington right now.");
   }
   if (res.status === 401) throw new ApiError("unauthenticated", "Session expired.", 401);
   const parsed = await res.json().catch(() => null);
@@ -145,7 +145,7 @@ export async function apiAction<T = unknown>(path: string, body?: unknown): Prom
     const message =
       (parsed && typeof parsed === "object" && typeof (parsed as any).message === "string"
         ? (parsed as any).message
-        : null) ?? `Steward returned ${res.status}.`;
+        : null) ?? `SirCodyWorthington returned ${res.status}.`;
     throw new ApiError(res.status === 403 ? "forbidden" : "server", message, res.status);
   }
   return parsed as T;

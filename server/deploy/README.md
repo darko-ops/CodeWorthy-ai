@@ -1,4 +1,4 @@
-# Deploying the CodeWorthy Steward
+# Deploying SirCodyWorthington
 
 A single always-on Node service on **Fly.io** + managed Postgres on **Neon**.
 One machine serves the webhook, the API, the health page, and (with the

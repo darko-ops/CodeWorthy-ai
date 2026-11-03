@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "CodeWorthy backend service — Steward GitHub App webhook handler + audit spine, and the seed of the site's Phase 2 API. Modular monolith: src/steward and src/api, shared Postgres, separate schemas.",
+  "description": "CodeWorthy backend service — SirCodyWorthington GitHub App webhook handler + audit spine, and the seed of the site's Phase 2 API. Modular monolith: src/steward and src/api, shared Postgres, separate schemas.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "start": "node dist/src/index.js",

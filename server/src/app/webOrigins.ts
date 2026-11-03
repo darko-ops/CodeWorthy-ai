@@ -5,7 +5,7 @@
 // www.codeworthy.ai with a 200 rather than redirecting — so whichever host
 // wasn't configured got no CORS headers, every /api/* call failed in the
 // browser, and the SPA reported `offline`. The dashboard then sat forever on
-// "Steward is waking up — this will connect in a moment", which it never did:
+// "SirCodyWorthington is waking up — this will connect in a moment", which it never did:
 // the backend was healthy the whole time and the browser was refusing to talk
 // to it. A misconfigured origin should not be indistinguishable from a sleeping
 // server.

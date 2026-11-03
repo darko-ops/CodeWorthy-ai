@@ -1,4 +1,4 @@
-// The repo dashboard — where a signed-in GitHub user watches Steward's activity
+// The repo dashboard — where a signed-in GitHub user watches SirCodyWorthington's activity
 // on a repo it's installed on. Live data from the Fly backend, degrading to calm
 // states when the server is asleep (trial) or a repo has no history yet.
 //
@@ -286,7 +286,7 @@ export function RepoDashboard() {
   if (status === "offline") {
     return (
       <DashShell>
-        <Waking label="Steward is waking up — the backend is on a free-tier machine that sleeps between visits. This will connect in a moment." />
+        <Waking label="SirCodyWorthington is waking up — the backend is on a free-tier machine that sleeps between visits. This will connect in a moment." />
       </DashShell>
     );
   }
@@ -510,7 +510,7 @@ export function RepoDashboard() {
                   <div className="repo-blank">
                     <h2>No activity in the last {windowDays} days</h2>
                     <p className="hint">
-                      Steward is watching {selectedRepo}. Widen the window, or the next push, review,
+                      SirCodyWorthington is watching {selectedRepo}. Widen the window, or the next push, review,
                       or protection change will appear here in plain language.
                     </p>
                   </div>
@@ -1002,13 +1002,13 @@ function Waking({ label }: { label: string }) {
 }
 
 function RailNote({ err }: { err: ApiError }) {
-  return <div className="repo-empty-rail">{err.kind === "offline" ? "Steward is waking up…" : err.message}</div>;
+  return <div className="repo-empty-rail">{err.kind === "offline" ? "SirCodyWorthington is waking up…" : err.message}</div>;
 }
 
 function ActivityError({ err }: { err: ApiError }) {
   const msg =
     err.kind === "offline"
-      ? "Steward's backend is asleep. It'll connect on the next try — refresh in a moment."
+      ? "SirCodyWorthington's backend is asleep. It'll connect on the next try — refresh in a moment."
       : err.kind === "forbidden"
         ? "You don't have access to this repository through your installations."
         : err.message;

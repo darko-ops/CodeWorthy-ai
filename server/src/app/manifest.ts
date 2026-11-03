@@ -32,7 +32,7 @@ export interface AppManifest {
 export function buildAppManifest(baseUrl: string): AppManifest {
   const base = baseUrl.replace(/\/+$/, "");
   return {
-    name: "CodeWorthy Steward",
+    name: "SirCodyWorthington",
     url: "https://codeworthy.ai",
     hook_attributes: { url: `${base}/webhooks/github`, active: true },
     redirect_url: `${base}/steward/app-manifest/callback`,
@@ -48,7 +48,7 @@ export function buildAppManifest(baseUrl: string): AppManifest {
       administration: "write",
       checks: "write",
       // issue_comment (micro-defense answers) requires the issues permission;
-      // write lets Steward post its comments via the issues API.
+      // write lets SirCodyWorthington post its comments via the issues API.
       issues: "write",
       metadata: "read",
     },
@@ -93,7 +93,7 @@ export function installUrl(appSlug: string): string | null {
  *      check-run, and no protection capability (asserted by a doctrine test).
  *   3. At runtime — its own credentials and its own installation token.
  *
- * It subscribes to no events. The Steward calls it after a review lands, so it
+ * It subscribes to no events. SirCodyWorthington calls it after a review lands, so it
  * needs no webhook of its own — fewer moving parts, and one less thing that can
  * fire out of order.
  */

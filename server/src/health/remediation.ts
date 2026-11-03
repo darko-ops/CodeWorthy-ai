@@ -404,7 +404,7 @@ export function buildIssues(vitals: HealthVital[], ctx: RemediationContext): Rep
             kind: "manual",
             label: "What to check",
             steps: [
-              "List everyone and every service with write access to the Steward database.",
+              "List everyone and every service with write access to the SirCodyWorthington database.",
               "Compare the audit chain against the write-once anchor to find where it diverges.",
               "Treat entries after the divergence as unverified until explained.",
             ],

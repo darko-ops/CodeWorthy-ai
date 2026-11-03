@@ -1,6 +1,6 @@
 // Telling a merge apart from a bypass.
 //
-// A squash-merge reaches the Steward as a push to the default branch, so
+// A squash-merge reaches SirCodyWorthington as a push to the default branch, so
 // isDirectToDefault sees exactly what a bypass looks like. The result was a
 // record that contradicted itself about the same commit — logged as
 // `pull_request.merged` and, seconds later, as "pushed straight to main — no

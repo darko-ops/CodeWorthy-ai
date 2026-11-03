@@ -1,11 +1,11 @@
-# Deploy the Steward service to Fly.io on push to main.
+# Deploy the SirCodyWorthington service to Fly.io on push to main.
 #
 # Test-gated: the same typecheck + full suite (including the no-merge/force/delete
 # doctrine) must pass before anything ships. Path-filtered to server/** so a
 # docs- or site-only change never triggers a redeploy.
 #
 # Requires one repo secret: FLY_API_TOKEN  (create with `fly tokens create deploy`).
-name: Deploy Steward (Fly.io)
+name: Deploy SirCodyWorthington (Fly.io)
 
 on:
   push:

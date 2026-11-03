@@ -23,7 +23,7 @@ software engineering**:
 | Surface | Verb | Buyer |
 |---|---|---|
 | **Assess** | *Measure* the behaviors | Hiring teams |
-| **Steward** (new) | *Enforce* the behaviors on a live repo | Builders & small startups |
+| **SirCodyWorthington** (new) | *Enforce* the behaviors on a live repo | Builders & small startups |
 | **Learn** | *Teach* the behaviors | Individual developers |
 
 **Recommendation up front:** don't pick by argument — both directions are one
@@ -165,7 +165,7 @@ defensible ground.
   budgeted line item, not a discretionary tool spend.
 - **Relationship to the original model:** assessment doesn't die — it becomes
   complementary. *Hire people who are codeworthy (Assess) → they build under the
-  guardrails (Steward) → the audit log proves it (compliance).* One trust story,
+  guardrails (SirCodyWorthington) → the audit log proves it (compliance).* One trust story,
   three revenue lines, shared engine.
 
 *(Figures deliberately unquantified — there is no data yet to support precise

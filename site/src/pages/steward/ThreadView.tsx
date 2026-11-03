@@ -636,7 +636,7 @@ function Action({
 function ThreadsUnavailable({ err }: { err: ApiError }) {
   const [title, body] =
     err.kind === "offline"
-      ? ["Waking up…", "Steward's backend is asleep. It'll connect on the next try — refresh in a moment."]
+      ? ["Waking up…", "SirCodyWorthington's backend is asleep. It'll connect on the next try — refresh in a moment."]
       : err.status === 404
         ? [
             "No conversation yet",

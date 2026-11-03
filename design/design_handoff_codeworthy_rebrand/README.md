@@ -2,7 +2,7 @@
 
 ## Overview
 
-A full visual rebrand of the Codeworthy marketing site and the Steward repo dashboard, plus a repositioning: **the landing page now leads with the repo guard**, and the hiring/assessment product is a single secondary band near the bottom.
+A full visual rebrand of the Codeworthy marketing site and the SirCodyWorthington repo dashboard, plus a repositioning: **the landing page now leads with the repo guard**, and the hiring/assessment product is a single secondary band near the bottom.
 
 Three screens are covered:
 

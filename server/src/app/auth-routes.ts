@@ -197,7 +197,7 @@ export function registerAuthRoutes(app: FastifyInstance, pool: Pool) {
     });
   });
 
-  // A repo's Steward activity — gated: the caller must actually have access to
+  // SirCodyWorthington's activity on a repo — gated: the caller must actually have access to
   // the repo through one of their installations before we return its log.
   app.get("/api/repos/:owner/:repo/activity", async (req, reply) => {
     const s = await requireSession(req, reply);

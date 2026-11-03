@@ -1,6 +1,6 @@
 # CodeWorthy Repo Checkup
 
-The first buildable tier of the **Steward** product (see
+The first buildable tier of the **SirCodyWorthington** product (see
 [`../docs/new-direction-report.md`](../docs/new-direction-report.md) and
 [`../docs/ai-senior-engineer-policy.md`](../docs/ai-senior-engineer-policy.md)):
 point it at any git repo and get a **doctor's-checkup style health report** — a
@@ -36,7 +36,7 @@ Exit code: `0` healthy, `1` needs attention, `2` at risk — so it can gate CI.
 
 ## Where it fits (the tiers)
 
-This is the **deterministic tier**. The full Steward product layers on:
+This is the **deterministic tier**. The full SirCodyWorthington product layers on:
 
 1. **This** — deterministic vitals + the checkup report. ✅
 2. **Judgment tier** — an LLM reviewer using the competency rubric as its prompt
